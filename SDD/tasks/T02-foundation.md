@@ -3,7 +3,7 @@
 **Goal:** A loadable MV3 extension skeleton with storage, settings, i18n, and build tooling — everything T03/T04/T05 build on, nothing user-visible except an empty options page.
 **Depends on:** T01 (may start in parallel; freeze before merging if the spike forces structural changes).
 **Spec sources:** `06-architecture.md`, `08-data-model.md`, NFR-04/05/06/08.
-**Estimate:** 2 ideal days. **Status:** todo.
+**Estimate:** 2 ideal days. **Status:** in-progress (implementation complete 2026-09-30: scaffold, storage, settings, i18n, options page v0, 26 unit tests green, CDP smoke 12/12; DoD pending: load-unpacked smoke recorded in a PR + docs 06/08 deviation check).
 
 | ID | Task | Notes | Est |
 |---|---|---|---|
