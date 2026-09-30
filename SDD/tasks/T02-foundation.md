@@ -3,7 +3,7 @@
 **Goal:** A loadable MV3 extension skeleton with storage, settings, i18n, and build tooling — everything T03/T04/T05 build on, nothing user-visible except an empty options page.
 **Depends on:** T01 (may start in parallel; freeze before merging if the spike forces structural changes).
 **Spec sources:** `06-architecture.md`, `08-data-model.md`, NFR-04/05/06/08.
-**Estimate:** 2 ideal days. **Status:** in-progress (implementation complete 2026-09-30: scaffold, storage, settings, i18n, options page v0, 26 unit tests green, CDP smoke 12/12; DoD pending: load-unpacked smoke recorded in a PR + docs 06/08 deviation check).
+**Estimate:** 2 ideal days. **Status:** done (2026-09-30, commit a211442: scaffold, storage, settings, i18n, options page v0; 26/26 unit tests, tsc/eslint/prettier clean, dist permission audit MATCH, scripted CDP smoke 12/12; human load-unpacked smoke of the README checklist confirmed by the stakeholder 2026-09-30. No docs 06/08 deviations found; default_locale omission documented in src/manifest.ts.)
 
 | ID | Task | Notes | Est |
 |---|---|---|---|
