@@ -3,7 +3,7 @@
 **Goal:** Convert the three load-bearing assumptions (fee visibility R-01, fee aggregation D-14, promo detectability D-08) into verified facts, and produce the go/no-go.
 **Depends on:** nothing. **Feeds:** every other group; T03/T04 designs freeze on its output.
 **Spec source:** `11-spike-plan.md` (full method details per task) — this file is the execution checklist.
-**Estimate:** 2-3 ideal days. **Status:** in-progress (2026-09-30: spike-findings.md v1 committed from a live logged-in session - S-1 PASS/full optimizer, S-2 PASS, S-6 PASS at API level, S-7 PASS via JSON APIs; S-3/S-4 partial, S-5 untested, D-14 checkout arithmetic still needs one guided session. Verdict so far: go-with-changes.)
+**Estimate:** 2-3 ideal days. **Status:** in-progress (2026-09-30 v2: ALL S-tasks evidence-complete - S-1/S-2/S-6/S-7 pass, S-6 CONFIRMED with quantity counterfactual at checkout shipping step, S-5 large-item observed as own shipment class (fee 359,000 Toman, time-slot-gated); only Plus A/B and count-promo shapes remain, neither blocks the go. Cart restored to pre-test state. Verdict: GO.)
 
 All work is manual browser inspection with devtools; no extension code is written in this group.
 

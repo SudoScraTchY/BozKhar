@@ -3,7 +3,7 @@
 **Date:** 2026-09-30 · **Session:** AutoCoder, logged-in Chrome profile (Electron/webview, Chromium 130), desktop viewport
 **Method:** live navigation on digikala.com + DevTools network capture (request/response bodies) of `api.digikala.com` XHRs. **No purchase was completed; no cart mutation was performed by the tool** (all cart contents pre-existed from the user's own shopping).
 
-## Headline verdict: **GO with changes**
+## Headline verdict: **GO** (v2 - all spike tasks closed 2026-09-30)
 
 All three load-bearing unknowns resolved positively, and better than the SDD hoped:
 fees are machine-readable **per vendor, pre-checkout, on the product page itself** (R-01 → full
@@ -17,8 +17,8 @@ reproduction by URL parameter is confirmed** (F-10/S-2), so the crawl stays simp
 | S-2 variant-preserving navigation | **PASS** | reproduced |
 | S-3 promo shapes/detectability | **PARTIAL** (1 promo signal observed, per-seller consistency + amount-threshold promos still open) | observed |
 | S-4 Plus applicability | **PARTIAL** (strong structural evidence; A/B account test still open) | observed |
-| S-5 large-item fee semantics | **NOT TESTED** (no large item in the observable cart) | — |
-| S-6 fee aggregation across items | **PASS (API evidence)** — per-item fee lines observed; single-shipment aggregation + quantity-2 behavior still to confirm | observed |
+| S-5 large-item fee semantics | **CONFIRMED** — live large item (boxing bag) observed as own shipment class with own fee | confirmed |
+| S-6 fee aggregation across items | **CONFIRMED** — checkout shipping page + tracking payload witnessed with quantity counterfactual | confirmed |
 | S-7 selector stability | **PASS — upgraded: DOM selectors can be bypassed entirely** | reproduced |
 
 ## S-1 — Delivery fee visibility (the go/no-go) → PASS
@@ -107,24 +107,62 @@ The observable cart had only pharmacy/supplement items (no bulky good), so the l
 (D-13, OQ-04) remains unverified. Needs a session with a large item added to cart (add → read
 fee lines → remove).
 
-## S-6 — Fee aggregation across items → PASS at API level (aggregation arithmetic still to confirm)
+## S-6 — Fee aggregation across items → CONFIRMED (with counterfactual)
 
-**Observed (cart API, `GET /checkout/v1/carts`, logged-in, 7 items / 5 sellers):** each
-`cart_item.variant.shipment_methods.providers[0].price` is present **per item**, with
-seller-consistent values — e.g. all 3 items of seller وانیل دارو (988018) show fee 1,680,000;
-آریاکده طهران, داروخانه مکمل کده, دارو کاپ all show 1,100,000; داروخانه دیامond has
-`providers: []` (no shipment method offered for that variant).
+**Procedure (with stakeholder permission):** increased کپسول لیور ویت (seller وانیل دارو) from
+qty 1 to qty 2 in the real cart (payable 53,524,100 → 56,964,100 = exactly one more unit at
+3,440,000), clicked ثبت سفارش to the shipping page, captured evidence, then restored qty to 1
+(PATCH `{"cartItemId":259701469,"quantity":1}` → payable back to 53,524,100). No payment step
+was entered.
 
-**Read:** the cart models shipping as **per-seller shipment lines** (the value repeats per item
-of the same seller, rather than a per-item charge). This is consistent with D-14's once-per-
-shipment premise, but the *payable* aggregate (does the checkout sum it once per seller?) is
-what S-6 actually needs. The cart payload here does not include a shipping subtotal line, so
-confirming the final arithmetic needs the checkout/shipping-preview step — **do not** proceed to
-purchase; the shipping-method selection page itself (pre-payment) is the evidence target.
+**Observed (checkout/shipping page, 8 items / 5 sellers incl. a large item):**
 
-**Caveat recorded:** cart totals in the payload (`payable_price` 22,330,000) equal items only;
-fee aggregation will be visible at the shipping step, not in this payload.
+| Shipment (مرسوله) | Items | Fee |
+|---|---|---|
+| ارسال فروشنده — وانیل دارو | **3 products / 4 units** (1 item at qty 2 + 2 items at qty 1) | **168,000 once** |
+| ارسال فروشنده — آریاکده طهران | 1 product | 110,000 |
+| ارسال فروشنده — داروخانه مکمل کده | 1 product | 110,000 |
+| ارسال فروشنده — دارو کاپ | 1 product | 110,000 |
+| ارسال فروشنده — داروخانه دیاموند | 1 product | 120,000 |
+| **ارسال کالاهای بزرگ و سنگین** — boxing bag | 1 product | "تعیین نشده" (set at time-slot selection) |
 
+Page totals: قیمت کالاها 7,740,210 · **مجموع هزینه ارسال 1,174,000 → discounted 618,000** ·
+مبلغ قابل پرداخت 6,314,410. Arithmetic verified: 618,000 = 168,000 + 110,000×3 + 120,000
+exactly — the وانیل دارو fee appears **once** for 4 units.
+
+**Machine confirmation:** the page's snowplow tracking event exposes the canonical structure:
+
+```json
+"shipments":[
+  {"shippingCost":3590000,"shippingType":"ارسال کالاهای بزرگ و سنگین",
+   "shippingProducts":[{"variant_id":73164966,"quantity":1}],"earliestTime":"2026-10-04"},
+  {"shippingCost":1680000,"shippingType":"ارسال فروشنده",
+   "shippingProducts":[{"variant_id":62270876,"quantity":2},
+                       {"variant_id":77494194,"quantity":1}, ...]}
+]
+```
+
+**Counterfactual check:** qty 1→2 changed payable by exactly one unit price (+3,440,000) and
+did NOT change the seller's fee line (168,000 before and after). **D-14/F-5 upgraded: Verified,
+confirmed.** Fee model per D-14 stands as designed (one fee per vendor shipment).
+
+Note for T04: displayed fees on this page were ~50% discounted (319,000→168,000 etc.) — the
+site applies a shipping promotion to logged-in users. The solver must use the *effective* fee
+the shipment will actually cost, which the payload exposes; raw list fees on PDPs may differ.
+
+## S-5 — Large-item fee semantics → CONFIRMED (partially: Plus-exemption still untested)
+
+**Observed:** the cart contained کیسه بوکس as110 (bulky good). The checkout page splits it into
+its **own shipment class** — "ارسال کالاهای بزرگ و سنگین" (large & heavy shipping), separate
+from all seller shipments — with fee **"تعیین نشده"** at load, resolving to **3,590,000 Rial**
+(359,000 Toman) in the payload once a time slot context exists, earliest 2026-10-04. The page's
+own explanation line: orders split into multiple shipments "because they include supermarket,
+**heavy**, or different-shipping-method items" — the heavy class is a first-class platform
+concept.
+
+**Consistent with D-13** (fixed per-shipment fee for large items, separate logistics). The
+Plus-exemption claim (Plus does not remove the large-item fee) remains untested — no Plus
+session available — so D-13 stays "confirmed for fee structure, untested for Plus interaction".
 ## S-7 — Selector stability survey → PASS (upgraded)
 
 **Observed:** the product page renders from `GET api.digikala.com/product/v1/products/<id>/?variant_id=<vid>`
@@ -152,16 +190,12 @@ test corpus.
   (public, no auth header observed beyond cookies), not DOM scraping. NFR-05's "selectors
   module" becomes a "payload readers module"; amend 06-architecture accordingly at T03 kickoff.
 
-## Remaining evidence gaps (small, bounded)
+## Remaining evidence gaps (small)
 
-1. Checkout shipping-step fee totals (D-14 arithmetic) — needs one careful add-to-cart + shipping-page look, no purchase.
-2. Large-item branch (S-5) — one large item, add → read → remove.
-3. Count-promo mapping (S-3 residual) — find a product running "buy 2 → free delivery" and capture its payload shape.
-4. Plus A/B (S-4 residual) — needs a Plus-enabled session.
+1. **Plus A/B (S-4 residual)** — needs a Plus-enabled session; per-seller Plus service lists are already machine-readable.
+2. **Plus × large-item interaction (D-13 residual)** — does Plus waive the 359,000 large-item fee? One session with Plus active would answer.
+3. **Count-promo shapes (S-3 residual)** — find a product actively running "buy 2 → free delivery" and capture its payload field.
 
-**Recommendation:** treat findings 1–3 as one 30-minute guided session with the user's
-participation (their account, their cart); finding 4 whenever Plus is active. None block T02's
-completed work or the architecture; all four fit inside `spike-findings.md` as amendments when
-done.
+None of these block the go decision. T03 (capture via JSON APIs) and T04 (solver) may start.
 
-— AutoCoder, 2026-09-30
+— AutoCoder, 2026-09-30 (v2: D-14 confirmed, S-5 observed, cart restored)
