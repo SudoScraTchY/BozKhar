@@ -1,0 +1,29 @@
+{
+  "description": "Spike S-5 shape: a large & heavy variant whose only shipment method is the separate large-item class (ارسال کالاهای بزرگ و سنگین) with its own fee.",
+  "data": {
+    "product": {
+      "id": 22334455,
+      "title_fa": "یخچال نمونه",
+      "variants": [
+        {
+          "id": 71110001,
+          "seller": { "id": 201, "title": "فروشنده پ" },
+          "price": { "selling_price": 320000000 },
+          "in_stock": true,
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال کالاهای بزرگ و سنگین",
+              "providers": [
+                {
+                  "title": "باربری",
+                  "shipping_mode": "large-item",
+                  "price": { "value": 3590000, "is_free": false }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

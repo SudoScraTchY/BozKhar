@@ -1,0 +1,45 @@
+{
+  "description": "Spike S-3 shape: variants carrying digiplus.services[] with a free-shipment entitlement and is_locked_for_digiplus flag.",
+  "data": {
+    "product": {
+      "id": 16622211,
+      "title_fa": "گوشی موبایل نمونه",
+      "variants": [
+        {
+          "id": 62270876,
+          "seller": { "id": 101, "title": "فروشنده الف" },
+          "price": { "selling_price": 45500000, "is_locked_for_digiplus": true },
+          "in_stock": true,
+          "digiplus": {
+            "services": [{ "title": "ارسال رایگان سفارش‌ها" }]
+          },
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال توسط فروشنده",
+              "providers": [
+                { "shipping_mode": "seller", "price": { "value": 350000, "is_free": false } }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 62270877,
+          "seller": { "id": 102, "title": "فروشنده ب" },
+          "price": { "selling_price": 46200000 },
+          "in_stock": true,
+          "digiplus": {
+            "services": [{ "title": "پشتیبانی ویژه" }]
+          },
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال توسط فروشنده",
+              "providers": [
+                { "shipping_mode": "seller", "price": { "value": 350000, "is_free": false } }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

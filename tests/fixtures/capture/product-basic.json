@@ -1,0 +1,86 @@
+{
+  "description": "Sanitized product API payload per spike-findings.md S-1: two seller variants (one with seller fee 350000 Rial, one known-free), plus one FBM variant with providers:[] (fee unknown) and one out-of-stock variant. Rial amounts.",
+  "data": {
+    "product": {
+      "id": 16622211,
+      "title_fa": "گوشی موبایل نمونه",
+      "variants": [
+        {
+          "id": 62270876,
+          "seller": { "id": 101, "title": "فروشنده الف" },
+          "price": {
+            "selling_price": 45500000,
+            "rrp_price": 49000000,
+            "is_locked_for_digiplus": false
+          },
+          "in_stock": true,
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال توسط فروشنده",
+              "providers": [
+                {
+                  "title": "پست",
+                  "shipping_mode": "seller",
+                  "delivery_day": 2,
+                  "price": { "value": 350000, "is_free": false }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 62270877,
+          "seller": { "id": 102, "title": "فروشنده ب" },
+          "price": {
+            "selling_price": 46200000,
+            "rrp_price": 46200000,
+            "is_locked_for_digiplus": false
+          },
+          "in_stock": true,
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال توسط فروشنده",
+              "providers": [
+                {
+                  "title": "پست",
+                  "shipping_mode": "seller",
+                  "delivery_day": 1,
+                  "price": { "value": 0, "is_free": true }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": 62270878,
+          "seller": { "id": 103, "title": "فروشگاه دیجی‌کالا" },
+          "price": {
+            "selling_price": 44900000,
+            "rrp_price": 44900000,
+            "is_locked_for_digiplus": true
+          },
+          "in_stock": true,
+          "shipment_methods": [{ "shipping_type": "ارسال توسط دیجی‌کالا", "providers": [] }]
+        },
+        {
+          "id": 62270879,
+          "seller": { "id": 101, "title": "فروشنده الف" },
+          "price": { "selling_price": 44000000, "rrp_price": 44000000 },
+          "in_stock": false,
+          "shipment_methods": [
+            {
+              "shipping_type": "ارسال توسط فروشنده",
+              "providers": [
+                {
+                  "title": "پست",
+                  "shipping_mode": "seller",
+                  "price": { "value": 350000, "is_free": false }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "description": "Malformed product payload: HTTP 200 but data.product missing - must raise STRUCTURE_UNRECOGNIZED, never a partial capture.",
+  "data": {
+    "message": "not found"
+  }
+}

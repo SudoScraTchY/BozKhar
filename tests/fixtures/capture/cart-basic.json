@@ -1,0 +1,39 @@
+{
+  "description": "Sanitized cart API payload per spike F-2: three items across two sellers; the per-seller fee line repeats on every item of that seller; one FBM item with no fee line (unknown); variant_id embedded in product.url.uri (S-2).",
+  "data": {
+    "cart_item": [
+      {
+        "quantity": 2,
+        "product": {
+          "id": 16622211,
+          "title_fa": "گوشی موبایل نمونه",
+          "url": { "uri": "/product/dkp-16622211/گوشی-نمونه?variant_id=62270876" }
+        },
+        "seller": { "id": 101, "title": "فروشنده الف" },
+        "price": { "selling_price": 45500000 },
+        "shipment_methods": [{ "providers": [{ "price": { "value": 350000, "is_free": false } }] }]
+      },
+      {
+        "quantity": 1,
+        "product": {
+          "id": 17773333,
+          "title_fa": "هدفن نمونه",
+          "url": { "uri": "/product/dkp-17773333/هدفن-نمونه?variant_id=68881111" }
+        },
+        "seller": { "id": 101, "title": "فروشنده الف" },
+        "price": { "selling_price": 2500000 },
+        "shipment_methods": [{ "providers": [{ "price": { "value": 350000, "is_free": false } }] }]
+      },
+      {
+        "quantity": 1,
+        "product": {
+          "id": 18884444,
+          "title_fa": "کتاب نمونه",
+          "url": { "uri": "/product/dkp-18884444/کتاب-نمونه?variant_id=69992222" }
+        },
+        "seller": { "id": 103, "title": "فروشگاه دیجی‌کالا" },
+        "price": { "selling_price": 180000 }
+      }
+    ]
+  }
+}
