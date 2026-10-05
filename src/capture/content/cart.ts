@@ -40,9 +40,6 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
   const loc = deps.location ?? doc.location;
   if (!isCartPage(loc.pathname)) return null;
 
-  const anchor = findMountPoint(doc, CART_SUMMARY_CANDIDATES);
-  if (!anchor) return null;
-
   let button: ButtonHandle | null = null;
   let overlay: { setText(t: string): void; remove(): void } | null = null;
   let toast: ToastHandle | null = null;
@@ -80,9 +77,29 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
     }
   };
 
-  button = mountButton(doc, anchor, deps.labels.optimizeCart, () => void start());
+  // SPA reality (same finding as the PDP surface): the cart summary hydrates
+  // after document_idle. Retry anchor discovery on a bounded schedule.
+  let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let destroyed = false;
+  const ATTACH_DEADLINE_MS = 30_000;
+  const ATTACH_INTERVAL_MS = 1_000;
+  const startedAt = Date.now();
+
+  const tryAttach = () => {
+    if (destroyed || button) return;
+    const anchor = findMountPoint(doc, CART_SUMMARY_CANDIDATES);
+    if (anchor) {
+      button = mountButton(doc, anchor, deps.labels.optimizeCart, () => void start());
+    } else if (Date.now() - startedAt < ATTACH_DEADLINE_MS) {
+      pollTimer = setTimeout(tryAttach, ATTACH_INTERVAL_MS);
+    }
+  };
+  tryAttach();
+
   return {
     destroy() {
+      destroyed = true;
+      if (pollTimer) clearTimeout(pollTimer);
       button?.remove();
       overlay?.remove();
       toast?.remove();

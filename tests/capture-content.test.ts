@@ -242,6 +242,30 @@ describe('Cart surface (T03.5)', () => {
     surface?.destroy();
   });
 
+  it('mounts late (SPA): cart summary hydrating after idle still gets the button', () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = '<main></main>'; // no anchor yet
+      const surface = mountCartSurface({
+        doc: document,
+        location: currentLocation,
+        labels: CART_LABELS,
+        sendMessage: async () => ({ ok: true, kind: 'crawl-start', itemCount: 1 }),
+        onProgress: () => () => {},
+      });
+      expect(surface).not.toBeNull();
+      expect(document.querySelector('button.dkopt-btn')).toBeNull();
+
+      vi.advanceTimersByTime(6000);
+      document.body.innerHTML = '<section class="cart-summary"></section>';
+      vi.advanceTimersByTime(1500);
+      expect(document.querySelector('button.dkopt-btn')).not.toBeNull();
+      surface?.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not mount off the cart path', () => {
     setLocation(PDP_URL, PDP_PATH);
     const surface = mountCartSurface({
