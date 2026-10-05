@@ -1,8 +1,8 @@
 # Handoff — Digikala Cart Optimizer (mid T03/T04)
 
-**Date:** 2026-10-05 · **Prepared by:** AutoClaw session (supersedes the 2026-09-30 handoff below; its T02/spike sections remain accurate and are kept at the bottom) · **Workspace:** `M:\Agentic\Projects\Digikala-opt` (branch `main`)
+**Date:** 2026-10-05 (evening update) · **Prepared by:** AutoClaw session. The 2026-09-30 handoff below is superseded but its T02/spike details still hold. · **Workspace:** M:/Agentic/Projects/Digikala-opt (branch main, tree CLEAN)
 
-**⚠ Tree is NOT clean:** T04 is fully implemented and tested but **uncommitted**. Commit is a pending planned step (see "Remaining work").
+T04 is **committed** (b9bbc19). T03 capture core (readers, normalizer, crawl state + orchestrator) is **committed** (490aacf). Remaining: T03 surfaces + 06-architecture amendment, then smoke.
 
 ## Project state
 
@@ -11,8 +11,8 @@
 | SDD v0.1 | complete | commit `34b1853` |
 | T02 Foundation | done, stakeholder-confirmed | `a211442` (impl), `1bf8bd8` (done) |
 | T01 Discovery spike | **GO** | `SDD/spike-findings.md` v2, `3cfdbf2`→`8b71ee5` |
-| T04 Solver | **implemented + tested, UNCOMMITTED**; SDD status still `todo` (must flip to `in-progress` in the t04-commit) | 11 solver files + 11 fixtures + 3 test files, all gates green (see below) |
-| T03 Capture | **not started** (planned module structure below) | — |
+| T04 Solver | **implemented, committed** (b9bbc19); SDD status in-progress; done needs human smoke | 66/66 tests incl. all 07 worked examples, perf + envelope |
+| T03 Capture | **core committed** (490aacf): payload readers + normalizer + crawl state/orchestrator; SDD status in-progress | readers 19/19, crawl 12/12, full 97/97 |
 | T05 UI / T06 Hardening | queued | — |
 
 Commit chain: `34b1853` → `7d9c160` (EOL) → `a211442` (T02 impl) → `1bf8bd8` (T02 done) → `3cfdbf2` (spike v1) → `41195f2` (T01 status) → `8b71ee5` (spike v2 GO) → `7fd1323` (handoff doc). Work plan for T03+T04 was approved by the stakeholder with a 9-step checklist: t04-core, t04-fixtures, t04-props, t04-commit, t03-readers, t03-crawl, t03-surfaces, t03-commit, smoke. Steps t04-core and t04-fixtures are complete; **t04-props is ~90% done** (properties + determinism + edge cases green; the performance/envelope test is missing — see Remaining work #1).
@@ -28,18 +28,16 @@ npm run format:check  → clean (prettier --check .)   [after npx prettier --wri
 
 Zero runtime dependencies preserved (`package.json` has no `dependencies` block; do not add any — D-15/NFR-09).
 
-## Untracked files awaiting the t04-commit
+## T03 capture core: what exists (committed, 490aacf)
 
-```
-src/shared/solver/            types.ts envelope.ts promos.ts evaluate.ts enumerate.ts
-                              promote.ts approximate.ts hints.ts solve.ts index.ts API.md
-tests/fixtures/solver/        fee-coupling.json xyz-gating.json xyz-gating-tolerance.json
-                              lock-ride-along.json promo-satisfied-in-plan.json
-                              plus-on-off-large-regular.json fee-unknown-estimate.json
-                              quantity-effects.json ties-and-degenerate.json
-                              vendor-count-unreachable.json ban-exhaustion-and-repair.json
-tests/solver-fixtures.test.ts tests/solver-edge-cases.test.ts tests/solver-properties.test.ts
-```
+- 'src/capture/version.ts' EXTRACTOR_VERSION 0.3.0-t03; 'errors.ts' typed CaptureError (NETWORK/HTTP_STATUS/STRUCTURE_UNRECOGNIZED/NO_OFFERS/NO_FEE_FOUND/OUT_OF_SCOPE).
+- 'readers/product.ts' readProductPayload: validates spike shapes only; fee = providers[].price (is_free=0, value, or null-unknown for FBM); large-item class via Persian label markers (S-5); Plus entitlements via digiplus.services[]/is_locked_for_digiplus (S-3).
+- 'readers/cart.ts' readCartPayload: cart items with variant identity from product.url.uri (S-2); repeated per-seller fee line read per item (F-2).
+- 'readers/url.ts': isDigikalaUrl/assertDigikalaUrl scope guard (suffix-trick safe), productUrl/productApiUrl/CART_API_URL builders, extractVariantId/extractProductId.
+- 'normalize.ts': rialToToman (exactly once), normalizeVariantToOffer (canonical Offer, fee provenance page-visible/cart-preview, unknown = null), buildSnapshot (append-only shape, versioned).
+- 'crawl/state.ts': pure reducer - initialState/seedFromCart (dedupes)/markCartDone/recordItemResult (MAX_ATTEMPTS_PER_ITEM=2, then failed+errorCode)/assertInScope (scope list + digikala guard)/assertResumable (refuses completed).
+- 'crawl/orchestrator.ts' runCrawl(deps): all I/O injected (fetchJson/delay/persistState/loadState/onCart/onProduct/shouldAbort); cart first, then items sequentially, delay before each step, persist per step, bounded multi-pass retry, abort between pages.
+- Fixtures under 'tests/fixtures/capture/' (5 sanitized payloads); tests 'capture-readers.test.ts' (19) + 'capture-crawl.test.ts' (12) incl. D-01 GET-only audit.
 
 ## What T04 delivers (semantics the next instance must not silently change)
 
@@ -62,11 +60,9 @@ tests/solver-fixtures.test.ts tests/solver-edge-cases.test.ts tests/solver-prope
 
 ## Remaining work, in order
 
-1. **Finish t04-props:** add `tests/solver-performance.test.ts` — 30 items × 10 vendors solves < 1s (plain JS, one thread); envelope switch verified at 40/15 (exact) and beyond (approximate mode labeled so); `isWithinEnvelope`/`selectMode` unit checks. Then re-run all four gates.
-2. **t04-commit (one commit):** amend `SDD/tasks/T04-solver.md` status `todo` → `in-progress` with the gate evidence above and per-subtask notes (T04.1–T04.7: 1–5 done, 6 done, 7 partial); append implementation notes to `SDD/07-solver-behavior.md` (fee-flag precedence; input-only fee table for exactness — this *resolves* a spec ambiguity, record it; floor tolerance bound; units-based promo counts; net-zero hint = within-tolerance); add two new open questions to `SDD/10-risks-open-questions.md`: vendor-count promos counted in units (default chosen) and vendor groups mixing large+regular items (one fee line per class per D-14). Commit message cites `ref T04.1`–`ref T04.7`. Do **not** flip to `done` — needs human smoke + stakeholder confirmation (same protocol as T02).
-3. **t03-readers / t03-crawl / t03-surfaces (T03):** module structure already decided: `src/capture/version.ts` (bump EXTRACTOR_VERSION from `0.0.0-t02`), `errors.ts`, `readers/product.ts` + `readers/cart.ts` + `readers/url.ts` (payload readers per spike — DOM demoted to fallback), `normalize.ts` (Rial→Toman, fee provenance), `dom/selectors.ts` (mount points only), `capture-product.ts`, `cart-merge.ts` (cart quantities win, snapshots are history), `crawl/state.ts` (resumable, no duplicate snapshots, closed scope checked before each navigation), `crawl/orchestrator.ts` (one reused tab, sequential, `crawlDelayMs`, abort between pages, per-item failure containment), `content/` (Add-to-comparison + Optimize-cart buttons, toast with offer count + variant label, toolbar badge), `fetch/digikala-fetch.ts` (service-worker fetch with user session, avoids content-script CORS), crawl messaging in `service-worker.ts`. Fixtures: hand-authored sanitized JSON matching spike-documented shapes (live API fetch is unavailable from this environment — `fetch_content` failed; do NOT retry as a blocker). Etiquette audit tests with injected fakes: sequential-only, delay respected, no non-Digikala origin, no cart writes ever (D-01).
-4. **t03-commit:** gates green; amend `SDD/06-architecture.md` in the SAME commit (readers module replaces selectors module as primary extractor per spike S-7; DOM scoped to mount points/fallback; capture fetch lives in the service worker); `SDD/tasks/T03-capture.md` → `in-progress` with evidence; commit cites `ref T03.x`.
-5. **smoke (final):** ask the user BEFORE any live cart touch (never enter payment; restore cart state). Human load-unpacked smoke + stakeholder confirmation required before flipping either task to `done`.
+1. **t03-surfaces:** content-script surfaces + service-worker wiring. Per the decided module structure: 'src/capture/dom/selectors.ts' (mount points only: seller panel anchor, cart table anchor), 'src/capture/content/' (Add-to-comparison button on PDP with idle/capturing/added states + toast with offer count incl. variant label; Optimize-cart button on cart page; toolbar badge), 'src/capture/cart-merge.ts' (merge policy: cart quantities win, existing snapshots kept as history), 'src/capture/fetch/digikala-fetch.ts' (service-worker fetch with the user's session to avoid content-script CORS), crawl messaging (start/abort/progress) in 'src/background/service-worker.ts', wiring onProduct -> normalize -> storage facade (db.addSnapshot).
+2. **t03-commit:** gates green; amend 'SDD/06-architecture.md' in the SAME commit (payload readers module replaces the selectors module as primary extractor per spike S-7; DOM scoped to mount points/fallback; capture fetch lives in the service worker); T03-capture.md rows T03.4/T03.5/T03.7 updated with evidence; commit cites ref T03.x.
+3. **smoke (final):** ask the user BEFORE any live cart touch (never enter payment; restore cart state). Human load-unpacked smoke (Playwright Chromium, %LOCALAPPDATA%/ms-playwright/chromium-1148/chrome-win/chrome.exe) + stakeholder confirmation required before flipping either task to done.
 
 ## Binding constraints (unchanged)
 
