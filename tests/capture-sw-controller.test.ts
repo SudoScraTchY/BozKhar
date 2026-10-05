@@ -114,10 +114,27 @@ describe('handleCapturePdp (T03.4 wiring)', () => {
     expect(deps.badgeTexts.at(-1)).toBe('1');
   });
 
-  it('returns NO_OFFERS when the variant is not in the payload', async () => {
-    const deps = makeDeps();
-    const res = await handleCapturePdp(deps, PID, '999999');
+  it('returns NO_OFFERS when the payload has no usable variant at all', async () => {
+    const base = makeDeps();
+    const deps: ControllerDeps = {
+      ...base,
+      fetch: (async () => {
+        return jsonRes({ data: { product: { id: 16622211, title_fa: 'x', variants: [] } } });
+      }) as ControllerDeps['fetch'],
+    };
+    const res = await handleCapturePdp(deps, PID, '');
     expect(res).toMatchObject({ ok: false, errorCode: 'NO_OFFERS' });
+  });
+
+  it('resolves the variant from the payload when the caller sends an empty id', async () => {
+    const deps = makeDeps();
+    // Fixture has no ?variant_id= => SW picks the first IN-STOCK variant.
+    const res = await handleCapturePdp(deps, PID, '');
+    expect(res.ok).toBe(true);
+    if (!res.ok || res.kind !== 'pdp') return fail('expected pdp response');
+    expect(res.variantLabel).toBe('62270876'); // first in-stock in fixture
+    const items = await getAllItems(deps.dbFactory);
+    expect(items[0]?.itemId.variantId).toBe('62270876');
   });
 
   it('D-01 audit: PDP capture issues GET only, against api.digikala.com', async () => {

@@ -64,6 +64,8 @@ function errResponse(e: unknown): CaptureResponse {
 /**
  * PDP capture: the content script asked; the SW fetches with the user's
  * session, normalizes, and appends the snapshot (never overwrites - SDD 08).
+ * Variant resolution: an empty variantId (no ?variant_id= in the URL) is
+ * resolved from the payload - first in-stock variant (see comment below).
  */
 export async function handleCapturePdp(
   deps: ControllerDeps,
@@ -74,30 +76,35 @@ export async function handleCapturePdp(
     const url = productApiUrl(productId, variantId);
     const raw = await digikalaFetchJson(url, { fetch: deps.fetch });
     const view = readProductPayload(raw);
-    const variant: ProductVariantView | undefined = view.variants.find(
-      (v) => v.variantId === variantId,
-    );
+    // Variant resolution (live smoke finding): an empty variantId (no
+    // ?variant_id= in the browsed PDP URL) does NOT fail. The product payload
+    // is the source of variant truth: the first IN-STOCK variant is captured
+    // and the response names it, so the toast stays honest (D-05, S-2/S-7).
+    const variant: ProductVariantView | undefined =
+      view.variants.find((v) => v.variantId === variantId) ??
+      view.variants.find((v) => v.stockState === 'in-stock') ??
+      view.variants[0];
     if (!variant) {
-      return { ok: false, errorCode: 'NO_OFFERS', message: `variant ${variantId} not in payload` };
+      return {
+        ok: false,
+        errorCode: 'NO_OFFERS',
+        message: `no usable variant in payload for product ${productId}`,
+      };
     }
+    const label = variantLabel(view.productId, variant.variantId, variant);
     const offer = normalizeVariantToOffer(view.productId, variant, {
       feeProvenance: 'page-visible',
     });
-    const snapshot: Snapshot = buildSnapshot(
-      view.productId,
-      variantId,
-      variantLabel(view.productId, variantId, variant),
-      [offer],
-    );
+    const snapshot: Snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer]);
     await appendSnapshot(deps.dbFactory, snapshot);
-    await upsertItem(deps, view.productId, view.title, variantId, '', 1, snapshot);
+    await upsertItem(deps, view.productId, view.title, variant.variantId, label, 1, snapshot);
     await syncBadge(deps);
     return {
       ok: true,
       kind: 'pdp',
       snapshotId: snapshot.snapshotId,
       offerCount: snapshot.offers.length,
-      variantLabel: variantLabel(view.productId, variantId, variant),
+      variantLabel: label,
     };
   } catch (e) {
     return errResponse(e);

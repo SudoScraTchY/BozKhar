@@ -70,7 +70,6 @@ describe('PDP surface (T03.4)', () => {
       productId: '1001',
       variantId: '2001',
     });
-
     resolveMsg({ ok: true, kind: 'pdp', snapshotId: 's1', offerCount: 4, variantLabel: 'نسخه ۶۴' });
     await vi.waitFor(() => expect(btn.dataset.state).toBe('added'));
     expect(btn.textContent).toBe('در مقایسه');
@@ -78,6 +77,68 @@ describe('PDP surface (T03.4)', () => {
     // Toast names the variant and the offer count (D-05, 09 Surface 1).
     expect(toast.textContent).toContain('نسخه ۶۴');
     expect(toast.textContent).toContain('4');
+    surface?.destroy();
+  });
+
+  it('mounts late (SPA): anchor appearing after hydration still gets the button', async () => {
+    // Live smoke finding: Digikala hydrates the buy-box seconds after idle.
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = '<div></div>'; // no anchor yet
+      const surface = mountPdpSurface({
+        doc: document,
+        location: currentLocation,
+        lang: 'fa',
+        labels: PDP_LABELS,
+        sendMessage: async () => ({
+          ok: true,
+          kind: 'pdp',
+          snapshotId: 's',
+          offerCount: 1,
+          variantLabel: 'v',
+        }),
+      });
+      expect(surface).not.toBeNull();
+      expect(document.querySelector('button.dkopt-btn')).toBeNull();
+
+      // anchor appears at t+6s
+      vi.advanceTimersByTime(6000);
+      document.body.innerHTML = '<div data-testid="buy-box"></div>';
+      vi.advanceTimersByTime(1500);
+      const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
+      expect(btn).not.toBeNull();
+      expect(btn.dataset.state).toBe('idle');
+      surface?.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('sends empty variantId when the URL has none (SW resolves from payload)', async () => {
+    setLocation('https://www.digikala.com/product/dkp-1001/', '/product/dkp-1001/');
+    const sendMessage = vi.fn(async (): Promise<CaptureResponse> => ({
+      ok: true,
+      kind: 'pdp',
+      snapshotId: 's2',
+      offerCount: 2,
+      variantLabel: 'resolved-variant',
+    }));
+    const surface = mountPdpSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      labels: PDP_LABELS,
+      sendMessage,
+    });
+    const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
+    btn.click();
+    await vi.waitFor(() =>
+      expect(sendMessage).toHaveBeenCalledWith({
+        kind: 'capture/pdp',
+        productId: '1001',
+        variantId: '',
+      }),
+    );
     surface?.destroy();
   });
 

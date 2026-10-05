@@ -60,7 +60,9 @@ function deps() {
     dbFactory: globalThis.indexedDB,
     settingsArea: chrome.storage.local,
     stateArea: chrome.storage.local,
-    fetch: globalThis.fetch,
+    // Bind fetch: passing the bare function loses `this` and Chromium throws
+    // "Illegal invocation" in the worker scope (live smoke finding).
+    fetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init),
     onProgress: broadcast,
     badge: chrome.action,
   };

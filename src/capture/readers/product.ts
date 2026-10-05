@@ -22,6 +22,8 @@ export interface RawProviderPrice {
 export interface RawShipmentProvider {
   title?: string;
   shipping_mode?: string;
+  /** Live API: provider discriminator, e.g. 'seller' (same semantics as shipping_mode). */
+  type?: string;
   delivery_day?: string | number;
   price?: RawProviderPrice;
 }
@@ -54,9 +56,15 @@ export interface RawVariant {
   seller?: RawVariantSeller;
   price?: RawVariantPrice;
   in_stock?: boolean;
+  /** Live API: status = 'marketable' | 'unavailable' | ... (no in_stock key). */
+  status?: string;
   is_inactive?: boolean;
   digiplus?: { services?: RawDigiplusService[] };
-  shipment_methods?: RawShipmentMethod[];
+  /**
+   * Live API shape is an OBJECT: {providers: [...]} (or named by class).
+   * Older/captured shapes are arrays of methods. Both accepted below.
+   */
+  shipment_methods?: RawShipmentMethod[] | RawShipmentMethod;
 }
 
 export interface RawProductPayload {
@@ -117,7 +125,7 @@ export function plusEntitlesFreeShipment(variant: RawVariant): boolean {
 function firstFeeProvider(method: RawShipmentMethod): RawShipmentProvider | undefined {
   const providers = method.providers ?? [];
   return (
-    providers.find((p) => p.shipping_mode === 'seller') ??
+    providers.find((p) => p.shipping_mode === 'seller' || p.type === 'seller') ??
     providers.find((p) => p.price !== undefined) ??
     providers[0]
   );
@@ -159,7 +167,15 @@ export function readProductPayload(raw: unknown): ProductView {
     // Class: a variant whose shipment method is the large/heavy class ships
     // as its own shipment (spike S-5). Prefer the shipping_type label; fall
     // back to the method title.
-    const methods = v.shipment_methods ?? [];
+    // Shape note (live smoke): the current API sends ONE object
+    // {providers: [...]}; captured fixtures send an array of methods.
+    // Normalize both into a method list.
+    const rawMethods = v.shipment_methods;
+    const methods: RawShipmentMethod[] = Array.isArray(rawMethods)
+      ? rawMethods
+      : rawMethods && typeof rawMethods === 'object'
+        ? [rawMethods]
+        : [];
     const sellerMethod = methods.find((m) => !isLargeShipmentLabel(m.shipping_type ?? m.title));
     const largeMethod = methods.find((m) => isLargeShipmentLabel(m.shipping_type ?? m.title));
     const isLargeItem =
@@ -169,8 +185,13 @@ export function readProductPayload(raw: unknown): ProductView {
     const { feeRial, feeIsKnownFree } = readFee(feeSource);
 
     let stockState: ProductVariantView['stockState'] = 'unknown';
-    if (v.in_stock === true) stockState = 'in-stock';
-    else if (v.in_stock === false || v.is_inactive === true) stockState = 'out-of-stock';
+    if (v.in_stock === true || v.status === 'marketable') stockState = 'in-stock';
+    else if (
+      v.in_stock === false ||
+      v.is_inactive === true ||
+      (v.status !== undefined && v.status !== 'marketable')
+    )
+      stockState = 'out-of-stock';
 
     return {
       variantId: String(v.id),
