@@ -25,6 +25,16 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
     page: 'src/options/index.html',
     open_in_tab: true,
   },
+  content_scripts: [
+    {
+      // Surfaces 1-2 (09-ui-spec): PDP "Add to comparison" + cart "Optimize".
+      // Host matches stay inside the audited host_permissions set (NFR-06):
+      // no new permission surface is introduced by content scripts.
+      matches: ['https://*.digikala.com/*'],
+      js: ['src/capture/content/index.ts'],
+      run_at: 'document_idle',
+    },
+  ],
   action: {
     default_title: 'Digikala Cart Optimizer',
   },

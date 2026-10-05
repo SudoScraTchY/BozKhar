@@ -1,0 +1,208 @@
+/**
+ * Service-worker controller tests: PDP capture end-to-end into storage,
+ * crawl wiring over fixtures (progress/abort/resume), badge, and the D-01
+ * fetch audit across the whole controller surface.
+ */
+import { beforeEach, describe, expect, it } from 'vitest';
+import { IDBFactory } from 'fake-indexeddb';
+import {
+  handleCapturePdp,
+  handleCrawlStart,
+  handleCrawlAbort,
+  syncBadge,
+  type ControllerDeps,
+} from '../src/capture/sw-controller';
+import { getAllItems, getSnapshotsForItem } from '../src/shared/storage/db';
+import { readCartPayload } from '../src/capture/readers/cart';
+import type { CaptureProgressMessage } from '../src/capture/messaging';
+import type { CrawlState } from '../src/capture/crawl/state';
+
+import productBasic from './fixtures/capture/product-basic.json';
+import cartBasic from './fixtures/capture/cart-basic.json';
+
+function jsonRes(body: unknown): Response {
+  return { ok: true, status: 200, json: async () => body } as unknown as Response;
+}
+
+interface Opts {
+  delayMs?: number;
+  state?: CrawlState | null;
+}
+
+function makeDeps(opts: Opts = {}): ControllerDeps & {
+  fetchCalls: Array<{ url: string; method: string | undefined }>;
+  progress: CaptureProgressMessage[];
+  badgeTexts: string[];
+  savedStates: CrawlState[];
+} {
+  const fetchCalls: Array<{ url: string; method: string | undefined }> = [];
+  const progress: CaptureProgressMessage[] = [];
+  const badgeTexts: string[] = [];
+  const savedStates: CrawlState[] = [];
+  const dbFactory = new IDBFactory();
+  const areaBag: Record<string, unknown> = {};
+  if (opts.state) areaBag['crawlState'] = opts.state;
+  const area = {
+    get: async (keys?: string | string[] | null) => {
+      const out: Record<string, unknown> = {};
+      const wanted = keys == null ? Object.keys(areaBag) : typeof keys === 'string' ? [keys] : keys;
+      for (const k of wanted) if (k in areaBag) out[k] = structuredClone(areaBag[k]);
+      return out;
+    },
+    set: async (items: Record<string, unknown>) => {
+      for (const [k, v] of Object.entries(items)) areaBag[k] = structuredClone(v);
+    },
+    clear: async () => {
+      for (const k of Object.keys(areaBag)) delete areaBag[k];
+    },
+  };
+  return {
+    dbFactory,
+    settingsArea: area,
+    stateArea: area,
+    fetch: (async (url: string, init?: RequestInit) => {
+      fetchCalls.push({ url, method: init?.method ?? 'GET' });
+      const cartPath = '/checkout/v1/carts';
+      if (url.includes(cartPath) && !url.includes('mini')) return jsonRes(cartBasic);
+      if (url.includes('/products/')) return jsonRes(productBasic);
+      throw new Error(`unexpected fetch ${url}`);
+    }) as ControllerDeps['fetch'],
+    now: () => new Date('2026-10-06T10:00:00Z'),
+    delay: async () => {},
+    onProgress: (m) => progress.push(m),
+    badge: { setBadgeText: (t) => badgeTexts.push(t.text) },
+    fetchCalls,
+    progress,
+    badgeTexts,
+    savedStates,
+  };
+}
+
+beforeEach(() => {
+  globalThis.indexedDB = new IDBFactory();
+});
+
+describe('handleCapturePdp (T03.4 wiring)', () => {
+  // Fixture ids (tests/fixtures/capture/product-basic.json): product
+  // 16622211 with variants 62270876..79.
+  const PID = '16622211';
+  const VID = '62270876';
+
+  it('fetches the product API, normalizes, and appends snapshot + item', async () => {
+    const deps = makeDeps();
+    const res = await handleCapturePdp(deps, PID, VID);
+    expect(res.ok).toBe(true);
+    if (!res.ok || res.kind !== 'pdp') return fail('expected pdp response');
+
+    // The response names the variant and the offer count (toast payload).
+    expect(res.variantLabel).toBe(VID);
+    expect(res.offerCount).toBeGreaterThanOrEqual(1);
+
+    const snaps = await getSnapshotsForItem(deps.dbFactory, {
+      productId: PID,
+      variantId: VID,
+    });
+    expect(snaps).toHaveLength(1);
+    expect(snaps[0]?.extractorVersion).toBeDefined();
+    expect(snaps[0]?.offers[0]?.delivery.provenance).toBe('page-visible');
+
+    const items = await getAllItems(deps.dbFactory);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.latestSnapshotId).toBe(snaps[0]?.snapshotId);
+
+    // Badge reflects the list size after capture.
+    expect(deps.badgeTexts.at(-1)).toBe('1');
+  });
+
+  it('returns NO_OFFERS when the variant is not in the payload', async () => {
+    const deps = makeDeps();
+    const res = await handleCapturePdp(deps, PID, '999999');
+    expect(res).toMatchObject({ ok: false, errorCode: 'NO_OFFERS' });
+  });
+
+  it('D-01 audit: PDP capture issues GET only, against api.digikala.com', async () => {
+    const deps = makeDeps();
+    await handleCapturePdp(deps, PID, VID);
+    for (const c of deps.fetchCalls) {
+      expect(c.method).toBe('GET');
+      expect(new URL(c.url).hostname.endsWith('.digikala.com')).toBe(true);
+    }
+  });
+});
+
+describe('handleCrawlStart (T03.6 wiring)', () => {
+  it('runs the crawl from the fixture cart and stores snapshots', async () => {
+    const deps = makeDeps();
+    // Read the fixture cart to know how many items the orchestrator seeds.
+    const cartItems = readCartPayload(cartBasic);
+    const res = await handleCrawlStart(deps);
+    expect(res.ok).toBe(true);
+
+    const items = await getAllItems(deps.dbFactory);
+    expect(items.length).toBeGreaterThanOrEqual(cartItems.length);
+    // Progress broadcast happened; finished flag present at the end.
+    const last = deps.progress.at(-1);
+    expect(last?.finished).toBe(true);
+    // Crawl state persisted after steps (R-08): the final phase is readable
+    // from the injected storage area.
+    const saved = await deps.stateArea?.get('crawlState');
+    expect((saved?.['crawlState'] as CrawlState | undefined)?.phase).toBe('complete');
+  });
+
+  it('resumes a persisted non-complete state without re-fetching done items', async () => {
+    const cartItems = readCartPayload(cartBasic);
+    const first = cartItems[0];
+    if (!first?.variantId) return fail('fixture must carry a variant id');
+    const resumed: CrawlState = {
+      phase: 'product',
+      cartDone: true,
+      items: [
+        { productId: first.productId, variantId: first.variantId, status: 'done', attempts: 1 },
+      ],
+      step: 2,
+      updatedAt: '2026-10-06T09:00:00Z',
+    };
+    const deps = makeDeps({ state: resumed });
+    await handleCrawlStart(deps);
+    // Cart endpoint must NOT be re-fetched when cartDone.
+    expect(deps.fetchCalls.some((c) => c.url.includes('/carts'))).toBe(false);
+  });
+
+  it('abort is honored: after handleCrawlAbort the crawl stops between pages', async () => {
+    const deps = makeDeps();
+    handleCrawlAbort();
+    const res = await handleCrawlStart(deps);
+    expect(res.ok).toBe(true);
+    const last = deps.progress.at(-1);
+    expect(last?.aborted).toBe(true);
+    // The abort latch must not leak into the next crawl.
+    const deps2 = makeDeps();
+    const res2 = await handleCrawlStart(deps2);
+    expect(res2.ok).toBe(true);
+    expect(deps2.progress.at(-1)?.aborted).toBe(false);
+  });
+
+  it('D-01 audit across the crawl: every fetch is GET to a digikala host', async () => {
+    const deps = makeDeps();
+    await handleCrawlStart(deps);
+    expect(deps.fetchCalls.length).toBeGreaterThan(0);
+    for (const c of deps.fetchCalls) {
+      expect(c.method).toBe('GET');
+      expect(new URL(c.url).hostname.endsWith('.digikala.com')).toBe(true);
+    }
+  });
+});
+
+describe('syncBadge', () => {
+  it('sets the badge to the list size and clears it when empty', async () => {
+    const deps = makeDeps();
+    expect(await syncBadge(deps)).toBe(0);
+    expect(deps.badgeTexts.at(-1)).toBe('');
+    await handleCapturePdp(deps, '16622211', '62270876');
+    expect(await syncBadge(deps)).toBe(1);
+  });
+});
+
+function fail(msg: string): never {
+  throw new Error(msg);
+}

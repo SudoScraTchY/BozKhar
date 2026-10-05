@@ -24,7 +24,20 @@ export type MessageKey =
   | 'save'
   | 'saved'
   | 'languageFa'
-  | 'languageEn';
+  | 'languageEn'
+  // T03.4/T03.5 surfaces (09-ui-spec Surfaces 1-2)
+  | 'addToComparison'
+  | 'inComparison'
+  | 'capturing'
+  | 'captureFailed'
+  | 'tryAgain'
+  | 'capturedOffersToast'
+  | 'optimizeCart'
+  | 'crawlProgress'
+  | 'crawlAborted'
+  | 'crawlFinished'
+  | 'crawlStarting'
+  | 'abortCrawl';
 
 type Catalog = Record<MessageKey, string>;
 
@@ -52,6 +65,18 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     saved: 'ذخیره شد',
     languageFa: 'فارسی',
     languageEn: 'English',
+    addToComparison: 'افزودن به مقایسه',
+    inComparison: 'در مقایسه',
+    capturing: 'در حال دریافت…',
+    captureFailed: 'دریافت ناموفق بود',
+    tryAgain: 'تلاش دوباره',
+    capturedOffersToast: 'برای «{variant}»، {count} فروشنده ثبت شد.',
+    optimizeCart: 'بهینه‌سازی سبد خرید',
+    crawlProgress: 'بررسی {done} از {total} محصول…',
+    crawlAborted: 'بررسی متوقف شد. نتایج تا همین‌جا ذخیره شده‌اند.',
+    crawlFinished: 'بررسی کامل شد؛ {failed} مورد ناموفق.',
+    crawlStarting: 'در حال شروع بررسی سبد…',
+    abortCrawl: 'توقف',
   },
   en: {
     optionsTitle: 'Digikala Cart Optimizer - Settings',
@@ -74,8 +99,33 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     saved: 'Saved',
     languageFa: 'فارسی',
     languageEn: 'English',
+    addToComparison: 'Add to comparison',
+    inComparison: 'In comparison',
+    capturing: 'Capturing…',
+    captureFailed: 'Capture failed',
+    tryAgain: 'Try again',
+    capturedOffersToast: 'Captured {count} offers for “{variant}”.',
+    optimizeCart: 'Optimize this cart',
+    crawlProgress: 'Checking {done} of {total} items…',
+    crawlAborted: 'Crawl stopped. Everything so far is kept.',
+    crawlFinished: 'Crawl complete; {failed} item(s) failed.',
+    crawlStarting: 'Starting the cart crawl…',
+    abortCrawl: 'Stop',
   },
 };
+
+/** Replaces {placeholders} in a catalog string. */
+export function formatMessage(
+  lang: 'fa' | 'en',
+  key: MessageKey,
+  vars: Record<string, string | number>,
+): string {
+  let out: string = messages[lang][key];
+  for (const [k, v] of Object.entries(vars)) {
+    out = out.replaceAll(`{${k}}`, String(v));
+  }
+  return out;
+}
 
 export function t(lang: 'fa' | 'en', key: MessageKey): string {
   return messages[lang][key];
