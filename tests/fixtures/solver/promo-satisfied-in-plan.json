@@ -1,0 +1,136 @@
+{
+  "name": "promo-satisfied-in-plan",
+  "description": "Both promo types satisfied by the optimal plan itself: same-item-count (2 units of A at V1) waives V1's fee, vendor-count (B+C+D at V2, 3 units) waives V2's fee; both fee lines show promo-waived with their promo id.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 2,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 50,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 20,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 58,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 40,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "B::b1",
+        "title": "Item B",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 40,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 20,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 44,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 40,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "C::c1",
+        "title": "Item C",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 60,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 40,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "D::d1",
+        "title": "Item D",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 30,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 40,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-SAME",
+        "vendorId": "V1",
+        "type": "same-item-count",
+        "thresholdValue": 2,
+        "effect": "free-delivery",
+        "itemKey": "A::a1"
+      },
+      {
+        "promoId": "P-VENDOR",
+        "vendorId": "V2",
+        "type": "vendor-count",
+        "thresholdValue": 3,
+        "effect": "free-delivery"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 234,
+    "itemSubtotal": 234,
+    "deliverySubtotal": 0,
+    "assignments": { "A::a1": "V1", "B::b1": "V2", "C::c1": "V2", "D::d1": "V2" },
+    "groups": [
+      {
+        "vendorId": "V1",
+        "feeFlag": "promo-waived",
+        "fee": 0,
+        "promoIds": ["P-SAME"],
+        "lineItemKeys": ["A::a1"]
+      },
+      {
+        "vendorId": "V2",
+        "feeFlag": "promo-waived",
+        "fee": 0,
+        "promoIds": ["P-VENDOR"],
+        "lineItemKeys": ["B::b1", "C::c1", "D::d1"]
+      }
+    ],
+    "note": "A@V1 (2x50=100, P-SAME satisfied) + B,C,D@V2 (44+60+30=134, 3 units satisfy P-VENDOR) = 234. Greedy start for set {V1,V2} is A,B@V1 + C,D@V2 = 230 items + V2 fee 40 = 270; the repair pass moves B to V2 (+4) to remove the 40 fee -> 234. All-V2 = 250. So 234 is optimal AND satisfies both promos - exercising both the enumeration and the repair pass."
+  }
+}

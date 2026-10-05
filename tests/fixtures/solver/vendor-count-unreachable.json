@@ -1,0 +1,71 @@
+{
+  "name": "vendor-count-unreachable",
+  "description": "Vendor-count promo that cannot be reached by re-assignment (units short beyond what unlocked items can contribute): no repair happens, fee stays regular, no hint fires (more than one unit short).",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 10,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 25,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "B::b1",
+        "title": "Item B",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 12,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 25,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 8,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 5,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-V2",
+        "vendorId": "V2",
+        "type": "vendor-count",
+        "thresholdValue": 5,
+        "effect": "free-delivery"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 47,
+    "assignments": { "A::a1": "V1", "B::b1": "V1" },
+    "groups": [
+      { "vendorId": "V1", "feeFlag": "regular", "fee": 25, "lineItemKeys": ["A::a1", "B::b1"] }
+    ],
+    "hints": [],
+    "note": "Best plan: both@V1 = 10+12+25 = 47 (B@V2 alone would cost 10+25+8+5=48). Promo needs 5 units at V2, only 1 reachable -> no repair, no hint."
+  }
+}

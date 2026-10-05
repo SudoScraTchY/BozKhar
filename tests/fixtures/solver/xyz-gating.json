@@ -1,0 +1,80 @@
+{
+  "name": "xyz-gating",
+  "description": "SDD 07 worked example 2: hint gating. Z rejected outright (absent), Y shows net saving 7, small-fee Y shown only within tolerance.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "Z::z1",
+        "title": "Item Z",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VZ",
+            "vendorName": "Z Vendor",
+            "unitPrice": 90,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 12,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "Y::y1",
+        "title": "Item Y",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VY",
+            "vendorName": "Y Vendor",
+            "unitPrice": 5,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 12,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-Z",
+        "vendorId": "VZ",
+        "type": "same-item-count",
+        "thresholdValue": 2,
+        "effect": "free-delivery",
+        "itemKey": "Z::z1",
+        "rawText": "buy 2 of Z -> free delivery"
+      },
+      {
+        "promoId": "P-Y",
+        "vendorId": "VY",
+        "type": "same-item-count",
+        "thresholdValue": 2,
+        "effect": "free-delivery",
+        "itemKey": "Y::y1",
+        "rawText": "buy 2 of Y -> free delivery"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 119,
+    "assignments": { "Z::z1": "VZ", "Y::y1": "VY" },
+    "hints": [
+      {
+        "itemKey": "Y::y1",
+        "promoId": "P-Y",
+        "extraUnitCost": 5,
+        "feeRemoved": 12,
+        "netEffect": 7,
+        "verdict": "saving"
+      }
+    ],
+    "absentHintItemKeys": ["Z::z1"],
+    "note": "Cart total 119; tolerance bound round(119*0.02)=2. Z: add 90 to save 12 -> net -78 -> rejected outright (absent). Y: add 5 to save 12 -> net +7 saving, always shown."
+  }
+}

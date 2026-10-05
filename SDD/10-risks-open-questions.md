@@ -33,5 +33,7 @@ The register's headline is honest and worth stating plainly: **the two risks tha
 | OQ-08 | Default UI language and numeral style | Reach vs effort (NFR-08) | T05 user feedback | fa primary (RTL), en toggle |
 | OQ-09 | Exact scale envelope before approximate mode? | Performance vs honesty (D-15) | Perf test in T04 | 40 items / 15 vendors |
 | OQ-10 | Where exactly does Plus apply (all regular offers? some categories?) | Fee-model correctness for Plus users | Spike S-4 | Plus waives fees on regular offers, never on large items (D-12/D-13) |
+| OQ-11 | Do vendor-count promos count **items** or **units** toward the threshold? Payload shapes still open (S-3 residual). | The repair pass and hint layer's reachability math (D-09/D-10) | T03 capture evidence of a real count-promo payload; user feedback post-MVP | Counted in **units** (implemented in T04: makes vendor-count thresholds hint-reachable with one extra unit) |
+| OQ-12 | Can one vendor's shipment group mix large and regular items in a single payload, and is it one fee or two? | Group model: T04 bills one fee line per vendor × shipping class (D-14) | T03 capture of a mixed cart with a large item; spike S-5 follow-up | Separate fee lines per class (implemented in T04: group = vendor × class) |
 
 Each default above is a **decision-log-ready assumption**: when its spike answer arrives, the matching entry in `00-decision-log.md` is amended and any affected task re-scoped — the spec is built so that late answers change one branch, not the design.

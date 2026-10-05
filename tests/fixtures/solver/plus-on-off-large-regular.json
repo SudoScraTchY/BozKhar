@@ -1,0 +1,60 @@
+{
+  "name": "plus-on-off-large-regular",
+  "description": "Plus on/off against regular and large items (D-12/D-13): Plus zeroes regular vendor fees but never the large-item class fee.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "R::r1",
+        "title": "Regular item",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 100,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 30,
+            "plusCoversFee": true
+          }
+        ]
+      },
+      {
+        "itemKey": "L::l1",
+        "title": "Large item",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 200,
+            "stock": "in-stock",
+            "isLargeItem": true,
+            "fee": 50,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [],
+    "settings": { "hasPlus": true, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 350,
+    "groups": [
+      { "vendorId": "V1", "feeFlag": "plus-covered", "fee": 0 },
+      { "vendorId": "V2", "feeFlag": "large-item", "fee": 50 }
+    ],
+    "variant": {
+      "hasPlus": false,
+      "grandTotal": 380,
+      "groups": [
+        { "vendorId": "V1", "feeFlag": "regular", "fee": 30 },
+        { "vendorId": "V2", "feeFlag": "large-item", "fee": 50 }
+      ]
+    }
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "name": "quantity-effects",
+  "description": "Quantities multiply into totals and promo counts (D-09): the main plan buys exactly the requested quantities; a qty-2 item satisfies a same-item threshold of 2 by itself.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 2,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 25,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 23,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 18,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "B::b1",
+        "title": "Item B",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 20,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-A2",
+        "vendorId": "V1",
+        "type": "same-item-count",
+        "thresholdValue": 2,
+        "effect": "free-delivery",
+        "itemKey": "A::a1"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 70,
+    "assignments": { "A::a1": "V1", "B::b1": "V1" },
+    "groups": [
+      {
+        "vendorId": "V1",
+        "feeFlag": "promo-waived",
+        "fee": 0,
+        "promoIds": ["P-A2"],
+        "lineItemKeys": ["A::a1", "B::b1"]
+      }
+    ],
+    "note": "A qty2 at V1 = 50 (satisfies P-A2 alone), B rides along on the waived V1 fee -> 50+20 = 70. Naive per-item: A@V2 46 + fee 18 + B@V1 20 + fee 10 = 94."
+  }
+}

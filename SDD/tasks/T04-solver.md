@@ -3,17 +3,19 @@
 **Goal:** The pure optimizer module: exact within the scale envelope, lock- and promo-aware, with the hint layer and every worked example from `07-solver-behavior.md` as a green fixture suite.
 **Depends on:** T02 (types only — deliberately **not** T03; the solver is pure and its inputs are plain data, so it builds and tests against hand-written lists from day one).
 **Spec sources:** FR-05–FR-14, D-06/D-09/D-10/D-13/D-14/D-15, `07-solver-behavior.md` (authoritative), `04-optimization-analysis.md` (method).
-**Estimate:** 4–5 ideal days. **Status:** todo.
+**Estimate:** 4–5 ideal days. **Status:** in-progress (implemented + tested 2026-10-05; `done` requires human load-unpacked smoke + stakeholder confirmation).
+
+**Evidence (own runs, 2026-10-05):** `npm run test` 66/66 passing across 8 files (26 baseline + 40 solver: fixtures 23, edge cases 7, properties 4, performance/envelope 6); `npm run typecheck`, `npm run lint`, `npm run format:check` all clean; zero runtime dependencies intact. Perf: 30×10 well under 1s; 40×15 envelope edge exact; beyond envelope labeled `approximate`.
 
 | ID | Task | Notes | Est |
 |---|---|---|---|
-| T04.1 | Core enumeration engine | Vendor-set enumeration with pre-filtering (stock, bans, pins); in-set cheapest-assignment scoring; fee computation with the five fee flags; tie-breaks (fewer vendors, then deterministic) | 1.5d |
-| T04.2 | Lock semantics | Pin = fixed assignment + vendor fee marked already-paid (ride-along); ban = pair removal; ban-exhaustion flag; all-pinned degenerate case returns the report-only plan | 0.5d |
-| T04.3 | Fee model branches | Regular / Plus-covered (D-12) / large-item fixed per shipment with Plus exemption (D-13) / promo-waived by already-satisfied thresholds (existing quantities only, D-09) / unknown-fee estimate labeling | 0.5d |
-| T04.4 | Promo repair pass | Vendor-count promos: re-assignment moves toward the threshold when the fee removed exceeds the price increase of the moves; re-assignments only, never extra units | 0.5d |
-| T04.5 | Hint layer | One-extra-unit evaluation per D-10/D-11: fee saved against unit cost; net saving always emitted; net increase only within `tolerancePercent` of the cart total; rejects silently; full arithmetic attached to each hint | 0.5d |
-| T04.6 | Fixture suite | Every worked example mandatory: `fee-coupling` (example 1: optimal 117 vs naive 130), `xyz-gating` (example 2, all three sub-cases incl. outright rejection of Z), `lock-ride-along` (example 3: 113 beats 115 via sunk fee), plus: both promo types satisfied in-plan, Plus on/off × regular/large, quantity effects, ties, empty/degenerate cases | 1d |
-| T04.7 | Property + performance tests | Properties: plan total ≤ per-item-cheapest baseline; plan total ≤ any supplied alternative assignment; determinism (byte-identical output on identical input). Performance: 30 items × 10 vendors < 1s; approximate-mode switch verified at the envelope (OQ-09: 40 items / 15 vendors) | 0.5d |
+| T04.1 | Core enumeration engine | **done** — vendor-set bitmask enumeration, pre-filter, in-set cheapest, tie-breaks; input-only fee table makes totals set-dependent (see 07 implementation notes) | 1.5d |
+| T04.2 | Lock semantics | **done** — pin = fixed assignment, scored normally + re-flagged `already-paid-by-lock` in display view; ban removal; exhaustion + all-pinned report-only cases in `tests/solver-edge-cases.test.ts` | 0.5d |
+| T04.3 | Fee model branches | **done** — five flags with precedence; large-item exemption (D-13); unknown-fee estimate range | 0.5d |
+| T04.4 | Promo repair pass | **done** — minimal move-set, strict-improvement acceptance, re-assignments only (`src/shared/solver/promote.ts`) | 0.5d |
+| T04.5 | Hint layer | **done** — one-unit-short candidates, floor tolerance bound, saving/within-tolerance/absent verdicts with arithmetic (`src/shared/solver/hints.ts`) | 0.5d |
+| T04.6 | Fixture suite | **done** — all three worked examples with exact SDD totals (117; Z absent/Y −7 saving/tolerance flip; 113 ride-along) plus both-promo, Plus×large, quantity, tie, unknown-fee, degenerate fixtures; FR-12 reconciliation asserted per fixture | 1d |
+| T04.7 | Property + performance tests | **done** — seeded (xorshift) properties: total ≤ baseline, ≤ every supplied alternative, byte-identical determinism, hint arithmetic; perf 30×10 < 1s, envelope switch at 40/15 | 0.5d |
 
 ## Acceptance criteria
 

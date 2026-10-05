@@ -1,0 +1,50 @@
+{
+  "name": "fee-unknown-estimate",
+  "description": "Unknown fee on one vendor (spike F-4 negative branch): the vendor with the unknown fee wins on price even at the fallback estimate, so the plan is labeled estimate-only with an honest low..high range - never a silent zero.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 150,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 20,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "VU",
+            "vendorName": "Unknown Vendor",
+            "unitPrice": 90,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": null,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 },
+    "unknownFeeFallback": 40
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 130,
+    "assignments": { "A::a1": "VU" },
+    "totalIsEstimate": true,
+    "estimateRange": { "low": 90, "high": 130 },
+    "groups": [{ "vendorId": "VU", "feeFlag": "regular", "fee": 40 }],
+    "variant": {
+      "unknownFeeFallback": 0,
+      "grandTotal": 90,
+      "note": "With fallback 0 the total is 90 and the estimate range collapses to low=high=90; the fee is still labeled unknown, never 0."
+    }
+  }
+}

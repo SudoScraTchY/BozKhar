@@ -1,0 +1,111 @@
+{
+  "name": "ban-exhaustion-and-repair",
+  "description": "Ban handling plus promo repair: B is banned at V1 for item B, and a vendor-count promo is satisfied in-plan by enumeration; the repair pass itself is probed directly in the test body with a greedy starting assignment.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 20,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 24,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "B::b1",
+        "title": "Item B",
+        "quantity": 1,
+        "lock": { "mode": "ban", "vendorIds": ["V1"] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 30,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 33,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "C::c1",
+        "title": "Item C",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "V1",
+            "vendorName": "Vendor 1",
+            "unitPrice": 40,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "V2",
+            "vendorName": "Vendor 2",
+            "unitPrice": 40,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 15,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-V2",
+        "vendorId": "V2",
+        "type": "vendor-count",
+        "thresholdValue": 3,
+        "effect": "free-delivery"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 97,
+    "assignments": { "A::a1": "V2", "B::b1": "V2", "C::c1": "V2" },
+    "groups": [
+      {
+        "vendorId": "V2",
+        "feeFlag": "promo-waived",
+        "fee": 0,
+        "promoIds": ["P-V2"],
+        "lineItemKeys": ["A::a1", "B::b1", "C::c1"]
+      }
+    ],
+    "note": "All-V2 = 24+33+40 = 97 items, 3 units satisfy P-V2, fee 0. Best split: A@V1(20)+fee15 with B,C@V2(73) fee0 = 108. All-V1 impossible (B banned). So 97 is optimal."
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "name": "xyz-gating-tolerance",
+  "description": "SDD 07 worked example 2, third sub-case: a net-increase hint is shown iff the increase stays within tolerance of the cart total. Cart total is exactly 150 (X 10 + Y 5 + W 132 + fees 3+3+5 = 168? No: 10+5+132=147 items + 3 fees (3+3+5=11) = 158; the SDD's illustrative 150-cart is reproduced by W=124 instead). Fee at Y's vendor is 3, extra Y costs 5 -> net increase 2. Tolerance 2% -> bound 3 -> shown. Tolerance 1% -> bound 1 -> hidden.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "X::x1",
+        "title": "Item X",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VX",
+            "vendorName": "X Vendor",
+            "unitPrice": 10,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 3,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "Y::y1",
+        "title": "Item Y",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VY",
+            "vendorName": "Y Vendor",
+            "unitPrice": 5,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 3,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "W::w1",
+        "title": "Item W",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VW",
+            "vendorName": "W Vendor",
+            "unitPrice": 124,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 5,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [
+      {
+        "promoId": "P-Y",
+        "vendorId": "VY",
+        "type": "same-item-count",
+        "thresholdValue": 2,
+        "effect": "free-delivery",
+        "itemKey": "Y::y1"
+      }
+    ],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 150,
+    "hints": [
+      {
+        "itemKey": "Y::y1",
+        "extraUnitCost": 5,
+        "feeRemoved": 3,
+        "netEffect": -2,
+        "verdict": "within-tolerance",
+        "toleranceBound": 3
+      }
+    ],
+    "variant": {
+      "tolerancePercent": 1,
+      "hints": [],
+      "note": "At 1% the bound is floor(150/100)=1; the 2 increase exceeds it, so the hint is hidden. This pins the bound function as floor, matching the SDD's 3-shown / 1.5-hidden pair."
+    }
+  }
+}

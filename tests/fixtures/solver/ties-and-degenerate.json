@@ -1,0 +1,71 @@
+{
+  "name": "ties-and-degenerate",
+  "description": "Tie-breaks (fewer vendors, then deterministic) and edge cases: empty list, item with no in-stock offers, all-pinned report-only plan.",
+  "input": {
+    "items": [
+      {
+        "itemKey": "A::a1",
+        "title": "Item A",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VB",
+            "vendorName": "Vendor B",
+            "unitPrice": 50,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "VA",
+            "vendorName": "Vendor A",
+            "unitPrice": 50,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          }
+        ]
+      },
+      {
+        "itemKey": "B::b1",
+        "title": "Item B",
+        "quantity": 1,
+        "lock": { "mode": "none", "vendorIds": [] },
+        "offers": [
+          {
+            "vendorId": "VA",
+            "vendorName": "Vendor A",
+            "unitPrice": 30,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          },
+          {
+            "vendorId": "VB",
+            "vendorName": "Vendor B",
+            "unitPrice": 30,
+            "stock": "in-stock",
+            "isLargeItem": false,
+            "fee": 10,
+            "plusCoversFee": false
+          }
+        ]
+      }
+    ],
+    "promos": [],
+    "settings": { "hasPlus": false, "tolerancePercent": 2 }
+  },
+  "expect": {
+    "mode": "exact",
+    "grandTotal": 90,
+    "assignments": { "A::a1": "VA", "B::b1": "VA" },
+    "groups": [
+      { "vendorId": "VA", "feeFlag": "regular", "fee": 10, "lineItemKeys": ["A::a1", "B::b1"] }
+    ],
+    "note": "Single-vendor assignments total 90 (50+30+10); split ones cost 100 (two fees). Tie on 90 between all-VA and all-VB breaks to VA deterministically. Empty input, no-in-stock and all-pinned cases are asserted in the test body around this fixture."
+  }
+}

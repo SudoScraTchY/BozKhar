@@ -58,3 +58,16 @@ This example exists because it is the one place where "exclude locked items from
 ## Determinism and testing
 
 The solver is a pure function; identical input yields identical output. The fixture suite in `T04` includes, at minimum: example 1, example 2 (all three sub-cases), example 3, both promo types satisfied in-plan, Plus on/off against regular and large items, ban exhaustion, the edge cases above, and a performance case (30 items × 10 vendors under 1 second). Property tests assert the plan's total never exceeds the per-item-cheapest baseline's total, and never exceeds any manually supplied alternative assignment.
+
+## Implementation notes (T04, resolved during implementation)
+
+These resolve ambiguities the behavioral spec left open; they are binding for regressions and asserted by the fixture suite.
+
+- **Vendor fee is a function of the input, not the assignment.** Enumeration scores vendor *sets*, so the total must depend only on the set. Per-vendor effective fee = max of known fees across that vendor's in-stock offers (conservative, total-safe; identical to the single fee in the consistent common case, D-14). A per-member-offer "first known fee" rule was tried and rejected: it makes the total assignment-dependent and enumeration silently suboptimal (caught by seeded property test).
+- **Two scoring views.** Enumeration and the promo repair pass score pinned vendors like any other vendor (`scoreOnly` view) — otherwise a pin wrongly zeroes its vendor's fee during search (the seed-1000 class of bug). The final plan then re-flags the pinned vendor's fee `already-paid-by-lock` (display view). Displayed totals and scored totals are reconciled by the property tests.
+- **Fee-flag precedence** when several could apply: `promo-waived` > `plus-covered` > `already-paid-by-lock` > `regular`; large-item groups take the `large-item` flag exclusively and are never Plus-covered or promo-waived (D-13). An unknown fee may coexist with any flag.
+- **Unknown-fee scoring and range:** unknown fees are charged at `unknownFeeFallback` (capture passes the largest known fee so estimates err high, never silently low). Groups with no known fee keep `fee: null` for display, set `totalIsEstimate`, and the plan exposes `estimateRange { low = grandTotal − unknownGroups × fallback, high = grandTotal }`.
+- **Promo counts are in units** (not distinct items), so a vendor-count threshold exactly one unit short is reachable by the one-extra-unit hint (D-10/D-11); recorded as OQ-11.
+- **Promo repair** accepts the minimal move-set reaching the threshold only when the resulting total (fee removed) is strictly lower; moves ordered by (price increase, itemKey) for determinism; pins and large items never move (D-09/D-06).
+- **Tolerance bound is `floor(cartTotal × tolerancePercent / 100)`** in integer Toman — this is what pins example 2's third sub-case (150-cart: 2% → bound 3 → net −2 shown; 1% → 1.5 → hidden). Rounding would wrongly show the 1% case.
+- **Net-zero hints** (`feeRemoved == extraUnitCost`) classify as `within-tolerance` (an increase of 0 is within any tolerance ≥ 0).
