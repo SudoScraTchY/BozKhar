@@ -30,10 +30,17 @@ export const PDP_SELLER_PANEL_CANDIDATES = [
 /**
  * Cart table anchor (09-ui-spec Surface 2): mounts near the cart summary
  * controls, not floating over the item list.
+ *
+ * Live-site alignment (smoke 2026-10-06): Digikala's cart page has no
+ * stable test-id; the checkout CTA (ثبت سفارش) sits inside an absolutely
+ * positioned summary card. Candidates: the card container (bg-neutral-000
+ * + shadow), legacy test-ids, and the checkout link's positioning wrapper.
  */
 export const CART_SUMMARY_CANDIDATES = [
   '[data-testid="cart-summary"]',
-  // Digikala cart page checkout/supplier summary block.
+  // Live cart page: the summary card that hosts the checkout CTA.
+  'div.bg-neutral-000.rounded.shadow-3-bottom',
+  'a[href*="/checkout"][class*="w-full"]', // the ثبت سفارش link itself (fallback)
   '[class*="cart"] [class*="checkout"]',
   '[class*="cart-summary"]',
 ] as const;
