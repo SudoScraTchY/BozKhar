@@ -89,7 +89,14 @@ Entry `solve(input: SolverInput) → { plan, hints }` in `src/shared/solver/inde
 - **Extension smoke pattern:** `launch_persistent_context(user_data_dir=smoke-profile-login, executable_path=<chromium>, headless=False, args=[--load-extension=dist, --disable-extensions-except=dist, --no-first-run])`; wake the MV3 SW via the options page (`chrome-extension://opbdobecgmknfnnhkbedfkjaehebcdoe/src/options/index.html`) sending `capture/badge-sync`; then navigate.
 - Test PDP: `https://www.digikala.com/product/dkp-16622211/` (product 16622211; live first in-stock variant 58880138, fee 2,500,000 Rial, price 3,390,000 Rial; fixture variants 62270876-79).
 - Fixture file ids: `cart-basic.json` 3 items (16622211 no variant id, 17773333, 18884444); `product-basic.json` product 16622211 variants 62270876/877/878/879.
-- Git: `safe.directory` exception already set for this repo.
+- Git: `safe.directory` exception already set for this repo. Remote: `origin = https://github.com/SudoScraTchY/BozKhar.git` (private repo, all commits attributed to `SudoScraTchY <SainScraTchY@gmail.com>`).
+- **Git identity trap (IMPORTANT):** the AutoClaw host injects `GIT_AUTHOR_NAME/EMAIL=zwork` and `GIT_COMMITTER_NAME/EMAIL=zwork` environment variables into EVERY shell command, overriding git config. Local config IS correct (`SudoScraTchY / SainScraTchY@gmail.com` in `~/.gitconfig`). Every commit made from agent sessions MUST override both identities explicitly or the commit is mis-attributed on GitHub. Working pattern:
+  ```powershell
+  $env:GIT_COMMITTER_NAME='SudoScraTchY'; $env:GIT_COMMITTER_EMAIL='SainScraTchY@gmail.com'
+  $env:GIT_AUTHOR_NAME='SudoScraTchY'; $env:GIT_AUTHOR_EMAIL='SainScraTchY@gmail.com'
+  git commit ...
+  ```
+  Verify after committing: `git log --format='%h %an|%cn' -1` — both fields must show the user. History was rewritten once (2026-10-07) to fix this; do not let new zwork-authored commits creep back in. `gh` CLI also needs `GH_TOKEN` set from `gh auth token` in non-interactive shells (keyring is unreachable there).
 - User communication: respond in **English** (the user's latest explicit request is fully-English output). The user often does not answer `ask_user_question` prompts — proceed autonomously on safe/read-only paths, but **cart writes still require explicit consent**, and they DO respond in chat when they choose to (e.g. "i have logged it, continue").
 - Runtime date at handoff time: 2026-10-06.
 

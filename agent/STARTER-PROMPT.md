@@ -30,6 +30,7 @@ You are continuing development of the **Digikala Cart Optimizer**, a Chrome MV3 
 - **Zero runtime dependencies** (D-15/NFR-09). Solver stays pure/browserless.
 - TS strict with `noUncheckedIndexedAccess`; ESLint (unused vars `_`-prefixed, `import type` for types); Prettier (singleQuote, printWidth 100) — run `npx prettier --write` on new files. All four gates (`npm run test|typecheck|lint|format:check`) + `npm run build` green before every commit; cite task IDs (`ref T03.x`) in commits; never commit without evidence from your own runs.
 - Never print or store cookie/token values — names only, values masked (credential hygiene).
+- **All commits must be attributed to the user's account** (`SudoScraTchY <SainScraTchY@gmail.com>`) — the host injects `GIT_AUTHOR_NAME/EMAIL` and `GIT_COMMITTER_NAME/EMAIL` env vars set to `zwork` into every shell command, so every commit must override them explicitly (see the Git identity trap in `agent/HANDOFF.md` §7) and be verified with `git log --format='%h %an|%cn' -1` afterward.
 - The logged-in profile `.openclaw/tmp/smoke-profile-login/` and the Chromium at `.openclaw/tmp/pw-browsers/chromium-1181/chrome-win/chrome.exe` are required for testing — do not delete them.
 
 ## Environment
