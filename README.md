@@ -1,80 +1,157 @@
-# Digikala Cart Optimizer
+# بز خر — Boz Khar
 
-An advise-only browser extension that finds the **cheapest way to buy a
-basket of items across Digikala's marketplace vendors** - item prices +
-per-vendor delivery fees - promotions, Plus benefits, and your own vendor
-locks considered together. It never touches your cart: it shows a plan,
-you apply it yourself.
+**بزخر** (boz khar — literally "goat donkey") is Persian slang for someone who
+hunts bargains relentlessly: a person who buys things **very cheap**. That is
+exactly what this tool does for you on [Digikala](https://www.digikala.com).
 
-- Spec: [`SDD/`](SDD/README.md) (start with [`00-decision-log.md`](SDD/00-decision-log.md))
-- Status: **T02 Foundation implemented** (scaffold + storage + settings + i18n + options page). Discovery spike (T01) is still open - see [`SDD/11-spike-plan.md`](SDD/11-spike-plan.md).
+**Boz Khar** is an advise-only Chrome extension (MV3) that finds the
+**cheapest way to buy your Digikala cart across marketplace vendors** — item
+prices **and** per-vendor delivery fees together, with promotions, Digikala
+Plus benefits, large-item fees, and your own vendor locks (pin/ban) factored
+in. It never touches your cart: it shows you a plan, you apply it yourself.
 
-## Development quickstart (clone to loaded extension in <10 minutes)
+```
+سبد خریدت را ارزان‌تر بخر — buy the same cart, pay less.
+```
 
-Prerequisites: **Node.js >= 20** and npm. Chrome or any Chromium browser.
+- Spec (SDD): [`SDD/`](SDD/README.md) — start with [`00-decision-log.md`](SDD/00-decision-log.md)
+- Status: T03 capture + T04 solver implemented; live-smoke in progress (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
+- License: TBD (all rights reserved by the repository owner until decided)
+
+## Why "بز خر"?
+
+Because the point is haggling *by computation*. Digikala is a marketplace:
+the same product is sold by many sellers, each with its own price and its own
+shipping fee. Digikala's default cart flow picks one seller per item — it
+never optimizes **across** items. But vendors often offer free shipping above
+item-count thresholds, Digikala Plus waives regular-shipment fees, and large
+items always cost a separate fixed fee. Splitting one basket across the right
+vendor set can save real money; doing it wrong (too many vendors, one unit
+short of a promo threshold) can *cost* money. Boz Khar does that arithmetic
+exactly, so you can buy like a proper بزخر.
+
+## What it does
+
+Two surfaces, both user-triggered:
+
+1. **Product page — "Add to comparison" (افزودن به مقایسه).** Captures every
+   vendor offer for the current variant: vendor identity, price, stock,
+   delivery-fee signal, promos.
+2. **Cart page — "Optimize this cart" (بهینه‌سازی سبد خرید).** Resolves your
+   actual cart items (product + the exact variant in your cart), captures
+   their offers with polite sequential fetches, then computes the plan.
+
+Everything is captured from Digikala's own JSON payloads (read-only GETs with
+your existing session), normalized into a local model, and stored **only in
+your browser** (IndexedDB). No server. No account. No telemetry.
+
+## Use cases we accounted for
+
+These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.md) (FR-01…FR-16):
+
+- **The multi-seller basket (the core case).** Your cart has items from
+  several sellers; you want the vendor assignment with the minimum grand
+  total (item prices + exactly one shipping fee per used vendor). The solver
+  enumerates vendor sets exactly at supported scale (40 items × 15 vendors)
+  and falls back to a labeled approximate mode above that envelope. (FR-11)
+- **Free-shipping count promos — both shapes.** "Buy 2 of *this item* → free
+  delivery" (same-item count) and "buy *z* items *from this vendor* → free
+  delivery" (vendor-wide count). The plan charges fees only where genuinely
+  owed, and the repair pass can move items onto a vendor to legitimately
+  cross a vendor-wide threshold when that strictly lowers the total. (FR-10)
+- **"One unit short of free shipping" hints.** After solving, Boz Khar
+  evaluates adding **one unit of an item already in your list** to cross a
+  promo threshold. A hint is shown only if the extra unit cost still yields a
+  net saving (or a net increase inside your tolerance — see below). A hint
+  that increases the total beyond tolerance is rejected outright. (FR-13)
+- **Tolerance knob.** A percentage of the cart total (default 2%) bounds
+  which net-increase hints are even worth showing. It is a first-class
+  setting, not a hidden constant. (FR-14)
+- **Digikala Plus members.** A toggle declares Plus status; regular-shipment
+  fees are then modeled as Plus-waived (fee = 0), large-item fees are never
+  Plus-covered. Non-members see the plain fee model. (FR-08)
+- **Large/heavy items (کالاهای بزرگ و سنگین).** These always ship as their own
+  shipment class with their own fixed fee (observed ~359,000 Toman on real
+  carts), time-slot-gated on Digikala. The plan groups them separately and
+  never pretends Plus or count-promos waive them. (FR-09)
+- **You already bought from one vendor and want to ride along.** Pin an item
+  to a vendor: that assignment is frozen and the vendor's fee counts as
+  already paid — other items can "ride along" on that shipment for free.
+  Ban a vendor you distrust: it never receives that item. (FR-06, FR-07)
+- **Stale prices are dangerous, so staleness is visible.** Every snapshot
+  carries a timestamp; plans display the age of the prices behind them and
+  warn past a configurable threshold (default 24h), with one-click
+  re-capture per item or for the whole list. (FR-04)
+- **Multi-variant products.** Cart identity is product **+ variant** (e.g. a
+  supplement in the 60-count pack, not the 30-count). Capture deep-links the
+  exact variant; snapshots are keyed `productId::variantId`. (FR-03)
+- **Advise-only, always.** There is **no code path that writes to your
+  cart** — no add, no remove, no quantity change, no checkout. The plan is
+  presented; applying it is 100% your click. Enforced by a GET-only audit
+  test in the suite. (FR-15, NFR-02)
+- **Privacy: your shopping list stays in your browser.** Local-only storage,
+  zero non-Digikala network requests (verified by a network-log test), no
+  telemetry, no remote code. Export your list as JSON or wipe all stored
+  data from the options page at any time. (NFR-01, FR-16)
+- **Polite crawling.** Sequential item fetches with a configurable delay
+  (default 1.5s), bounded retries, abort button mid-crawl, user-initiated
+  only — no scheduled or background visits, ever. (NFR-07, NFR-02)
+- **Persian-first, bilingual.** UI is Persian (RTL) by default with English
+  available; both are first-class, not an afterthought. (NFR-08)
+- **Small and auditable.** Zero runtime dependencies, minimal permissions
+  (`storage`, `tabs`, `https://*.digikala.com/*` only), and the whole engine
+  (solver + capture pipeline) is pure, typed TypeScript under test
+  (137 tests at the time of writing). (NFR-06, NFR-09, D-15)
+
+### A worked example (from the test fixtures)
+
+Cart of 3 items from the same vendor, item sum 113,000 Toman, vendor fee
+13,000 (free above a 3-item count promo): the naive plan "buy from the
+cheapest single-vendor set" pays 126,000. Boz Khar's exact solver notices the
+promo makes the vendor-set total lower than any per-item reasoning — and its
+hint engine tells you when adding one more unit of an in-list item crosses a
+threshold for a net saving, but stays silent when the "saving" actually
+costs more than the fee removed. Every arithmetic case like this is a
+committed fixture in `tests/fixtures/solver/`.
+
+## What it deliberately does NOT do
+
+- No background fetching, scheduling, or auto-refresh (NFR-02).
+- No cart writes, no auto-checkout, no payment interaction (FR-15).
+- No data collection or sharing — there is no server to collect it (D-04).
+- No support for sites other than digikala.com (scope guard in code).
+
+## Development
+
+Prerequisites: **Node.js >= 20** and npm; any Chromium browser for loading.
 
 ```bash
-# 1. install toolchain (devDependencies only - no runtime deps)
-npm install
-
-# 2. build the extension into dist/
-npm run build        # or: npm run dev  (watch mode)
-
-# 3. load it in Chrome: chrome://extensions -> enable "Developer mode"
-#    -> "Load unpacked" -> select the dist/ folder of this repo
-
-# 4. open the options page (right-click the extension icon -> Options)
-#    - it opens in Persian (RTL) by default; switch to English in one click
-#    - toggle Plus, move the tolerance slider, change the crawl delay
-#    - "Export data" downloads a JSON file; "Clear all data" wipes storage
+npm install          # devDependencies only — zero runtime deps
+npm run build        # bundle to dist/
+npm run test         # vitest suite
+npm run typecheck    # tsc --noEmit (strict)
+npm run lint         # eslint
+npm run format:check # prettier
 ```
 
-Useful scripts:
+Load into Chrome: `chrome://extensions` → enable **Developer mode** →
+**Load unpacked** → select `dist/`. Then open any Digikala product page or
+your cart page and use the buttons described above. The options page has the
+Plus toggle, tolerance, crawl delay, UI language, export, and clear-all.
 
-| Command | What it does |
-|---|---|
-| `npm run build` | Production build into `dist/` |
-| `npm run dev` | Watch-mode build |
-| `npm test` | Unit tests (Vitest, node environment, fake-indexeddb) |
-| `npm run typecheck` | `tsc --noEmit` (strict) |
-| `npm run lint` | ESLint (typescript-eslint flat config) |
-| `npm run format:check` | Prettier check |
+Architecture notes live in [`SDD/06-architecture.md`](SDD/06-architecture.md);
+the solver contract is documented in [`src/shared/solver/API.md`](src/shared/solver/API.md).
+Current engineering state, verified smoke evidence, and the next work items
+are in [`agent/HANDOFF.md`](agent/HANDOFF.md).
 
-## Manual smoke checklist (load-unpacked)
+## Etiquette & fairness
 
-1. `dist/` loads with no errors on `chrome://extensions`.
-2. Options page opens; Persian text renders right-to-left.
-3. Switching to English flips the layout to left-to-right.
-4. Toggling Plus / changing tolerance survives a page reload.
-5. "Clear all data" (after confirming) empties stored data; export before it downloads a valid JSON file.
-6. The service worker shows no errors in the extension's `Inspect views`.
+Boz Khar reads only pages/APIs you are already browsing, at human-ish pace,
+only when you click. It adds no load beyond a careful user's own browsing.
+Please keep the crawl delay at its default or higher; this tool is meant to
+be a good citizen of Digikala, not a scraper.
 
-All of the above is additionally covered by a scripted CDP smoke
-(`.openclaw/tmp/smoke2.mjs`, development-time only) that exercises the
-loaded extension: 12/12 checks passed on the current build.
+---
 
-## Layout
-
-```
-src/
-  manifest.ts             # MV3 manifest source (permissions: storage, tabs, *.digikala.com)
-  background/             # service worker placeholder (crawl state machine arrives in T03)
-  options/                # options page v0 (bilingual, RTL-first)
-  shared/
-    types.ts              # canonical entities (SDD 08-data-model)
-    storage/              # typed IndexedDB wrapper: items / snapshots (append-only) / promos
-    settings/             # chrome.storage.local typed settings + change subscription
-    i18n/                 # fa (RTL, primary) + en catalogs
-    export/               # FR-16 JSON export payload
-tests/                    # Vitest suites (26 tests) incl. manifest permission audit
-SDD/                      # the software design document set (spec source of truth)
-```
-
-## Ground rules (from the SDD - binding for every contribution)
-
-1. **Advise-only** - no code path may modify the user's Digikala cart.
-2. **Local-only** - no servers, no telemetry, no remote code; everything
-   stays in the browser.
-3. **User-initiated capture only** - no background scraping (capture ships in T03).
-4. **Minimal permissions** - exactly `storage`, `tabs`, `*.digikala.com`;
-   anything more requires a decision-log entry first.
+*بزخر means buying very cheap. This tool is the honest version of that: same
+cart, fewer rials, zero dark patterns.*
