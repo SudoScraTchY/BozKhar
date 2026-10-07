@@ -208,12 +208,35 @@ seller (`variant.seller`) and the shipment fee line
 `data.cart` is a summary (items_count, payable_price, …). Reader realigned in
 T03; sanitized live-shape fixture added (`tests/fixtures/capture/cart-live-shape.json`).
 
-**Consequence:** D-16 — crawl fetches delegate to the content script (page
-context) with the captured header set; SW keeps orchestration and falls back to
-its own fetch when the content script is unreachable. If the site rotates the
-marker values, the cart crawl 401s (contained per crawl) — re-capture via CDP.
+**Consequence:** D-16 — crawl fetches delegate to the page main world
+with the captured header set; SW keeps orchestration and falls back to
+its own fetch when the content script is unreachable. If the site rotates
+the marker values, the cart crawl 401s (contained per crawl) — re-capture via CDP.
 
 — Live-smoke session, 2026-10-07 (read-only; cart unmodified)
+
+## Live finding 2026-10-08 — the isolated world is CORS-blocked; the main world is not (refines D-16)
+
+**Observed (CDP Network domain, logged-in session, real extension build):**
+the checkout API's CORS policy answers preflight only for the web origin.
+A fetch from the content script's **isolated world** issues the `OPTIONS`
+preflight and is then blocked — the follow-up GET never happens and
+`fetch` rejects with `TypeError: Failed to fetch` (crawl toast showed
+`NETWORK: Network failure: Failed to fetch`). The identical fetch from
+the page's **main world** (same headers, same credentials) returns
+**200**, and the site's own calls (main world) all return 200.
+The SW-origin fetch reaches the API but answers 401 (its origin is
+`chrome-extension://`).
+
+**Fix (D-16 refinement):** the delegated executor is injected into the
+page's main world as a self-contained script (classic `<script>` tag,
+serialized with `toString()` — no module scope), which fetches GET
+with the site header set and posts the result back via
+`window.postMessage` (matched by a per-request id). D-01 preserved:
+the method is baked into the injected code. D-02 preserved: the scope
+guard runs on both sides before injection.
+
+— Live-smoke session, 2026-10-08 (read-only; cart unmodified)
 
 ## Remaining evidence gaps (small)
 
