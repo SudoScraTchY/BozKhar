@@ -19,6 +19,7 @@ import {
   handleCrawlAbort,
   syncBadge,
 } from '../capture/sw-controller';
+import { delegateFetchJson } from '../capture/fetch/delegate';
 
 function broadcast(msg: unknown): void {
   // No tab filtering on purpose: progress is relevant on any open surface
@@ -27,7 +28,7 @@ function broadcast(msg: unknown): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (raw: unknown, _sender, sendResponse: (res: CaptureResponse) => void) => {
+  (raw: unknown, sender, sendResponse: (res: CaptureResponse) => void) => {
     if (!isCaptureRequest(raw)) return false; // not ours: leave channel free
     const req = raw as CaptureRequest;
 
@@ -36,7 +37,10 @@ chrome.runtime.onMessage.addListener(
       return true; // async response
     }
     if (req.kind === 'capture/crawl-start') {
-      void handleCrawlStart(deps()).then(sendResponse);
+      // The requesting tab's content script executes the
+      // delegated crawl fetches (D-16); sender.tab is set for
+      // content-script messages (options-page starts have none).
+      void handleCrawlStart(deps(), sender.tab?.id).then(sendResponse);
       return true;
     }
     if (req.kind === 'capture/crawl-abort') {
@@ -63,6 +67,10 @@ function deps() {
     // Bind fetch: passing the bare function loses `this` and Chromium throws
     // "Illegal invocation" in the worker scope (live smoke finding).
     fetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init),
+    // D-16: crawl fetches are delegated to the content script on
+    // the requesting tab (the checkout API requires the site's
+    // routing header set, which only the page context sends).
+    delegateFetch: delegateFetchJson,
     onProgress: broadcast,
     badge: chrome.action,
   };

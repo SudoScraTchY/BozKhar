@@ -1,0 +1,172 @@
+{
+  "description": "Sanitized LIVE cart API payload (shape verified 2026-10-07 against the real API via the site's routing headers): items live at data.packages[].cart_items[]; seller and the shipment fee line sit on the variant; the fee repeats per item of a seller (spike F-2); the third item is FBM (providers: [] = fee unknown). Product/variant/seller ids mirror the synthetic corpus (16622211/17773333/18884444); titles are generic placeholders.",
+  "status": 200,
+  "success": true,
+  "data": {
+    "cart": {
+      "id": 400000000,
+      "items_count": 3,
+      "total_quantity": 4,
+      "payable_price": 46200000,
+      "rrp_price": 46200000,
+      "items_discount": 0,
+      "total_discount": 0,
+      "insurance": { "amount": 0, "rrp_price": 0, "discount": 0 },
+      "dk_service": { "amount": 0, "rrp_price": 0, "discount": 0 }
+    },
+    "packages": [
+      {
+        "cart_items": [
+          {
+            "id": 400000001,
+            "cart_id": 400000000,
+            "quantity": 2,
+            "price": {
+              "selling_price": 45500000,
+              "rrp_price": 49000000,
+              "order_limit": 2,
+              "is_incredible": false,
+              "is_promotion": false,
+              "discount_percent": 7,
+              "is_digiplus_promotion": false
+            },
+            "has_insurance": false,
+            "has_dk_service": false,
+            "is_next_cart_button_available": true,
+            "product": {
+              "id": 16622211,
+              "title_fa": "گوشی نمونه الف",
+              "title_en": "Sample Phone Alif",
+              "url": {
+                "uri": "https://www.digikala.com/product/dkp-16622211/گوشی-نمونه-الف?variant_id=62270876"
+              },
+              "status": "marketable",
+              "product_type": "product"
+            },
+            "variant": {
+              "id": 62270876,
+              "status": "marketable",
+              "warranty": {
+                "id": 9982,
+                "title_fa": "تاریخ انقضای بیشتر از شش ماه",
+                "title_en": "More than six months expiry"
+              },
+              "themes": [],
+              "seller": { "id": 101, "title": "فروشنده نمونه یک" },
+              "price": { "selling_price": 45500000, "rrp_price": 49000000 },
+              "shipment_methods": {
+                "description": "موجود در انبار فروشنده",
+                "has_lead_time": true,
+                "providers": [
+                  {
+                    "title": "تحویل عادی فروشنده",
+                    "type": "seller",
+                    "shipping_mode": "seller",
+                    "price": { "value": 350000, "is_free": false }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": 400000002,
+            "cart_id": 400000000,
+            "quantity": 1,
+            "price": {
+              "selling_price": 12800000,
+              "rrp_price": 14000000,
+              "order_limit": 3,
+              "is_incredible": false,
+              "is_promotion": false,
+              "discount_percent": 8,
+              "is_digiplus_promotion": false
+            },
+            "has_insurance": false,
+            "has_dk_service": false,
+            "is_next_cart_button_available": true,
+            "product": {
+              "id": 17773333,
+              "title_fa": "هدفون نمونه ب",
+              "title_en": "Sample Headphones Be",
+              "url": {
+                "uri": "https://www.digikala.com/product/dkp-17773333/هدفون-نمونه-ب?variant_id=68881111"
+              },
+              "status": "marketable",
+              "product_type": "product"
+            },
+            "variant": {
+              "id": 68881111,
+              "status": "marketable",
+              "warranty": {
+                "id": 9982,
+                "title_fa": "تاریخ انقضای بیشتر از شش ماه",
+                "title_en": "More than six months expiry"
+              },
+              "themes": [],
+              "seller": { "id": 101, "title": "فروشنده نمونه یک" },
+              "price": { "selling_price": 12800000, "rrp_price": 14000000 },
+              "shipment_methods": {
+                "description": "موجود در انبار فروشنده",
+                "has_lead_time": true,
+                "providers": [
+                  {
+                    "title": "تحویل عادی فروشنده",
+                    "type": "seller",
+                    "shipping_mode": "seller",
+                    "price": { "value": 350000, "is_free": false }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "id": 400000003,
+            "cart_id": 400000000,
+            "quantity": 1,
+            "price": {
+              "selling_price": 5900000,
+              "rrp_price": 6500000,
+              "order_limit": 5,
+              "is_incredible": false,
+              "is_promotion": false,
+              "discount_percent": 9,
+              "is_digiplus_promotion": false
+            },
+            "has_insurance": false,
+            "has_dk_service": false,
+            "is_next_cart_button_available": true,
+            "product": {
+              "id": 18884444,
+              "title_fa": "شارژر نمونه ج",
+              "title_en": "Sample Charger Jim",
+              "url": {
+                "uri": "https://www.digikala.com/product/dkp-18884444/شارژر-نمونه-ج?variant_id=79992222"
+              },
+              "status": "marketable",
+              "product_type": "product"
+            },
+            "variant": {
+              "id": 79992222,
+              "status": "marketable",
+              "warranty": {
+                "id": 9982,
+                "title_fa": "تاریخ انقضای بیشتر از شش ماه",
+                "title_en": "More than six months expiry"
+              },
+              "themes": [],
+              "seller": { "id": 102, "title": "فروشنده نمونه دو" },
+              "price": { "selling_price": 5900000, "rrp_price": 6500000 },
+              "shipment_methods": {
+                "description": "ارسال توسط فروشنده",
+                "has_lead_time": false,
+                "providers": []
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "bigdata_tracker_data": {},
+    "intrack": {}
+  }
+}

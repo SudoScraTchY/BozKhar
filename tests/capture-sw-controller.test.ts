@@ -3,7 +3,7 @@
  * crawl wiring over fixtures (progress/abort/resume), badge, and the D-01
  * fetch audit across the whole controller surface.
  */
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import {
   handleCapturePdp,
@@ -217,6 +217,57 @@ describe('syncBadge', () => {
     expect(deps.badgeTexts.at(-1)).toBe('');
     await handleCapturePdp(deps, '16622211', '62270876');
     expect(await syncBadge(deps)).toBe(1);
+  });
+});
+
+describe('handleCrawlStart: fetch delegation (D-16)', () => {
+  it('delegates every crawl fetch to the content script on the requesting tab', async () => {
+    const deps = makeDeps();
+    const delegated: Array<{ tabId: number; url: string }> = [];
+    const delegateFetch = async (tabId: number, url: string) => {
+      delegated.push({ tabId, url });
+      if (url.includes('/checkout/v1/carts')) return cartBasic;
+      return productBasic;
+    };
+    const res = await handleCrawlStart({ ...deps, delegateFetch }, 42);
+    expect(res.ok).toBe(true);
+
+    // Cart + per-product fetches all went through the delegate.
+    expect(delegated.length).toBeGreaterThan(0);
+    for (const d of delegated) expect(d.tabId).toBe(42);
+    expect(delegated.some((d) => d.url.includes('/checkout/v1/carts'))).toBe(true);
+    // The SW's own fetch is bypassed while the content script serves.
+    expect(deps.fetchCalls).toHaveLength(0);
+
+    // The crawl still completes and persists state.
+    const items = await getAllItems(deps.dbFactory);
+    expect(items.length).toBeGreaterThanOrEqual(readCartPayload(cartBasic).length);
+    const saved = await deps.stateArea?.get('crawlState');
+    expect((saved?.['crawlState'] as CrawlState | undefined)?.phase).toBe('complete');
+  });
+
+  it('falls back to the SW fetch when the content script is unreachable', async () => {
+    const deps = makeDeps();
+    const res = await handleCrawlStart(
+      {
+        ...deps,
+        delegateFetch: async () => {
+          throw new Error('Could not establish connection');
+        },
+      },
+      42,
+    );
+    expect(res.ok).toBe(true);
+    expect(deps.fetchCalls.length).toBeGreaterThan(0);
+    for (const c of deps.fetchCalls) expect(c.method).toBe('GET');
+  });
+
+  it('uses the SW fetch directly when no tab requested the crawl', async () => {
+    const deps = makeDeps();
+    const delegateFetch = vi.fn(async () => cartBasic);
+    await handleCrawlStart({ ...deps, delegateFetch });
+    expect(delegateFetch).not.toHaveBeenCalled();
+    expect(deps.fetchCalls.length).toBeGreaterThan(0);
   });
 });
 

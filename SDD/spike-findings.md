@@ -190,6 +190,31 @@ test corpus.
   (public, no auth header observed beyond cookies), not DOM scraping. NFR-05's "selectors
   module" becomes a "payload readers module"; amend 06-architecture accordingly at T03 kickoff.
 
+## Live finding 2026-10-07 — checkout API requires the site's routing header set (drives D-16)
+
+**Observed (CDP Network domain, logged-in session):** the site's own
+`api.digikala.com` calls carry a static routing marker set — `x-site: DIGIKALA`,
+`x-source: WEB`, `X-Web-Optimize-Response: 1` (names only; values are public
+app-routing markers, no `Authorization` header exists on these calls). The
+checkout cart API (`GET /checkout/v1/carts`) answers **HTTP 401** to
+same-session fetches that omit them — from the service worker, from the
+extension page, and from plain page context. Replication matrix from page
+context: no headers → 401; the exact captured set → **200**.
+
+**Real cart payload shape (fixture-derived reader was wrong):** items live at
+`data.packages[].cart_items[]` (not `data.cart_item[]`/`data.items[]`); the
+seller (`variant.seller`) and the shipment fee line
+(`variant.shipment_methods.providers[].price.value`) sit on the **variant**;
+`data.cart` is a summary (items_count, payable_price, …). Reader realigned in
+T03; sanitized live-shape fixture added (`tests/fixtures/capture/cart-live-shape.json`).
+
+**Consequence:** D-16 — crawl fetches delegate to the content script (page
+context) with the captured header set; SW keeps orchestration and falls back to
+its own fetch when the content script is unreachable. If the site rotates the
+marker values, the cart crawl 401s (contained per crawl) — re-capture via CDP.
+
+— Live-smoke session, 2026-10-07 (read-only; cart unmodified)
+
 ## Remaining evidence gaps (small)
 
 1. **Plus A/B (S-4 residual)** — needs a Plus-enabled session; per-seller Plus service lists are already machine-readable.

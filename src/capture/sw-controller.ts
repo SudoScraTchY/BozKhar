@@ -47,6 +47,13 @@ export interface ControllerDeps {
   /** Crawl-state persistence area; optional, falls back to settingsArea. */
   stateArea?: StorageAreaLike;
   fetch: RawFetch;
+  /**
+   * Delegates a GET to the content script on a tab (D-16: the
+   * checkout API 401s fetches without the site's routing
+   * header set, which only the page context sends). Optional:
+   * tests inject fakes; production passes delegateFetchJson.
+   */
+  delegateFetch?: (tabId: number, url: string) => Promise<unknown>;
   now?: () => Date;
   /** Sleep between crawl steps; injectable so tests run instantly. */
   delay?: (ms: number) => Promise<void>;
@@ -144,6 +151,27 @@ async function upsertItem(
   await putItem(deps.dbFactory, item);
 }
 
+/**
+ * Builds the crawl's fetch function (D-16): with a content-script
+ * tab available, fetches are delegated to it (page context carries
+ * the site's routing header set, which the checkout API requires);
+ * when the content script is unreachable - tab closed or navigated
+ * off digikala - the SW's own session fetch is the fallback (it
+ * serves the product API fine; the cart API may 401, which the
+ * orchestrator contains per crawl).
+ */
+function buildFetchJson(deps: ControllerDeps, tabId?: number): (url: string) => Promise<unknown> {
+  const direct = (url: string) => digikalaFetchJson(url, { fetch: deps.fetch });
+  if (tabId === undefined || !deps.delegateFetch) return direct;
+  return async (url: string) => {
+    try {
+      return await deps.delegateFetch?.(tabId, url);
+    } catch {
+      return direct(url);
+    }
+  };
+}
+
 /** Toolbar badge = comparison-list size (09 Surface 1). */
 export async function syncBadge(deps: ControllerDeps): Promise<number> {
   const items = await getAllItems(deps.dbFactory);
@@ -174,8 +202,15 @@ type AreaSet = { set(items: Record<string, unknown>): Promise<void> };
  * Starts (or resumes) the cart crawl. A completed prior crawl opens FRESH:
  * the user explicitly asked again, and append-only snapshots make a rerun
  * duplicate-free by construction (new snapshotIds include the timestamp).
+ *
+ * `tabId` is the tab that requested the crawl (its content script executes
+ * the delegated fetches; D-16). Without it the SW falls back to its own
+ * fetch, which works for the product API but may 401 on the cart API.
  */
-export async function handleCrawlStart(deps: ControllerDeps): Promise<CaptureResponse> {
+export async function handleCrawlStart(
+  deps: ControllerDeps,
+  tabId?: number,
+): Promise<CaptureResponse> {
   const area: AreaGet | undefined = deps.stateArea ?? deps.settingsArea;
   if (crawlRunning) {
     return { ok: false, errorCode: 'CRAWL_RUNNING', message: 'a crawl is already in progress' };
@@ -188,7 +223,7 @@ export async function handleCrawlStart(deps: ControllerDeps): Promise<CaptureRes
       persisted && persisted.phase !== 'complete' ? persisted : initialState();
 
     const result = await runCrawl({
-      fetchJson: (url) => digikalaFetchJson(url, { fetch: deps.fetch }),
+      fetchJson: buildFetchJson(deps, tabId),
       delay: deps.delay ?? ((ms) => new Promise<void>((r) => setTimeout(r, ms))),
       crawlDelayMs: settings.crawlDelayMs,
       persistState: (s) => saveCrawlState(area, s),

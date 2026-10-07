@@ -6,7 +6,7 @@
  * not survive into the new page).
  */
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 
 // chrome stub for the entry module
 beforeEach(() => {

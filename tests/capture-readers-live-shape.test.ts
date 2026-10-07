@@ -6,6 +6,9 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readProductPayload } from '../src/capture/readers/product';
+import { readCartPayload } from '../src/capture/readers/cart';
+
+import cartLiveShape from './fixtures/capture/cart-live-shape.json';
 
 const LIVE_SHAPE = {
   data: {
@@ -88,5 +91,64 @@ describe('readProductPayload: live object-form shipment_methods (smoke finding)'
       },
     });
     expect(view.variants[0]?.feeRial).toBe(111_111);
+  });
+});
+
+describe('readCartPayload: live packages shape (verified 2026-10-07)', () => {
+  it('reads items from data.packages[].cart_items[] with variant seller + fee', () => {
+    const views = readCartPayload(cartLiveShape);
+    expect(views).toHaveLength(3);
+
+    const [a, b, c] = views;
+    expect(a?.productId).toBe('16622211');
+    expect(a?.variantId).toBe('62270876'); // from the variant object
+    expect(a?.sellerId).toBe('101'); // seller lives on the variant
+    expect(a?.sellerName).toBe('فروشنده نمونه یک');
+    expect(a?.priceRial).toBe(45500000);
+    expect(a?.feeRial).toBe(350000); // fee line lives on the variant
+    expect(a?.feeIsKnownFree).toBe(false);
+    expect(a?.quantity).toBe(2);
+    expect(a?.sourceUrl).toBe(
+      'https://www.digikala.com/product/dkp-16622211/%DA%AF%D9%88%D8%B4%DB%8C-%D9%86%D9%85%D9%88%D9%86%D9%87-%D8%A7%D9%84%D9%81?variant_id=62270876',
+    );
+
+    // Second item repeats the same seller's fee line (spike F-2).
+    expect(b?.sellerId).toBe('101');
+    expect(b?.feeRial).toBe(350000);
+
+    // Third item: different seller, FBM (no providers) => fee unknown.
+    expect(c?.sellerId).toBe('102');
+    expect(c?.feeRial).toBeNull();
+    expect(c?.feeIsKnownFree).toBe(false);
+  });
+
+  it('flattens multiple packages into one item list', () => {
+    const views = readCartPayload({
+      data: {
+        packages: [
+          {
+            cart_items: [
+              {
+                quantity: 1,
+                product: { id: 1, title_fa: 'الف', url: { uri: '/product/dkp-1/?variant_id=11' } },
+                variant: { id: 11, seller: { id: 9, title: 'س' } },
+                price: { selling_price: 100 },
+              },
+            ],
+          },
+          {
+            cart_items: [
+              {
+                quantity: 1,
+                product: { id: 2, title_fa: 'ب', url: { uri: '/product/dkp-2/?variant_id=22' } },
+                variant: { id: 22, seller: { id: 9, title: 'س' } },
+                price: { selling_price: 200 },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(views.map((v) => v.productId)).toEqual(['1', '2']);
   });
 });
