@@ -77,21 +77,44 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
     }
   };
 
-  // SPA reality (same finding as the PDP surface): the cart summary hydrates
-  // after document_idle. Retry anchor discovery on a bounded schedule.
+  // SPA reality (same finding as the PDP surface): the cart
+  // summary hydrates after document_idle - seconds later on a
+  // healthy network, MINUTES later when the site rate-limits
+  // its CDN (live smoke 2026-10-07: a 30s poll expired before
+  // the summary card rendered and the button never appeared).
+  // A MutationObserver attaches the instant the anchor exists;
+  // the deadline is only a safety valve so a page that never
+  // hydrates eventually stops watching.
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let observer: MutationObserver | null = null;
   let destroyed = false;
-  const ATTACH_DEADLINE_MS = 30_000;
-  const ATTACH_INTERVAL_MS = 1_000;
+  const ATTACH_DEADLINE_MS = 300_000;
   const startedAt = Date.now();
+
+  const stopWatching = () => {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+    observer?.disconnect();
+    observer = null;
+  };
 
   const tryAttach = () => {
     if (destroyed || button) return;
     const anchor = findMountPoint(doc, CART_SUMMARY_CANDIDATES);
     if (anchor) {
+      stopWatching();
       button = mountButton(doc, anchor, deps.labels.optimizeCart, () => void start());
-    } else if (Date.now() - startedAt < ATTACH_DEADLINE_MS) {
-      pollTimer = setTimeout(tryAttach, ATTACH_INTERVAL_MS);
+      return;
+    }
+    if (Date.now() - startedAt >= ATTACH_DEADLINE_MS) return; // give up quietly
+    if (doc.body) {
+      if (!observer) {
+        observer = new MutationObserver(() => tryAttach());
+        observer.observe(doc.body, { childList: true, subtree: true });
+      }
+    } else {
+      // No body yet: re-arm until the DOM exists.
+      pollTimer = setTimeout(tryAttach, 500);
     }
   };
   tryAttach();
@@ -99,7 +122,7 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
   return {
     destroy() {
       destroyed = true;
-      if (pollTimer) clearTimeout(pollTimer);
+      stopWatching();
       button?.remove();
       overlay?.remove();
       toast?.remove();

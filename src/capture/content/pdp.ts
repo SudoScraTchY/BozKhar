@@ -91,30 +91,46 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
   };
 
   // SPA reality (live smoke finding): at document_idle the seller panel is
-  // usually NOT rendered yet - Digikala hydrates it seconds later. Retry
-  // anchor discovery on a bounded schedule instead of never mounting.
+  // usually NOT rendered yet - Digikala hydrates it seconds later (minutes
+  // under site rate-limiting). A MutationObserver attaches the instant the
+  // anchor exists; the deadline is only a safety valve.
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
+  let observer: MutationObserver | null = null;
   let destroyed = false;
-  const ATTACH_DEADLINE_MS = 30_000;
-  const ATTACH_INTERVAL_MS = 1_000;
+  const ATTACH_DEADLINE_MS = 300_000;
   const startedAt = Date.now();
+
+  const stopWatching = () => {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = null;
+    observer?.disconnect();
+    observer = null;
+  };
 
   const tryAttach = () => {
     if (destroyed || button) return;
     const anchor = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
     if (anchor) {
+      stopWatching();
       button = mountButton(doc, anchor, deps.labels.addToComparison, click);
-    } else if (Date.now() - startedAt < ATTACH_DEADLINE_MS) {
-      pollTimer = setTimeout(tryAttach, ATTACH_INTERVAL_MS);
+      return;
     }
-    // Past the deadline with no anchor: give up quietly - no wrong mount.
+    if (Date.now() - startedAt >= ATTACH_DEADLINE_MS) return; // give up quietly
+    if (doc.body) {
+      if (!observer) {
+        observer = new MutationObserver(() => tryAttach());
+        observer.observe(doc.body, { childList: true, subtree: true });
+      }
+    } else {
+      pollTimer = setTimeout(tryAttach, 500);
+    }
   };
   tryAttach();
 
   return {
     destroy() {
       destroyed = true;
-      if (pollTimer) clearTimeout(pollTimer);
+      stopWatching();
       button?.remove();
       toast?.remove();
     },

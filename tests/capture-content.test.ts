@@ -101,10 +101,10 @@ describe('PDP surface (T03.4)', () => {
       expect(surface).not.toBeNull();
       expect(document.querySelector('button.dkopt-btn')).toBeNull();
 
-      // anchor appears at t+6s
-      vi.advanceTimersByTime(6000);
+      // anchor appears: the MutationObserver attaches on the
+      // mutation itself (async advance flushes the observer task).
       document.body.innerHTML = '<div data-testid="buy-box"></div>';
-      vi.advanceTimersByTime(1500);
+      await vi.advanceTimersByTimeAsync(0);
       const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
       expect(btn).not.toBeNull();
       expect(btn.dataset.state).toBe('idle');
@@ -112,6 +112,31 @@ describe('PDP surface (T03.4)', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('attaches when the seller panel renders after mount (rate-limit hardened)', async () => {
+    // No anchor at document_idle (SPA not hydrated yet - the
+    // 2026-10-07 live smoke: hydration can take minutes under
+    // site rate-limiting; the old 30s poll expired first).
+    document.body.innerHTML = '<main></main>';
+    const surface = mountPdpSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      labels: PDP_LABELS,
+      sendMessage: async () => ({ ok: false, errorCode: 'UNUSED', message: 'x' }),
+    });
+    expect(document.querySelector('button.dkopt-btn')).toBeNull();
+
+    // The SPA renders the buy-box late: the MutationObserver
+    // attaches the button the moment it exists.
+    document.body.innerHTML = '<div data-testid="buy-box"></div>';
+    await new Promise((r) => setTimeout(r, 0));
+    const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    expect(btn.dataset.state).toBe('idle');
+    surface?.destroy();
+    expect(document.querySelector('button.dkopt-btn')).toBeNull();
   });
 
   it('sends empty variantId when the URL has none (SW resolves from payload)', async () => {
@@ -217,6 +242,30 @@ describe('Cart surface (T03.5)', () => {
     surface?.destroy();
   });
 
+  it('attaches when the summary card renders after mount (rate-limit hardened)', async () => {
+    // Cart page before the SPA hydrates the summary card.
+    document.body.innerHTML = '<main></main>';
+    const surface = mountCartSurface({
+      doc: document,
+      location: currentLocation,
+      labels: CART_LABELS,
+      sendMessage: async () => ({ ok: true, kind: 'crawl-start', itemCount: 0 }),
+      onProgress() {
+        return () => {};
+      },
+    });
+    expect(document.querySelector('button.dkopt-btn')).toBeNull();
+
+    // The summary card renders late: attach on the mutation.
+    const card = document.createElement('div');
+    card.className = 'bg-neutral-000 rounded shadow-3-bottom';
+    document.body.appendChild(card);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(document.querySelector('button.dkopt-btn')).not.toBeNull();
+    surface?.destroy();
+    expect(document.querySelector('button.dkopt-btn')).toBeNull();
+  });
+
   it('the overlay abort control sends crawl-abort', async () => {
     const seen: string[] = [];
     const sendMessage = vi.fn(async (req: unknown): Promise<CaptureResponse> => {
@@ -242,7 +291,7 @@ describe('Cart surface (T03.5)', () => {
     surface?.destroy();
   });
 
-  it('mounts late (SPA): cart summary hydrating after idle still gets the button', () => {
+  it('mounts late (SPA): cart summary hydrating after idle still gets the button', async () => {
     vi.useFakeTimers();
     try {
       document.body.innerHTML = '<main></main>'; // no anchor yet
@@ -256,9 +305,10 @@ describe('Cart surface (T03.5)', () => {
       expect(surface).not.toBeNull();
       expect(document.querySelector('button.dkopt-btn')).toBeNull();
 
-      vi.advanceTimersByTime(6000);
+      // summary card appears: the MutationObserver attaches on
+      // the mutation itself (async advance flushes the task).
       document.body.innerHTML = '<section class="cart-summary"></section>';
-      vi.advanceTimersByTime(1500);
+      await vi.advanceTimersByTimeAsync(0);
       expect(document.querySelector('button.dkopt-btn')).not.toBeNull();
       surface?.destroy();
     } finally {
