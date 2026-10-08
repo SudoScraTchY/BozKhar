@@ -7,7 +7,6 @@
 import { messages } from '../../shared/i18n/messages';
 import { mountPdpSurface } from './pdp';
 import { mountCartSurface } from './cart';
-import { installFetchDelegateListener } from '../fetch/delegate';
 import type { CaptureProgressMessage, CaptureResponse } from '../messaging';
 
 type Lang = 'fa' | 'en';
@@ -92,11 +91,11 @@ function mount(): void {
 
 let surfaces: Array<{ destroy(): void } | null> | null = null;
 
-// D-16: this content script is the fetch executor for the service
-// worker's crawl (the checkout API requires the site's routing
-// header set, which only this page context sends). The listener
-// answers fetch/delegate messages; it ignores everything else.
-installFetchDelegateListener();
+// D-16: delegated crawl fetches run in this page's
+// main world, injected directly by the service
+// worker via chrome.scripting.executeScript (see
+// fetch/delegate.ts) - the content script only
+// mounts surfaces.
 
 mount();
 

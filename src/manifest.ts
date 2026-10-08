@@ -15,7 +15,12 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
   // NOTE: no default_locale - the extension does its own catalog-based i18n
   // (src/shared/i18n). Declaring it without a _locales/ bundle makes Chrome
   // reject the whole extension at load time.
-  permissions: ['storage', 'tabs'],
+  // NFR-06: permissions are exactly storage + tabs + scripting +
+  // *.digikala.com host. "scripting" was added for D-16 (main-world
+  // fetch execution via chrome.scripting.executeScript - see the
+  // decision log; script-tag injection from the content script does
+  // not execute in the current Chromium, live-verified 2026-10-08).
+  permissions: ['storage', 'tabs', 'scripting'],
   host_permissions: ['https://*.digikala.com/*'],
   background: {
     service_worker: 'src/background/service-worker.ts',

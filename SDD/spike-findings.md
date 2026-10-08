@@ -238,6 +238,39 @@ guard runs on both sides before injection.
 
 — Live-smoke session, 2026-10-08 (read-only; cart unmodified)
 
+## Live finding 2026-10-08 (2) — content-script `<script>`-tag insertion does not execute (supersedes the fix above; D-16 now uses `chrome.scripting.executeScript`)
+
+**Observed (real extension build, logged-in session):** the classic
+workaround — a content script appending a `<script>` element to
+`document.head` — **does not execute in the current Chromium**.
+Verified empirically with a debug attribute written by the injection
+function (proving it runs on the correct document: same `href`,
+151 scripts, `HEAD`/`BODY` present) while the appended elements
+never run in **any** world: no console output (site console shows
+only its own), no `window.postMessage` (a cross-world event), no
+`window` side-effect markers, and the elements vanish from the DOM
+only when the test's own safety net removes them. The page has **no
+CSP** (no response header, no meta tag), and inline scripts inserted
+from the page's own main world (via `page.evaluate`) execute
+synchronously — so the block is specific to content-script-inserted
+script tags.
+
+**Fix (D-16 refinement 2):** the SW injects the executor directly
+with `chrome.scripting.executeScript({target:{tabId}, world:'MAIN',
+func, args})` — the official API. Live-verified end to end: a
+trivial func returns its value (marker set in the main world), and
+the delegated cart fetch with the site header set returns **200
+with the body**. This also removes the postMessage/request-id round
+trip (the func's return value comes back to the SW directly) and the
+content-script middleman (the content script is surfaces-only again).
+Cost: the `scripting` permission (NFR-06 entry = D-16 in the
+decision log; the manifest permission audit test updated in the same
+change). D-01 preserved (GET-only, baked into the serialized func);
+D-02 preserved (guard before the tab is touched + defense-in-depth
+host check inside the func).
+
+— Live-smoke session, 2026-10-08 (read-only; cart unmodified)
+
 ## Remaining evidence gaps (small)
 
 1. **Plus A/B (S-4 residual)** — needs a Plus-enabled session; per-seller Plus service lists are already machine-readable.

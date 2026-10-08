@@ -1,6 +1,8 @@
 /**
  * NFR-06 permission audit as a test: the manifest must declare EXACTLY
- * storage + tabs + *.digikala.com. Anything more fails CI, not review.
+ * storage + tabs + scripting + *.digikala.com. Anything more fails CI,
+ * not review. ("scripting" was added for D-16 - main-world fetch
+ * execution via chrome.scripting.executeScript; see the decision log.)
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -8,7 +10,7 @@ import { manifestSource } from '../src/manifest';
 
 describe('manifest permissions (NFR-06)', () => {
   it('declares exactly the allowed permissions', () => {
-    expect(manifestSource.permissions).toEqual(['storage', 'tabs']);
+    expect(manifestSource.permissions).toEqual(['storage', 'tabs', 'scripting']);
   });
 
   it('declares only the digikala host permission', () => {
@@ -38,7 +40,7 @@ describe('built artifact permission audit (runs when dist/ exists)', () => {
       permissions?: string[];
       host_permissions?: string[];
     };
-    expect(built.permissions).toEqual(['storage', 'tabs']);
+    expect(built.permissions).toEqual(['storage', 'tabs', 'scripting']);
     expect(built.host_permissions).toEqual(['https://*.digikala.com/*']);
   });
 });
