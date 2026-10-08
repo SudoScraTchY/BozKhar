@@ -2,7 +2,8 @@
  * @vitest-environment jsdom
  *
  * Fetch delegation tests (D-16): the main-world
- * executor func and the service-worker sender.
+ * executor func, the DOM result channel, and the
+ * service-worker sender.
  *
  * The executor runs in the requesting tab's page
  * MAIN world via chrome.scripting.executeScript.
@@ -16,20 +17,22 @@
  * correct document.head never run in any world
  * - 2026-10-08).
  *
- * The executor transports its result as a JSON
- * string: a plain object return did not survive
- * the trip back in some real Chrome builds
- * (works in the test Chromium - live finding
- * 2026-10-08 (4)). It also writes an execution
- * probe to <html data-dkopt-probe> so the SW
- * can tell whether the func ran at all.
+ * The result travels over the page DOM: the
+ * executor writes its outcome to
+ * <html data-dkopt-result> (nonce-prefixed) and
+ * the service worker polls a reader func whose
+ * return is a plain string - executeScript's
+ * return value for promise-returning funcs came
+ * back null in the crawl path in two different
+ * Chromes (live finding 2026-10-08 (5)), while
+ * direct string returns work everywhere tested.
  *
  * jsdom cannot execute chrome.scripting, so the
  * sender's tests stub chrome.scripting.executeScript
  * and the executor func is exercised directly
- * (it only needs global fetch, which jsdom
- * stubs). The injected path itself is verified
- * live in the browser (Phase B smoke).
+ * (it only needs global fetch + document, which
+ * jsdom provides). The injected path itself is
+ * verified live in the browser (Phase B smoke).
  *
  * D-01 audit: the executor is GET-only with
  * session credentials (baked into the func).
@@ -39,9 +42,14 @@
  */
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { SITE_API_HEADERS } from '../src/capture/fetch/site-headers';
-import { delegateFetchJson, mainWorldFetch } from '../src/capture/fetch/delegate';
+import {
+  delegateFetchJson,
+  mainWorldFetch,
+  readDelegateResult,
+} from '../src/capture/fetch/delegate';
 
 const CART_URL = 'https://api.digikala.com/checkout/v1/carts';
+const RESULT_ATTR = 'data-dkopt-result';
 
 /** A minimal Response stand-in for the stubbed fetch. */
 function responseOf(status: number, body?: unknown): Response {
@@ -55,13 +63,25 @@ function responseOf(status: number, body?: unknown): Response {
   } as unknown as Response;
 }
 
-/** The executor transports results as JSON strings. */
-function asResult(res: string): Record<string, unknown> {
-  return JSON.parse(res) as Record<string, unknown>;
+/** Flush the executor's async outcome and read it back. */
+async function outcomeFor(nonce: string): Promise<Record<string, unknown>> {
+  await vi.waitFor(() => {
+    const attr = document.documentElement.getAttribute(RESULT_ATTR);
+    expect(attr?.startsWith(`${nonce}:`)).toBe(true);
+    // Checkpoint values (CP1-CP3, live
+    // diagnostics) are not JSON - wait
+    // past them for the real outcome.
+    JSON.parse((attr as string).slice(nonce.length + 1));
+  });
+  const attr = document.documentElement.getAttribute(RESULT_ATTR);
+  return JSON.parse((attr as string).slice(nonce.length + 1)) as Record<string, unknown>;
 }
 
 describe('mainWorldFetch (page main-world executor)', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
 
   it('D-01 audit: the executor is GET-only with session credentials', () => {
     // Structural guarantee: the method and the
@@ -74,13 +94,39 @@ describe('mainWorldFetch (page main-world executor)', () => {
     expect(src).toMatch(/credentials:\s*['"]include['"]/);
   });
 
-  it('fetches GET with the site header set and resolves the JSON', async () => {
+  it('D-16 self-containment: the serialized funcs reference no module bindings', () => {
+    // executeScript serializes the func by
+    // value and evaluates it in the page,
+    // which cannot see the extension's
+    // module scope. The minifier hoists
+    // module-level constants to shared
+    // bindings and rewrites the func to
+    // reference them - the injected code
+    // then dies on a ReferenceError before
+    // its first real statement, silently
+    // (executeScript resolves with a null
+    // result - finding 2026-10-08 (7)).
+    // The injected funcs must therefore use
+    // literals only.
+    for (const fn of [mainWorldFetch, readDelegateResult]) {
+      const src = fn.toString();
+      expect(src).not.toContain('RESULT_ATTR');
+      expect(src).not.toContain('DELEGATE_TIMEOUT_MS');
+      expect(src).not.toContain('DELEGATE_POLL_MS');
+      expect(src).not.toContain('SITE_API_HEADERS');
+    }
+  });
+
+  it('fetches GET with the site header set and writes the JSON outcome', async () => {
     const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
       responseOf(200, { data: { cart: {} } }),
     );
     vi.stubGlobal('fetch', fetchMock);
-    const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(asResult(res)).toEqual({ ok: true, json: { data: { cart: {} } } });
+    mainWorldFetch({ url: CART_URL, headers: SITE_API_HEADERS, nonce: 'n1' });
+    expect(await outcomeFor('n1')).toEqual({
+      ok: true,
+      json: { data: { cart: {} } },
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       CART_URL,
       expect.objectContaining({
@@ -101,8 +147,12 @@ describe('mainWorldFetch (page main-world executor)', () => {
       'fetch',
       vi.fn(async () => responseOf(401)),
     );
-    const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'HTTP_STATUS', status: 401 });
+    mainWorldFetch({ url: CART_URL, headers: SITE_API_HEADERS, nonce: 'n2' });
+    expect(await outcomeFor('n2')).toMatchObject({
+      ok: false,
+      errorCode: 'HTTP_STATUS',
+      status: 401,
+    });
   });
 
   it('maps network failures to {ok:false, NETWORK}', async () => {
@@ -112,8 +162,11 @@ describe('mainWorldFetch (page main-world executor)', () => {
         throw new Error('Failed to fetch');
       }),
     );
-    const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'NETWORK' });
+    mainWorldFetch({ url: CART_URL, headers: SITE_API_HEADERS, nonce: 'n3' });
+    expect(await outcomeFor('n3')).toMatchObject({
+      ok: false,
+      errorCode: 'NETWORK',
+    });
   });
 
   it('surfaces non-JSON bodies as json:null', async () => {
@@ -121,8 +174,8 @@ describe('mainWorldFetch (page main-world executor)', () => {
       'fetch',
       vi.fn(async () => responseOf(200, undefined)),
     );
-    const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(asResult(res)).toEqual({ ok: true, json: null });
+    mainWorldFetch({ url: CART_URL, headers: SITE_API_HEADERS, nonce: 'n4' });
+    expect(await outcomeFor('n4')).toEqual({ ok: true, json: null });
   });
 
   it('bounds a hung fetch to NETWORK after the time budget', async () => {
@@ -143,13 +196,12 @@ describe('mainWorldFetch (page main-world executor)', () => {
             }),
         ),
       );
-      const pending = mainWorldFetch(CART_URL, SITE_API_HEADERS).then(asResult);
-      const settled = expect(pending).resolves.toMatchObject({
+      mainWorldFetch({ url: CART_URL, headers: SITE_API_HEADERS, nonce: 'n5' });
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(await outcomeFor('n5')).toMatchObject({
         ok: false,
         errorCode: 'NETWORK',
       });
-      await vi.advanceTimersByTimeAsync(30_000);
-      await settled;
     } finally {
       vi.useRealTimers();
     }
@@ -158,14 +210,43 @@ describe('mainWorldFetch (page main-world executor)', () => {
   it('D-02: refuses non-digikala hosts before fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    const res = await mainWorldFetch('https://evil.example.com/steal', SITE_API_HEADERS);
-    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'OUT_OF_SCOPE' });
+    mainWorldFetch({
+      url: 'https://evil.example.com/steal',
+      headers: SITE_API_HEADERS,
+      nonce: 'n6',
+    });
+    // The synchronous refusal writes the
+    // outcome immediately (no fetch).
+    const attr = document.documentElement.getAttribute(RESULT_ATTR);
+    expect(attr?.startsWith('n6:')).toBe(true);
+    expect(JSON.parse((attr as string).slice('n6:'.length))).toMatchObject({
+      ok: false,
+      errorCode: 'OUT_OF_SCOPE',
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
+describe('readDelegateResult (DOM outcome reader)', () => {
+  afterEach(() => {
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
+
+  it('reads the nonce-prefixed outcome from the page DOM', () => {
+    document.documentElement.setAttribute(RESULT_ATTR, 'n7:{"ok":true,"json":{}}');
+    expect(readDelegateResult()).toBe('n7:{"ok":true,"json":{}}');
+  });
+
+  it('reads null while no outcome is written', () => {
+    expect(readDelegateResult()).toBeNull();
+  });
+});
+
 describe('delegateFetchJson (service-worker sender)', () => {
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
 
   /** Stubs chrome.scripting.executeScript to return canned results. */
   function stubExecuteScript(
@@ -177,26 +258,59 @@ describe('delegateFetchJson (service-worker sender)', () => {
     }) => unknown,
   ): Mock {
     const mock = vi.fn(impl);
+    // The sender also writes its live
+    // diagnostics to chrome.storage.local;
+    // stub it so the tests exercise the
+    // real code path.
     vi.stubGlobal('chrome', {
       scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
     });
     return mock;
   }
 
+  /**
+   * Stubs the two-phase protocol: the first
+   * call is the fetch injection (its return
+   * value is ignored - mirrors the live
+   * behavior where a promise return does not
+   * survive), every later call is the DOM
+   * reader, which answers with the captured
+   * nonce and the canned outcome.
+   */
+  function stubDelegateFlow(outcome: Record<string, unknown> | null): Mock {
+    let nonce: string | undefined;
+    let calls = 0;
+    return stubExecuteScript((options) => {
+      calls += 1;
+      if (calls === 1) {
+        nonce = ((options.args as unknown[])[0] as { nonce: string }).nonce;
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      if (outcome === null) {
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      return [
+        {
+          documentId: 'd1',
+          frameId: 0,
+          result: `${nonce}:${JSON.stringify(outcome)}`,
+        },
+      ];
+    });
+  }
+
   it('executes the fetch in the tab main world and returns the JSON', async () => {
-    const executeScript = stubExecuteScript(() => [
-      {
-        documentId: 'd1',
-        frameId: 0,
-        result: JSON.stringify({ ok: true, json: { data: { cart: {} } } }),
-      },
-    ]);
+    const executeScript = stubDelegateFlow({
+      ok: true,
+      json: { data: { cart: {} } },
+    });
     const out = await delegateFetchJson(42, CART_URL);
     expect(out).toEqual({ data: { cart: {} } });
-    expect(executeScript).toHaveBeenCalledTimes(1);
-    // The injection targets the requesting tab's
-    // MAIN world, with the site header set as
-    // args (D-01: the func itself is GET-only).
+    // The injection targets the requesting
+    // tab's MAIN world, with the site header
+    // set and a per-call nonce as args
+    // (D-01: the func itself is GET-only).
     const firstCall = executeScript.mock.calls[0];
     expect(firstCall).toBeDefined();
     const options = firstCall?.[0] as {
@@ -208,39 +322,67 @@ describe('delegateFetchJson (service-worker sender)', () => {
     expect(options.target.tabId).toBe(42);
     expect(options.world).toBe('MAIN');
     expect(options.func).toBe(mainWorldFetch);
-    expect(options.args).toEqual([CART_URL, SITE_API_HEADERS]);
+    expect(options.args).toHaveLength(1);
+    const injected = options.args[0] as {
+      url: string;
+      headers: Record<string, string>;
+      nonce: string;
+    };
+    expect(injected.url).toBe(CART_URL);
+    expect(injected.headers).toEqual(SITE_API_HEADERS);
+    expect(typeof injected.nonce).toBe('string');
+    // The outcome is read back by the
+    // plain-string reader func.
+    const readerCall = executeScript.mock.calls[1];
+    expect(readerCall).toBeDefined();
+    const readerOptions = readerCall?.[0] as { func: unknown };
+    expect(readerOptions.func).toBe(readDelegateResult);
+  });
+
+  it('ignores a stale outcome from an earlier fetch (nonce check)', async () => {
+    let nonce: string | undefined;
+    let calls = 0;
+    const executeScript = stubExecuteScript((options) => {
+      calls += 1;
+      if (calls === 1) {
+        nonce = ((options.args as unknown[])[0] as { nonce: string }).nonce;
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      // First reader answer: a stale nonce.
+      // Second: the correct one.
+      const payload =
+        calls === 2
+          ? 'stale-nonce:{"ok":true,"json":{"stale":true}}'
+          : `${nonce}:${JSON.stringify({ ok: true, json: { data: { cart: {} } } })}`;
+      return [{ documentId: 'd1', frameId: 0, result: payload }];
+    });
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript },
+      storage: { local: { set: vi.fn() } },
+    });
+    const out = await delegateFetchJson(42, CART_URL);
+    expect(out).toEqual({ data: { cart: {} } });
+    expect(executeScript).toHaveBeenCalledTimes(3);
   });
 
   it('maps a main-world HTTP error to HTTP_STATUS', async () => {
-    stubExecuteScript(() => [
-      {
-        documentId: 'd1',
-        frameId: 0,
-        result: JSON.stringify({
-          ok: false,
-          errorCode: 'HTTP_STATUS',
-          message: `HTTP 401 from ${CART_URL}`,
-          status: 401,
-        }),
-      },
-    ]);
+    stubDelegateFlow({
+      ok: false,
+      errorCode: 'HTTP_STATUS',
+      message: `HTTP 401 from ${CART_URL}`,
+      status: 401,
+    });
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'HTTP_STATUS',
     });
   });
 
   it('maps a main-world network failure to NETWORK', async () => {
-    stubExecuteScript(() => [
-      {
-        documentId: 'd1',
-        frameId: 0,
-        result: JSON.stringify({
-          ok: false,
-          errorCode: 'NETWORK',
-          message: 'Network failure: Failed to fetch',
-        }),
-      },
-    ]);
+    stubDelegateFlow({
+      ok: false,
+      errorCode: 'NETWORK',
+      message: 'Network failure: Failed to fetch',
+    });
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'NETWORK',
     });
@@ -249,50 +391,47 @@ describe('delegateFetchJson (service-worker sender)', () => {
   it('maps an unreachable tab to NETWORK', async () => {
     // executeScript itself rejects (tab closed /
     // extension context invalidated).
-    stubExecuteScript(() => Promise.reject(new Error('Cannot access a chrome:// URL')));
+    const mock = vi.fn(() => Promise.reject(new Error('Cannot access a chrome:// URL')));
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
+    });
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'NETWORK',
     });
   });
 
-  it('refuses an empty injection result as NETWORK', async () => {
-    // The diagnosis path re-reads the execution
-    // probe (a second executeScript); the stub
-    // keeps returning an empty frame list.
-    stubExecuteScript(() => []);
-    await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
-      code: 'NETWORK',
-    });
-  });
-
-  it('refuses a non-string injection result as NETWORK', async () => {
-    // Regression guard for the 2026-10-08 (4)
-    // transport change: an object result (what
-    // older builds produced) must be refused,
-    // not mis-parsed.
-    stubExecuteScript(() => [{ documentId: 'd1', frameId: 0, result: { ok: true, json: {} } }]);
-    await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
-      code: 'NETWORK',
-    });
+  it('maps a missing outcome to NETWORK after the poll deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      // The reader never sees this nonce's
+      // outcome (the injected func never
+      // wrote one).
+      stubDelegateFlow(null);
+      const pending = delegateFetchJson(1, CART_URL);
+      const settled = expect(pending).rejects.toMatchObject({
+        code: 'NETWORK',
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('refuses unknown main-world error codes as STRUCTURE_UNRECOGNIZED', async () => {
-    stubExecuteScript(() => [
-      {
-        documentId: 'd1',
-        frameId: 0,
-        result: JSON.stringify({ ok: false, errorCode: 'WEIRD', message: 'x' }),
-      },
-    ]);
+    stubDelegateFlow({ ok: false, errorCode: 'WEIRD', message: 'x' });
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'STRUCTURE_UNRECOGNIZED',
     });
   });
 
   it('D-02: refuses non-digikala hosts before touching the tab', async () => {
-    const executeScript = stubExecuteScript(() => [
-      { documentId: 'd1', frameId: 0, result: JSON.stringify({ ok: true, json: {} }) },
-    ]);
+    const executeScript = vi.fn(() => [{ documentId: 'd1', frameId: 0, result: null }]);
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript },
+      storage: { local: { set: vi.fn() } },
+    });
     await expect(delegateFetchJson(1, 'https://evil.example.com/steal')).rejects.toMatchObject({
       code: 'OUT_OF_SCOPE',
     });

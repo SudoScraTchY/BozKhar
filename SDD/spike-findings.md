@@ -328,6 +328,84 @@ NETWORK (never mis-parsed).
 2. **Plus × large-item interaction (D-13 residual)** — does Plus waive the 359,000 large-item fee? One session with Plus active would answer.
 3. **Count-promo shapes (S-3 residual)** — find a product actively running "buy 2 → free delivery" and capture its payload field.
 
+## Live finding 2026-10-08 (4) — executeScript object return values can be lost in real Chrome
+
+The user's real Chrome 154 answered the delegated cart fetch with "no
+result from the main world" while the identical object-transporting
+build captured all 7 items in the test Chromium. A plain object (or a
+promise of one) returned by the injected func did not survive the trip
+back in the crawl path. Interim fix (committed `86d2c92`): the func
+transported its result as a JSON string and wrote an execution probe to
+`<html data-dkopt-probe>`; the service worker logged raw frames + the
+probe on failure.
+
+## Live finding 2026-10-08 (5) — promise returns from injected funcs are
+unreliable in the crawl path; direct string returns are not
+
+With the string transport the injected func verifiably RAN in the crawl
+path (its DOM side effect was present within 2ms) yet executeScript
+resolved with `result: null` ~2ms after the func started - the returned
+promise was not awaited - and the fetch never fired (no request with the
+extension's signature in the network capture). The same behaviour
+reproduced in the test Chromium, so it is not a Chrome-154-only bug.
+By contrast, a func returning a PLAIN STRING (not a promise) returned
+its value correctly on every injection in every tested Chrome, including
+service-worker-context injections (a probe-read func returned the
+attribute value on every poll for 30s).
+
+Fix (the DOM-result channel): the injected executor writes its outcome
+to `<html data-dkopt-result>` prefixed with a per-call nonce (every
+outcome path writes it, including the synchronous scope refusals), and
+the worker polls a tiny reader func - whose return is a plain string -
+until the nonce-prefixed outcome appears (120ms interval, 30s budget,
+matching the postMessage round trip this whole path replaced). The
+executor's own return value is deliberately ignored.
+
+## Live finding 2026-10-08 (6) — a controlled experiment isolates the
+injected func's source as the failure
+
+A minimal hand-written func WITH ARGS injected from the service worker
+into the main world ran perfectly (wrote `ran:hello` to the page,
+returned `got:hello`), while the built `mainWorldFetch` never ran (not
+even its first statement). So service-worker-context `executeScript`
+with args works; the problem was the built func's own source.
+
+## Live finding 2026-10-08 (7) — the bundler minifier silently breaks
+executeScript funcs (the root cause)
+
+`chrome.scripting.executeScript({func})` serializes the function by
+value (`func.toString()`) and evaluates it in the page, which cannot
+see the extension's module scope. The bundler's minifier hoists
+module-level constants to shared bindings and rewrites the func to
+reference them. The injected code then dies on a ReferenceError before
+its first real statement - and executeScript RESOLVES with a null
+result instead of rejecting, so the failure is silent and looks exactly
+like "the func never ran". Inspecting the built chunk confirmed it: the
+result-attribute name and the timeout budget were hoisted to
+module-scope constants (`A="data-dkopt-result"`, `V=3e4`) referenced
+by the injected func.
+
+This retroactively explains the confusing 2026-10-08 matrix (the
+"object transport worked at 02:40 but nothing works now"): earlier
+builds referenced hoisted constants only at deferred points (e.g.
+inside the abort-timer callback), so the func partially ran before
+dying - the failure mode varied with where the hoisted reference sat in
+the body.
+
+Fix: every constant the injected funcs use is a literal INSIDE the func
+body, and each literal appears exactly once (a literal used twice gets
+hoisted to a module binding again - verified in the rebuilt chunk:
+`"data-dkopt-result"` and `3e4` inline, zero references to module
+bindings). A unit test asserts the serialized funcs reference no module
+bindings. Note the unit tests cannot catch the hoisting itself (they run
+the unminified source) - the built-output inspection and the end-to-end
+crawl are the real guards.
+
+Live verification (2026-10-08, 13:27Z): with the self-contained build
+the crawl completed end to end - phase "complete", all 7 items done,
+49 snapshots in IndexedDB (the 7 new ones written by delegated
+main-world fetches of the live cart and product APIs).
+
 None of these block the go decision. T03 (capture via JSON APIs) and T04 (solver) may start.
 
 — AutoCoder, 2026-09-30 (v2: D-14 confirmed, S-5 observed, cart restored)
