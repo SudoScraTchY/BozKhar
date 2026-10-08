@@ -166,6 +166,37 @@ describe('handleCrawlStart (T03.6 wiring)', () => {
     expect((saved?.['crawlState'] as CrawlState | undefined)?.phase).toBe('complete');
   });
 
+  it('captures every in-stock variant, not just the cart selection (D-17)', async () => {
+    // Live report 2026-10-08: the user deliberately
+    // picked the most expensive vendor; the optimizer
+    // needs the cheaper alternatives in the snapshot
+    // store. The fixture cart selects variant 62270876
+    // (seller الف); the fixture product has 3 in-stock
+    // variants and one out-of-stock (62270879 - the
+    // cheapest, but unavailable, so it must NOT be
+    // captured).
+    const deps = makeDeps();
+    await handleCrawlStart(deps);
+    const selected = await getSnapshotsForItem(deps.dbFactory, {
+      productId: '16622211',
+      variantId: '62270876',
+    });
+    expect(selected.length).toBeGreaterThan(0);
+    for (const sibling of ['62270877', '62270878']) {
+      const snaps = await getSnapshotsForItem(deps.dbFactory, {
+        productId: '16622211',
+        variantId: sibling,
+      });
+      expect(snaps.length).toBeGreaterThan(0);
+      expect(snaps.at(-1)?.offers.length).toBe(1);
+    }
+    const unavailable = await getSnapshotsForItem(deps.dbFactory, {
+      productId: '16622211',
+      variantId: '62270879',
+    });
+    expect(unavailable.length).toBe(0);
+  });
+
   it('resumes a persisted non-complete state without re-fetching done items', async () => {
     const cartItems = readCartPayload(cartBasic);
     const first = cartItems[0];

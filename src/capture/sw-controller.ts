@@ -245,14 +245,43 @@ export async function handleCrawlStart(
       },
       onProduct: async (productId, variantId, raw) => {
         const view = readProductPayload(raw);
-        const variant = view.variants.find((v) => v.variantId === variantId);
-        if (!variant) return; // contained: recorded as done without offers
-        const offer = normalizeVariantToOffer(view.productId, variant, {
-          feeProvenance: 'page-visible',
-        });
-        const snapshot = buildSnapshot(view.productId, variantId, variantId, [offer]);
-        await appendSnapshot(deps.dbFactory, snapshot);
-        await upsertItem(deps, view.productId, view.title, variantId, variantId, 1, snapshot);
+        // Live report 2026-10-08: the user deliberately
+        // picked the most expensive vendor, yet the
+        // optimizer had nothing cheaper to find - the
+        // product payload carries EVERY in-stock variant
+        // (each is a seller-offer with its own price and
+        // fee), and the crawl stored only the cart's
+        // current selection. Capture them all (D-17): one
+        // snapshot per variant, append-only. The payload
+        // is already fetched, so this costs no extra API
+        // calls. T05 assembles the solver input from the
+        // full per-product variant set.
+        const inStock = view.variants.filter((v) => v.stockState === 'in-stock');
+        if (inStock.length === 0) {
+          return; // contained: recorded as done without offers
+        }
+        const current = inStock.find((v) => v.variantId === variantId);
+        for (const variant of inStock) {
+          const offer = normalizeVariantToOffer(view.productId, variant, {
+            feeProvenance: 'page-visible',
+          });
+          const label = variantLabel(view.productId, variant.variantId, variant);
+          const snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer]);
+          await appendSnapshot(deps.dbFactory, snapshot);
+          if (variant.variantId === variantId) {
+            // The cart item tracks its own selection;
+            // the alternatives live in the snapshot
+            // store keyed by variant.
+            await upsertItem(deps, view.productId, view.title, variantId, label, 1, snapshot);
+          }
+        }
+        if (!current) {
+          // The cart's selection is gone from the payload
+          // (delisted or out of stock): the alternatives
+          // are captured above; the item record keeps
+          // its selection and prior snapshot.
+          await upsertItem(deps, view.productId, view.title, variantId, variantId, 1);
+        }
       },
       shouldAbort: () => abortRequested,
       onProgress: (p) => deps.onProgress?.({ kind: 'capture/progress', ...p }),
