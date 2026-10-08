@@ -37,6 +37,7 @@ export type MessageKey =
   | 'crawlAborted'
   | 'crawlFinished'
   | 'crawlStarting'
+  | 'crawlStartFailed'
   | 'abortCrawl';
 
 type Catalog = Record<MessageKey, string>;
@@ -76,6 +77,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlAborted: 'بررسی متوقف شد. نتایج تا همین‌جا ذخیره شده‌اند.',
     crawlFinished: 'بررسی کامل شد؛ {failed} مورد ناموفق.',
     crawlStarting: 'در حال شروع بررسی سبد…',
+    crawlStartFailed:
+      'برقراری ارتباط با سرویس‌دهنده‌ی پس‌زمینه ناموفق؛ افزونه را دوباره بارگذاری کنید.',
     abortCrawl: 'توقف',
   },
   en: {
@@ -110,6 +113,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlAborted: 'Crawl stopped. Everything so far is kept.',
     crawlFinished: 'Crawl complete; {failed} item(s) failed.',
     crawlStarting: 'Starting the cart crawl…',
+    crawlStartFailed: 'Could not reach the background service worker; please reload the extension.',
     abortCrawl: 'Stop',
   },
 };

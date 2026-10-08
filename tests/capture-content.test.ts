@@ -23,6 +23,7 @@ const PDP_LABELS = {
 const CART_LABELS = {
   optimizeCart: 'بهینه‌سازی سبد خرید',
   crawlStarting: 'در حال شروع…',
+  crawlStartFailed: 'ارتباط با سرویس‌دهنده برقرار نشد',
   crawlProgress: (done: number, total: number) => `بررسی ${done} از ${total}…`,
   crawlAborted: 'متوقف شد',
   crawlFinished: (failed: number) => `کامل شد؛ ${failed} ناموفق`,
@@ -237,6 +238,33 @@ describe('Cart surface (T03.5)', () => {
     btn.click();
     await vi.waitFor(() =>
       expect(document.querySelector('.dkopt-toast')?.textContent).toContain('کامل شد؛ 1 ناموفق'),
+    );
+    expect(document.querySelector('.dkopt-progress')).toBeNull();
+    surface?.destroy();
+  });
+
+  it('fails loudly when the service worker does not answer (no eternal overlay)', async () => {
+    // Live report 2026-10-08: the overlay sat on
+    // "starting..." forever when no service worker
+    // answered the crawl-start message.
+    const sendMessage = vi.fn(async (): Promise<CaptureResponse> => {
+      throw new Error('Could not establish connection. Receiving end does not exist.');
+    });
+    const surface = mountCartSurface({
+      doc: document,
+      location: currentLocation,
+      labels: CART_LABELS,
+      sendMessage,
+      onProgress() {
+        return () => undefined;
+      },
+    });
+    const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
+    btn.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('.dkopt-toast')?.textContent).toContain(
+        'ارتباط با سرویس‌دهنده برقرار نشد',
+      ),
     );
     expect(document.querySelector('.dkopt-progress')).toBeNull();
     surface?.destroy();

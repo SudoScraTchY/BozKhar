@@ -21,6 +21,7 @@ export interface CartSurfaceDeps {
   labels: {
     optimizeCart: string;
     crawlStarting: string;
+    crawlStartFailed: string;
     crawlProgress: (done: number, total: number) => string;
     crawlAborted: string;
     crawlFinished: (failed: number) => string;
@@ -66,7 +67,22 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
         );
       }
     });
-    const res = await deps.sendMessage({ kind: 'capture/crawl-start' });
+    let res: Awaited<ReturnType<typeof deps.sendMessage>>;
+    try {
+      res = await deps.sendMessage({ kind: 'capture/crawl-start' });
+    } catch {
+      // No service worker answered (sw crashed or not yet
+      // registered). Fail loudly instead of leaving the
+      // overlay up forever (live report 2026-10-08: the
+      // overlay sat on "starting..." with nothing happening).
+      overlay?.remove();
+      overlay = null;
+      unsub?.();
+      unsub = null;
+      toast?.remove();
+      toast = showToast(doc, deps.labels.crawlStartFailed, 6000);
+      return;
+    }
     if (!res.ok) {
       overlay?.remove();
       overlay = null;
