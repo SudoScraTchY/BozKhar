@@ -79,12 +79,20 @@ export function mainWorldFetch(
       message: `URL outside the closed *.digikala.com scope: ${url}`,
     });
   }
+  // Time budget for a delegated fetch (the crawl
+  // retries per item): a hung response must not
+  // stall the crawl. Parity with the postMessage
+  // round trip this replaced (same 30s bound).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DELEGATE_TIMEOUT_MS);
   return fetch(url, {
     method: 'GET',
     credentials: 'include', // the user's session => effective fees
     headers: { Accept: 'application/json', ...headers },
+    signal: controller.signal,
   })
     .then(async (res: Response): Promise<DelegateResult> => {
+      clearTimeout(timer);
       let body: unknown = null;
       try {
         body = await res.json();
@@ -101,12 +109,18 @@ export function mainWorldFetch(
       }
       return { ok: true, json: body };
     })
-    .catch((e: Error): DelegateResult => ({
-      ok: false,
-      errorCode: 'NETWORK',
-      message: `Network failure: ${e.message}`,
-    }));
+    .catch((e: Error): DelegateResult => {
+      clearTimeout(timer);
+      return {
+        ok: false,
+        errorCode: 'NETWORK',
+        message: `Network failure: ${e.message}`,
+      };
+    });
 }
+
+/** Time budget for a delegated fetch (the crawl retries per item). */
+const DELEGATE_TIMEOUT_MS = 30_000;
 
 /**
  * Service-worker side: runs a delegated GET in the

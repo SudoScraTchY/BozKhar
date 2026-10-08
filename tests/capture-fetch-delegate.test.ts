@@ -62,15 +62,25 @@ describe('mainWorldFetch (page main-world executor)', () => {
   });
 
   it('fetches GET with the site header set and resolves the JSON', async () => {
-    const fetchMock = vi.fn(async () => responseOf(200, { data: { cart: {} } }));
+    const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) =>
+      responseOf(200, { data: { cart: {} } }),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
     expect(res).toEqual({ ok: true, json: { data: { cart: {} } } });
-    expect(fetchMock).toHaveBeenCalledWith(CART_URL, {
-      method: 'GET',
-      credentials: 'include',
-      headers: { Accept: 'application/json', ...SITE_API_HEADERS },
-    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      CART_URL,
+      expect.objectContaining({
+        method: 'GET',
+        credentials: 'include',
+        headers: { Accept: 'application/json', ...SITE_API_HEADERS },
+      }),
+    );
+    // The fetch is time-budgeted (an abort
+    // signal is attached; see the hung-fetch
+    // test below).
+    const init = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect(init?.signal).toBeTruthy();
   });
 
   it('maps HTTP errors to {ok:false, HTTP_STATUS}', async () => {
@@ -100,6 +110,36 @@ describe('mainWorldFetch (page main-world executor)', () => {
     );
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
     expect(res).toEqual({ ok: true, json: null });
+  });
+
+  it('bounds a hung fetch to NETWORK after the time budget', async () => {
+    vi.useFakeTimers();
+    try {
+      // A fetch that never settles on its
+      // own but rejects when the budget
+      // aborts it (real fetch behavior
+      // under a hung response).
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise<Response>((_, reject) => {
+              init?.signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'));
+              });
+            }),
+        ),
+      );
+      const pending = mainWorldFetch(CART_URL, SITE_API_HEADERS);
+      const settled = expect(pending).resolves.toMatchObject({
+        ok: false,
+        errorCode: 'NETWORK',
+      });
+      await vi.advanceTimersByTimeAsync(30_000);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('D-02: refuses non-digikala hosts before fetching', async () => {

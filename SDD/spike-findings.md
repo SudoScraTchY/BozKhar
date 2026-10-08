@@ -271,6 +271,29 @@ host check inside the func).
 
 — Live-smoke session, 2026-10-08 (read-only; cart unmodified)
 
+## Live finding 2026-10-08 (3) — the persistent test profile can run a STALE service worker
+
+**Observed:** after rebuilding the extension, a fresh
+`launch_persistent_context` on the same profile still ran
+the PREVIOUS build's service worker (responses lacked
+fields only the new build adds; storage writes from the
+new build's SW never landed). Chrome caches extension SW
+scripts in the profile (`Default/Service Worker`,
+`Default/Extension Scripts`, `Default/Extension State`).
+This made the executeScript refactor look broken for
+~an hour: every "the delegate never runs" signal was the
+old build running.
+
+**Fix (test harness):** before each probe launch, delete
+the profile's `Default/Service Worker`,
+`Default/Extension Scripts`, and `Default/Extension State`
+(the login session — Cookies, Local Storage, IndexedDB —
+lives elsewhere and is preserved). After clearing, the new
+build runs: the crawl-start response carried the new
+`tabId` field and the SW's storage writes landed.
+
+— Live-smoke session, 2026-10-08 (read-only; cart unmodified)
+
 ## Remaining evidence gaps (small)
 
 1. **Plus A/B (S-4 residual)** — needs a Plus-enabled session; per-seller Plus service lists are already machine-readable.
