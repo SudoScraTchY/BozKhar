@@ -292,6 +292,34 @@ lives elsewhere and is preserved). After clearing, the new
 build runs: the crawl-start response carried the new
 `tabId` field and the SW's storage writes landed.
 
+## Live finding 2026-10-08 (4) — `executeScript` object return values
+can be lost in real Chrome
+
+**Observed (user's real Chrome 154, 2026-10-08
+11:06 GMT):** `chrome.scripting.executeScript`
+with `world: 'MAIN'` RESOLVED, but
+`frames[0].result` was not a usable object —
+the sender failed with "no result from the
+main world" and the crawl fell back to the
+direct fetch (401). The identical code returns
+proper object results in the Playwright test
+Chromium (crawl completed 7/7 there).
+
+**Fix:** the injected func now transports its
+result as a JSON **string** (`JSON.stringify`
+inside the func, `JSON.parse` in the SW) -
+string return values are serialized more
+robustly than page-realm objects. The func
+also writes an execution probe to
+`<html data-dkopt-probe>`; when the result is
+still unusable, the SW reads the probe back
+via a second `executeScript` and logs the raw
+frames + probe to the service worker console,
+so a failing Chrome can be diagnosed from one
+console paste. New regression test: a
+non-string injection result is refused as
+NETWORK (never mis-parsed).
+
 — Live-smoke session, 2026-10-08 (read-only; cart unmodified)
 
 ## Remaining evidence gaps (small)

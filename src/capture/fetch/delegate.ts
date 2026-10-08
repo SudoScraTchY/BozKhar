@@ -56,28 +56,35 @@ type DelegateResult =
  * tests (executeScript serializes the func by
  * value, so exporting changes nothing at runtime).
  */
-export function mainWorldFetch(
-  url: string,
-  headers: Record<string, string>,
-): Promise<DelegateResult> {
+export function mainWorldFetch(url: string, headers: Record<string, string>): Promise<string> {
+  // Execution probe (live diagnosis 2026-10-08):
+  // written to <html data-dkopt-probe> so we can
+  // tell whether this func ran at all in a given
+  // Chrome, independent of the result transport.
+  document.documentElement.setAttribute('data-dkopt-probe', `ran:${Date.now()}`);
+
   // D-02 (defense in depth): refuse anything outside
   // the closed *.digikala.com scope before fetching.
   let host = '';
   try {
     host = new URL(url).hostname.toLowerCase();
   } catch {
-    return Promise.resolve({
-      ok: false,
-      errorCode: 'OUT_OF_SCOPE',
-      message: `URL outside the closed *.digikala.com scope: ${url}`,
-    });
+    return Promise.resolve(
+      JSON.stringify({
+        ok: false,
+        errorCode: 'OUT_OF_SCOPE',
+        message: `URL outside the closed *.digikala.com scope: ${url}`,
+      }),
+    );
   }
   if (host !== 'digikala.com' && !host.endsWith('.digikala.com')) {
-    return Promise.resolve({
-      ok: false,
-      errorCode: 'OUT_OF_SCOPE',
-      message: `URL outside the closed *.digikala.com scope: ${url}`,
-    });
+    return Promise.resolve(
+      JSON.stringify({
+        ok: false,
+        errorCode: 'OUT_OF_SCOPE',
+        message: `URL outside the closed *.digikala.com scope: ${url}`,
+      }),
+    );
   }
   // Time budget for a delegated fetch (the crawl
   // retries per item): a hung response must not
@@ -91,7 +98,7 @@ export function mainWorldFetch(
     headers: { Accept: 'application/json', ...headers },
     signal: controller.signal,
   })
-    .then(async (res: Response): Promise<DelegateResult> => {
+    .then(async (res: Response): Promise<string> => {
       clearTimeout(timer);
       let body: unknown = null;
       try {
@@ -100,22 +107,22 @@ export function mainWorldFetch(
         // non-JSON body: surfaced as null (the reader rejects it)
       }
       if (!res.ok) {
-        return {
+        return JSON.stringify({
           ok: false,
           errorCode: 'HTTP_STATUS',
           message: `HTTP ${res.status} from ${url}`,
           status: res.status,
-        };
+        });
       }
-      return { ok: true, json: body };
+      return JSON.stringify({ ok: true, json: body });
     })
-    .catch((e: Error): DelegateResult => {
+    .catch((e: Error): string => {
       clearTimeout(timer);
-      return {
+      return JSON.stringify({
         ok: false,
         errorCode: 'NETWORK',
         message: `Network failure: ${e.message}`,
-      };
+      });
     });
 }
 
@@ -148,8 +155,39 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
     throw networkError(`main-world execution failed for ${url}`);
   }
 
-  const result = frames?.[0]?.result as DelegateResult | undefined;
+  // The injected func transports its result as a
+  // JSON string: a plain object return did not
+  // survive the trip back in some real Chrome
+  // builds (works in the test Chromium; live
+  // finding 2026-10-08 (4)).
+  const raw = frames?.[0]?.result;
+  let result: DelegateResult | undefined;
+  if (typeof raw === 'string') {
+    try {
+      result = JSON.parse(raw) as DelegateResult;
+    } catch {
+      result = undefined;
+    }
+  }
   if (!result || typeof result !== 'object') {
+    // Diagnosis: read the execution probe back so
+    // the service worker console shows whether the
+    // injected func ran at all, plus the raw
+    // executeScript result.
+    let probe: unknown = 'probe-read-failed';
+    try {
+      const probeFrames = await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        func: () => document.documentElement.getAttribute('data-dkopt-probe'),
+      });
+      probe = probeFrames?.[0]?.result;
+    } catch {
+      probe = 'probe-read-threw';
+    }
+    console.error(
+      `[dkopt] no usable result from the main world. raw frames: ${JSON.stringify(frames)}; execution probe: ${JSON.stringify(probe)}`,
+    );
     throw networkError(`no result from the main world for ${url}`);
   }
   if (result.ok) {

@@ -16,6 +16,14 @@
  * correct document.head never run in any world
  * - 2026-10-08).
  *
+ * The executor transports its result as a JSON
+ * string: a plain object return did not survive
+ * the trip back in some real Chrome builds
+ * (works in the test Chromium - live finding
+ * 2026-10-08 (4)). It also writes an execution
+ * probe to <html data-dkopt-probe> so the SW
+ * can tell whether the func ran at all.
+ *
  * jsdom cannot execute chrome.scripting, so the
  * sender's tests stub chrome.scripting.executeScript
  * and the executor func is exercised directly
@@ -47,6 +55,11 @@ function responseOf(status: number, body?: unknown): Response {
   } as unknown as Response;
 }
 
+/** The executor transports results as JSON strings. */
+function asResult(res: string): Record<string, unknown> {
+  return JSON.parse(res) as Record<string, unknown>;
+}
+
 describe('mainWorldFetch (page main-world executor)', () => {
   afterEach(() => vi.unstubAllGlobals());
 
@@ -67,7 +80,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
     );
     vi.stubGlobal('fetch', fetchMock);
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(res).toEqual({ ok: true, json: { data: { cart: {} } } });
+    expect(asResult(res)).toEqual({ ok: true, json: { data: { cart: {} } } });
     expect(fetchMock).toHaveBeenCalledWith(
       CART_URL,
       expect.objectContaining({
@@ -89,7 +102,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
       vi.fn(async () => responseOf(401)),
     );
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(res).toMatchObject({ ok: false, errorCode: 'HTTP_STATUS', status: 401 });
+    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'HTTP_STATUS', status: 401 });
   });
 
   it('maps network failures to {ok:false, NETWORK}', async () => {
@@ -100,7 +113,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
       }),
     );
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(res).toMatchObject({ ok: false, errorCode: 'NETWORK' });
+    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'NETWORK' });
   });
 
   it('surfaces non-JSON bodies as json:null', async () => {
@@ -109,7 +122,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
       vi.fn(async () => responseOf(200, undefined)),
     );
     const res = await mainWorldFetch(CART_URL, SITE_API_HEADERS);
-    expect(res).toEqual({ ok: true, json: null });
+    expect(asResult(res)).toEqual({ ok: true, json: null });
   });
 
   it('bounds a hung fetch to NETWORK after the time budget', async () => {
@@ -130,7 +143,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
             }),
         ),
       );
-      const pending = mainWorldFetch(CART_URL, SITE_API_HEADERS);
+      const pending = mainWorldFetch(CART_URL, SITE_API_HEADERS).then(asResult);
       const settled = expect(pending).resolves.toMatchObject({
         ok: false,
         errorCode: 'NETWORK',
@@ -146,7 +159,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const res = await mainWorldFetch('https://evil.example.com/steal', SITE_API_HEADERS);
-    expect(res).toMatchObject({ ok: false, errorCode: 'OUT_OF_SCOPE' });
+    expect(asResult(res)).toMatchObject({ ok: false, errorCode: 'OUT_OF_SCOPE' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
@@ -172,7 +185,11 @@ describe('delegateFetchJson (service-worker sender)', () => {
 
   it('executes the fetch in the tab main world and returns the JSON', async () => {
     const executeScript = stubExecuteScript(() => [
-      { documentId: 'd1', frameId: 0, result: { ok: true, json: { data: { cart: {} } } } },
+      {
+        documentId: 'd1',
+        frameId: 0,
+        result: JSON.stringify({ ok: true, json: { data: { cart: {} } } }),
+      },
     ]);
     const out = await delegateFetchJson(42, CART_URL);
     expect(out).toEqual({ data: { cart: {} } });
@@ -199,12 +216,12 @@ describe('delegateFetchJson (service-worker sender)', () => {
       {
         documentId: 'd1',
         frameId: 0,
-        result: {
+        result: JSON.stringify({
           ok: false,
           errorCode: 'HTTP_STATUS',
           message: `HTTP 401 from ${CART_URL}`,
           status: 401,
-        },
+        }),
       },
     ]);
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
@@ -217,7 +234,11 @@ describe('delegateFetchJson (service-worker sender)', () => {
       {
         documentId: 'd1',
         frameId: 0,
-        result: { ok: false, errorCode: 'NETWORK', message: 'Network failure: Failed to fetch' },
+        result: JSON.stringify({
+          ok: false,
+          errorCode: 'NETWORK',
+          message: 'Network failure: Failed to fetch',
+        }),
       },
     ]);
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
@@ -235,7 +256,21 @@ describe('delegateFetchJson (service-worker sender)', () => {
   });
 
   it('refuses an empty injection result as NETWORK', async () => {
+    // The diagnosis path re-reads the execution
+    // probe (a second executeScript); the stub
+    // keeps returning an empty frame list.
     stubExecuteScript(() => []);
+    await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
+      code: 'NETWORK',
+    });
+  });
+
+  it('refuses a non-string injection result as NETWORK', async () => {
+    // Regression guard for the 2026-10-08 (4)
+    // transport change: an object result (what
+    // older builds produced) must be refused,
+    // not mis-parsed.
+    stubExecuteScript(() => [{ documentId: 'd1', frameId: 0, result: { ok: true, json: {} } }]);
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'NETWORK',
     });
@@ -243,7 +278,11 @@ describe('delegateFetchJson (service-worker sender)', () => {
 
   it('refuses unknown main-world error codes as STRUCTURE_UNRECOGNIZED', async () => {
     stubExecuteScript(() => [
-      { documentId: 'd1', frameId: 0, result: { ok: false, errorCode: 'WEIRD', message: 'x' } },
+      {
+        documentId: 'd1',
+        frameId: 0,
+        result: JSON.stringify({ ok: false, errorCode: 'WEIRD', message: 'x' }),
+      },
     ]);
     await expect(delegateFetchJson(1, CART_URL)).rejects.toMatchObject({
       code: 'STRUCTURE_UNRECOGNIZED',
@@ -252,7 +291,7 @@ describe('delegateFetchJson (service-worker sender)', () => {
 
   it('D-02: refuses non-digikala hosts before touching the tab', async () => {
     const executeScript = stubExecuteScript(() => [
-      { documentId: 'd1', frameId: 0, result: { ok: true, json: {} } },
+      { documentId: 'd1', frameId: 0, result: JSON.stringify({ ok: true, json: {} }) },
     ]);
     await expect(delegateFetchJson(1, 'https://evil.example.com/steal')).rejects.toMatchObject({
       code: 'OUT_OF_SCOPE',
