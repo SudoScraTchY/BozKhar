@@ -166,7 +166,16 @@ function buildFetchJson(deps: ControllerDeps, tabId?: number): (url: string) => 
   return async (url: string) => {
     try {
       return await deps.delegateFetch?.(tabId, url);
-    } catch {
+    } catch (e) {
+      // Diagnosability (live testing 2026-10-08):
+      // the direct fallback 401s silently, so the
+      // real delegation failure must be visible in
+      // the service worker console.
+      console.error(
+        `[dkopt] fetch delegation failed (falling back to direct fetch): ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
       return direct(url);
     }
   };
