@@ -409,3 +409,36 @@ main-world fetches of the live cart and product APIs).
 None of these block the go decision. T03 (capture via JSON APIs) and T04 (solver) may start.
 
 — AutoCoder, 2026-09-30 (v2: D-14 confirmed, S-5 observed, cart restored)
+
+## 2026-10-09 — Real shipping costs live in POST /v4/shipment/ (fee-model spike)
+
+The user pointed at /checkout/shipping/ as the source of truth for
+shipping costs. CDP network recon in the logged-in profile
+(.openclaw/tmp/shipping_api_probe3.py) captured it:
+
+- **Endpoint:** `POST https://api.digikala.com/v4/shipment/`
+  **Body:** `{"is_initial_load":true}` (no other parameters; the
+  session cookie carries auth, so it is replayable from any
+  digikala.com page context - e.g. the delegated main-world fetcher).
+- **Response:** `data.shipment_types.normal[]` - one entry per
+  delivery package. Each package carries
+  `submit_types[0].shipping_cost` (the REAL fee in rials) and
+  `cart_items[].variant.id` (the variants grouped into that package).
+  Packages group by vendor: a multi-item package means those items
+  share one vendor and one fee.
+- Live cart at capture time: 4 packages - {52584941}: 1,200,000;
+  {83100176}: 1,400,000; {70378540}: 1,490,000;
+  {82074892, 53078909}: 1,100,000 (two items, one shared fee).
+- The product page's "روش و هزینه تحویل" section (per-vendor
+  delivery costs) is rendered from product-API data - no CSS
+  selector needed (S-7: we read JSON APIs, never scrape markup).
+
+Implication for the fee model (candidate D-19): the product API's
+per-offer `delivery.feeAmount` is sometimes null (the current-cart
+total then shows "—"), while /v4/shipment/ always returns the real
+package fee for items currently in the cart. A post-crawl step can
+capture the shipment payload and correct the fee of each item's
+current offer to its package's real cost (exact current-cart total;
+product-API fees remain the fallback for alternative arrangements).
+The package fee is per vendor group, matching the solver's
+one-fee-per-vendor-group model (SDD 08).
