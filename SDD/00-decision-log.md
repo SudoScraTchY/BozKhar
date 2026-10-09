@@ -121,3 +121,134 @@ Status legend: **Locked** (stakeholder-confirmed), **Assumed** (default adopted,
 **Alternatives considered:** (a) render results inside the cart page DOM — rejected: cart re-renders (SPA) would wipe it, and the checkout panel is site-owned markup we must not mutate (advise-only, S-7); (b) `options_ui` page doubling as results — rejected: options is a settings surface; results need a clean tab the SW can open unprompted; (c) a chrome.notifications summary — rejected: no numbers-in-notifications surface, and the user asked for a report; (d) relying on the broadcast alone — rejected by the live incident. The page reads both storages (comparison list + append-only snapshot store) directly — extension pages hold the `storage` permission, so no messaging hop is needed for reads.
 
 **Consequence:** NFR-06 is preserved (no new permission; `web_accessible_resources` with empty `matches` exposes nothing to web origins — verified by the manifest audit test). The solver-input assembly is pure (`src/results/assemble.ts`) and unit-tested end-to-end: a cart holding the expensive variant with a cheaper sibling captured yields a plan that switches variants and names the exact variantId (D-17 passthrough), with the current-total arithmetic reconciling against the solver's fee model (FR-12). Unknown fees score at the largest known fee (SDD 08 default, now enforced in `solve.ts`) and the current-total returns null when any fee is unknown, so the verdict never fabricates a "savings" number.
+## D-19 — Real shipping costs come from the shipment-quote API (fee correction)
+
+**Decision:** After the product phase, the crawl quotes the real per-package shipping costs via `POST https://api.digikala.com/v4/shipment/` with the fixed body `{"is_initial_load":true}` (spike finding 2026-10-09, `spike-findings.md`), delegated to the cart tab's main world (`mainWorldShipmentQuote` - the extension's only POST; method baked in, URL and body fixed by the SW wrapper). The response's `data.shipment_types.normal[]` is one package per vendor group: `submit_types[0].shipping_cost` is the real fee, `cart_items[]` names the variants that share it. The normalized record (`ShipmentRecord`, store `shipments`, key `latest`, DB v1→v2) prices the assembler: a cart item's **current** offer gets its package's real fee (overriding the product API's per-offer `delivery.feeAmount`, which is sometimes null - the live cart's total then rendered as "—"). Alternative offers keep the product-API fees: their package fee is unobserved, and the solver's one-fee-per-vendor-group model matches the package model.
+
+**Why not CSS selectors / the product page:** the "روش و هزینه تحویل" section is rendered from product-API JSON; the quote API is the authoritative, structured source (S-7: read JSON APIs, never scrape markup).
+
+**D-01 amendment:** D-01 ("the controller only ever GETs") gains exactly one exception - this fixed, read-only quote POST (it returns pricing and does not modify the cart). The exception is structural, not permissive: `mainWorldShipmentQuote` hard-codes `method: 'POST'`, and the SW wrapper fixes URL and body, so no caller can target another endpoint or verb.
+
+**Consequences:** the current-cart total and the savings card become exact whenever the crawl ran with a reachable tab (a failed quote is contained: fees stay product-API, the report stays honest). Package fees are per vendor group, so a multi-item package charges one fee once - matching checkout behavior. Cost: one extra POST per crawl; the `shipments` store (additive, DB version 2).
+
+## D-20 - executeScript calls are bounded and retried
+
+Date: 2026-10-09
+Status: accepted
+
+Problem: Live verification of D-19 showed the
+crawl hanging on "dar-e shoro-e baresi-e sabd..."
+(starting cart review) with no API request ever
+issued: chrome.scripting.executeScript from a
+cold MV3 service worker sometimes never invokes
+its callback. The delegate then awaits a promise
+that never settles - the crawl-start response
+never returns and the results tab never opens.
+This matches the user's 2026-10-08 "stuck at
+starting" report and is intermittent: the same
+build completed a full crawl minutes earlier.
+
+Decision: every executeScript call in the
+delegate layer is wrapped in withTimeout
+(default 8s) and the initial injection retries
+up to 3 times (300ms apart). A lost read
+callback during polling counts as "no outcome
+yet" and the loop continues, bounded by the
+30s outcome deadline. Retried runs are
+idempotent: delegated calls are reads (GET
+fetches and the fixed quote POST) and the
+outcome channel is nonce-keyed. Timing lives
+in the exported EXECUTE_TIMING object; tests
+shrink it.
+
+Alternatives: (a) leave it - the crawl hangs
+indefinitely with no recovery path; (b) move
+the fetch to the content script - the
+page-context requirement (site routing header
+set) rules that out (D-16).
+
+Consequences: a lost callback now costs at most
+~24s per delegated call before the caller's
+containment kicks in (per-item failure for
+crawl fetches, a contained skip for the quote);
+a retried injection may issue a duplicate
+read-only request.
+
+Amendment (live preflight probe, 2026-10-09):
+the quote POST must NOT carry the routing
+header set (x-site / x-source /
+x-web-optimize-response). A four-way probe
+from the logged-in cart page showed:
+no headers -> 200, Content-Type only -> 200,
+routing headers -> "Failed to fetch",
+routing + Content-Type -> "Failed to fetch".
+The shipment endpoint's CORS preflight
+rejects the routing markers (they are a
+checkout-cart-API requirement); the quote
+authenticates with the session cookie alone.
+The quote executor therefore sends only
+Content-Type: application/json.
+
+Evidence: live CDP diagnostic 2026-10-09
+(.openclaw/tmp/d19_diag.py): overlay stuck
+120s, zero product-API requests, the SW alive
+and answering crawl-abort pings; unit tests
+"executeScript callback loss (D-20)" in
+tests/capture-fetch-delegate.test.ts
+(lost-callback retry, lost read, permanent
+loss).
+
+## D-21 - the cart surface re-sends a
+crawl-start the worker never answers
+
+Date: 2026-10-09
+Status: accepted
+
+Problem: live diagnostics (2026-10-09,
+.openclaw/tmp/d19_cold.py, d19_trace.py)
+showed the crawl-start promise sometimes
+never settles when the MV3 service worker
+cold-starts for the message: the worker
+hangs on its first chrome API call, or
+finishes the crawl and dies before the
+response is delivered. The overlay then
+sits on "starting cart review..." forever
+- the user's original 2026-10-08 report.
+The worker's message loop stays responsive
+when an extension page keeps it warm (all
+warm-worker runs completed), so the fault
+is specific to the cold-start path.
+
+Decision: the cart surface bounds the
+crawl-start round trip at 35s
+(CRAWL_START_TIMEOUT_MS) and re-sends
+once on timeout or a lost connection.
+Chrome terminates a wedged worker after
+~30s, so the re-send reaches a fresh
+worker whose in-flight latch (module
+state) is reset, and the retry starts a
+clean crawl. Trade-off (accepted): in the
+rare case the first crawl was merely slow
+(40+ items), the retry can start a second
+crawl; captures are idempotent
+re-snapshots, so the worst case is
+duplicate work, never wrong data.
+
+Alternatives: (a) leave it - the overlay
+sits forever with no recovery; (b) keep
+the worker warm via an alarm - intrusive
+and battery-hostile; (c) a background
+page - not available in MV3.
+
+Consequences: a cold-start hang now
+self-heals within ~35s (the crawl runs
+and the results tab opens); the crawl may
+run twice in the rare slow-crawl case.
+
+Evidence: tests/capture-content.test.ts
+"re-sends the crawl-start when the cold
+worker never answers (D-21)"; live runs
+d19_cold.py (second click restarted the
+crawl - 7 fresh API requests) and
+d19_trace.py (cold-worker run completing
+with the D-19 quote POST).

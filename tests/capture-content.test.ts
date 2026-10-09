@@ -270,6 +270,68 @@ describe('Cart surface (T03.5)', () => {
     surface?.destroy();
   });
 
+  it('re-sends the crawl-start when the cold worker never answers (D-21)', async () => {
+    // Live finding 2026-10-09: a cold MV3
+    // worker woken by the message can hang on
+    // its first chrome API call - the start
+    // promise never settles. The surface
+    // re-sends after the response timeout and
+    // the fresh worker (Chrome kills the
+    // wedged one after ~30s) answers.
+    vi.useFakeTimers();
+    let progressCb: ((m: CaptureProgressMessage) => void) | null = null;
+    let starts = 0;
+    const sendMessage = vi.fn(async (req: unknown): Promise<CaptureResponse> => {
+      if ((req as { kind: string }).kind === 'capture/crawl-start') {
+        starts += 1;
+        if (starts === 1) {
+          // Wedged cold worker: never answers.
+          return new Promise<CaptureResponse>(() => {});
+        }
+        progressCb?.({
+          kind: 'capture/progress',
+          step: 1,
+          total: 1,
+          done: 1,
+          failed: 0,
+          finished: true,
+          aborted: false,
+        });
+        return {
+          ok: true,
+          kind: 'crawl-start',
+          itemCount: 1,
+          done: 1,
+          failed: 0,
+        };
+      }
+      return { ok: true, kind: 'crawl-abort' };
+    });
+    const surface = mountCartSurface({
+      doc: document,
+      location: currentLocation,
+      labels: CART_LABELS,
+      sendMessage,
+      onProgress(cb) {
+        progressCb = cb;
+        return () => (progressCb = null);
+      },
+    });
+    const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
+    btn.click();
+    expect(starts).toBe(1);
+
+    // Past the 35s response timeout the start
+    // is re-sent; the fresh worker answers and
+    // the finish toast renders (overlay gone).
+    await vi.advanceTimersByTimeAsync(38_000);
+    expect(starts).toBe(2);
+    expect(document.querySelector('.dkopt-toast')?.textContent).toContain('کامل شد');
+    expect(document.querySelector('.dkopt-progress')).toBeNull();
+    surface?.destroy();
+    vi.useRealTimers();
+  });
+
   it('attaches when the summary card renders after mount (rate-limit hardened)', async () => {
     // Cart page before the SPA hydrates the summary card.
     document.body.innerHTML = '<main></main>';

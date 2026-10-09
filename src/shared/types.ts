@@ -91,6 +91,33 @@ export interface Snapshot {
   extractorVersion: string;
 }
 
+// ---- Shipment quote (D-19): real per-package shipping costs ----
+
+/**
+ * One delivery package as quoted by POST /v4/shipment/ at crawl
+ * time. Packages group by vendor: every item in a package ships
+ * together under one fee (the seller's real package price, which
+ * the product API's per-offer fee only approximates - and sometimes
+ * omits entirely).
+ */
+export interface ShipmentPackage {
+  shipmentId: string;
+  /** The real package fee in Toman, as the user would be charged. */
+  shippingCost: number;
+  items: { productId: string; variantId: string }[];
+}
+
+/**
+ * Cart-level record of the shipment quote captured with the crawl.
+ * Keyed 'latest' (one row): the quote describes the whole cart at
+ * capture time, and a new crawl re-quotes it.
+ */
+export interface ShipmentRecord {
+  key: 'latest';
+  capturedAt: string; // ISO timestamp
+  packages: ShipmentPackage[];
+}
+
 // ---- Settings (chrome.storage.local), SDD 08 + FR-14 + NFR-07 ----
 
 export type UiLanguage = 'fa' | 'en';

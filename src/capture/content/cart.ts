@@ -36,6 +36,47 @@ export interface CartSurface {
   destroy(): void;
 }
 
+/** How long to wait for the worker's answer
+ * before re-sending the crawl-start (D-21). */
+const CRAWL_START_TIMEOUT_MS = 35_000;
+
+/**
+ * Sends the crawl-start, re-sending once when
+ * the worker never answers. Live finding
+ * 2026-10-09: a COLD MV3 worker woken by a
+ * runtime message can hang on its first chrome
+ * API call - or finish the crawl and die before
+ * the response is delivered - so the start
+ * promise never settles and the overlay sits on
+ * "starting..." forever. Chrome terminates a
+ * wedged worker after ~30s; a re-send reaches a
+ * fresh worker whose in-flight latch is reset
+ * (module state), so the retry starts a clean
+ * crawl. Worst case the crawl runs twice (its
+ * captures are idempotent re-snapshots).
+ */
+function sendCrawlStart(
+  sendMessage: (req: unknown) => Promise<CaptureResponse>,
+): Promise<CaptureResponse> {
+  const first = new Promise<CaptureResponse>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error('crawl-start response timeout')),
+      CRAWL_START_TIMEOUT_MS,
+    );
+    sendMessage({ kind: 'capture/crawl-start' }).then(
+      (res) => {
+        clearTimeout(timer);
+        resolve(res);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+  return first.catch(() => sendMessage({ kind: 'capture/crawl-start' }));
+}
+
 export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
   const { doc } = deps;
   const loc = deps.location ?? doc.location;
@@ -69,7 +110,7 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
     });
     let res: Awaited<ReturnType<typeof deps.sendMessage>>;
     try {
-      res = await deps.sendMessage({ kind: 'capture/crawl-start' });
+      res = await sendCrawlStart(deps.sendMessage);
     } catch {
       // No service worker answered (sw crashed or not yet
       // registered). Fail loudly instead of leaving the

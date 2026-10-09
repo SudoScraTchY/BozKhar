@@ -8,14 +8,21 @@
  * next explicit start, so re-optimizing never hits the resume guard).
  *
  * D-01: this controller only ever GETs; no cart write calls exist here.
+ * D-19 amends D-01 with exactly one exception: the post-crawl
+ * shipment quote, a read-only POST to the fixed endpoint
+ * (SHIPMENT_API_URL) with the fixed body (SHIPMENT_API_BODY),
+ * delegated to the tab's main world. It returns per-package
+ * pricing and does not modify the cart.
  * D-02: every fetch target passes the *.digikala.com guard (digikalaFetch).
  */
 import type { ComparisonItem, Snapshot, Settings } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/types';
 import type { DbFactory } from '../shared/storage/db';
-import { getAllItems, putItem, appendSnapshot } from '../shared/storage/db';
+import { getAllItems, putItem, putShipment, appendSnapshot } from '../shared/storage/db';
 import { coerceSettings, type StorageAreaLike } from '../shared/settings/settings';
 import { digikalaFetchJson, type RawFetch } from './fetch/digikala-fetch';
+import { delegateShipmentQuote, SHIPMENT_API_BODY, SHIPMENT_API_URL } from './fetch/delegate';
+import { readShipmentRecord } from './readers/shipment';
 import { readProductPayload, type ProductVariantView } from './readers/product';
 import { productApiUrl } from './readers/url';
 import { normalizeVariantToOffer, buildSnapshot } from './normalize';
@@ -54,6 +61,15 @@ export interface ControllerDeps {
    * tests inject fakes; production passes delegateFetchJson.
    */
   delegateFetch?: (tabId: number, url: string) => Promise<unknown>;
+  /**
+   * Delegated shipment-quote POST (D-19): the
+   * extension's only POST, fixed to the quote
+   * endpoint. Absent (or failing) leaves fees
+   * as the product API reported them. Optional:
+   * tests inject fakes; production passes
+   * delegateShipmentQuote.
+   */
+  shipmentQuote?: (tabId: number) => Promise<unknown>;
   now?: () => Date;
   /** Sleep between crawl steps; injectable so tests run instantly. */
   delay?: (ms: number) => Promise<void>;
@@ -296,6 +312,29 @@ export async function handleCrawlStart(
       finished: true,
       aborted: result.aborted,
     });
+
+    // D-19: quote the real per-package shipping costs for
+    // the whole cart (the product API's per-offer fee is
+    // sometimes missing - the live cart's total then shows
+    // as a gap). Contained: a failed quote leaves the
+    // product-API fees in place, so the report stays
+    // honest, just less exact. The quote is a read-only
+    // POST to the fixed endpoint (see delegate.ts).
+    if (tabId !== undefined && deps.shipmentQuote) {
+      try {
+        const json = await deps.shipmentQuote(tabId);
+        const record = readShipmentRecord(json, (deps.now ?? (() => new Date()))().toISOString());
+        if (record) {
+          await putShipment(deps.dbFactory, record);
+        }
+      } catch (e) {
+        console.error(
+          `[dkopt] shipment quote failed (fees stay product-API): ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
+    }
 
     const itemCount = result.state.items.length;
     return {

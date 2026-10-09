@@ -25,7 +25,14 @@ import type { Settings } from '../shared/types';
 import { getAllItems, getAllSnapshots, putItem } from '../shared/storage/db';
 import { solve } from '../shared/solver';
 import type { FeeFlag, Plan, PlanLine, UnsolvedReason } from '../shared/solver';
-import type { ComparisonItem, Lock, LockMode, Snapshot, UiLanguage } from '../shared/types';
+import type {
+  ComparisonItem,
+  Lock,
+  LockMode,
+  ShipmentRecord,
+  Snapshot,
+  UiLanguage,
+} from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/types';
 import { buildSolverInput, itemKeyOf, snapshotsForProduct } from './assemble';
 
@@ -384,6 +391,8 @@ function renderEmpty(lang: Lang): void {
 export interface ReportPageDeps {
   getItems(): Promise<ComparisonItem[]>;
   getSnapshots(): Promise<Snapshot[]>;
+  /** D-19: the shipment quote captured with the crawl (optional). */
+  getShipment?(): Promise<ShipmentRecord | null>;
   putItem(item: ComparisonItem): Promise<void>;
   loadSettings(): Promise<Settings>;
 }
@@ -393,6 +402,7 @@ interface PageState {
   settings: Settings;
   items: ComparisonItem[];
   snapshots: Snapshot[];
+  shipment: ShipmentRecord | null;
 }
 
 export function createReportPage(deps: ReportPageDeps) {
@@ -401,6 +411,7 @@ export function createReportPage(deps: ReportPageDeps) {
     settings: DEFAULT_SETTINGS,
     items: [],
     snapshots: [],
+    shipment: null,
   };
   let resolveTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -471,7 +482,7 @@ export function createReportPage(deps: ReportPageDeps) {
   }
 
   async function renderAll(): Promise<void> {
-    const input = buildSolverInput(state.items, state.snapshots, state.settings);
+    const input = buildSolverInput(state.items, state.snapshots, state.settings, state.shipment);
     const { plan } = solve(input);
 
     const content = $('content');
@@ -506,6 +517,10 @@ export function createReportPage(deps: ReportPageDeps) {
       return;
     }
     state.snapshots = await deps.getSnapshots();
+    // D-19: the shipment quote prices the current
+    // arrangement with the real package fees (when
+    // the crawl captured one).
+    state.shipment = deps.getShipment ? await deps.getShipment() : null;
     await renderAll();
   }
 

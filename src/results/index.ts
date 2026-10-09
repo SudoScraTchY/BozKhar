@@ -6,12 +6,14 @@
  * IndexedDB + settings.
  */
 import { loadSettings } from '../shared/settings/settings';
-import { getAllItems, getAllSnapshots, putItem } from '../shared/storage/db';
+import { getAllItems, getAllSnapshots, getShipment, putItem } from '../shared/storage/db';
 import { createReportPage } from './page';
 
 createReportPage({
   getItems: () => getAllItems(indexedDB),
   getSnapshots: () => getAllSnapshots(indexedDB),
+  // D-19: the shipment quote captured with the crawl.
+  getShipment: () => getShipment(indexedDB),
   putItem: (item) => putItem(indexedDB, item),
   loadSettings,
 })

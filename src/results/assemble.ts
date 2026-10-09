@@ -10,7 +10,7 @@
  * "before" and "after" numbers reconcile against the same
  * arithmetic (FR-12).
  */
-import type { ComparisonItem, Offer, Snapshot } from '../shared/types';
+import type { ComparisonItem, Offer, ShipmentRecord, Snapshot } from '../shared/types';
 import type { SolverInput, SolverItem, SolverOffer } from '../shared/solver';
 
 export const ITEM_KEY_SEP = '::';
@@ -41,14 +41,19 @@ export function snapshotsForProduct(snapshots: Snapshot[], productId: string): S
   return snapshots.filter((s) => s.itemId.productId === productId);
 }
 
-function toSolverOffer(snap: Snapshot, offer: Offer): SolverOffer {
+function toSolverOffer(snap: Snapshot, offer: Offer, correctedFee?: number): SolverOffer {
   return {
     vendorId: offer.vendor.id,
     ...(offer.vendor.name ? { vendorName: offer.vendor.name } : {}),
     unitPrice: offer.price,
     stock: offer.stockState,
     isLargeItem: offer.isLargeItem,
-    fee: offer.delivery.feeAmount,
+    // D-19: the shipment quote's package fee is the real
+    // charge for the cart's current arrangement; it
+    // overrides the product API's (sometimes missing)
+    // per-offer estimate. Alternative variants keep the
+    // product-API fee - their package fee is unobserved.
+    fee: correctedFee ?? offer.delivery.feeAmount,
     plusCoversFee: offer.delivery.plusApplies,
     ...(offer.capturedAt ? { capturedAt: offer.capturedAt } : {}),
     // D-17 passthrough: the variant this offer belongs to.
@@ -57,14 +62,43 @@ function toSolverOffer(snap: Snapshot, offer: Offer): SolverOffer {
 }
 
 /**
- * The current cart's cost under the solver's fee model: items
- * grouped by vendor x shipping class, one fee per group. Null
+ * D-19: the real package fee per variant id, from the
+ * shipment quote captured with the crawl. A variant
+ * appears in at most one package (the cart holds it
+ * once); the package's fee is what the user is
+ * actually charged to ship that package.
+ */
+export function shipmentFeeByVariant(
+  shipment: ShipmentRecord | null | undefined,
+): Map<string, number> {
+  const map = new Map<string, number>();
+  if (!shipment) return map;
+  for (const pkg of shipment.packages) {
+    for (const it of pkg.items) {
+      map.set(it.variantId, pkg.shippingCost);
+    }
+  }
+  return map;
+}
+
+/**
+ * The current cart's cost under the solver's fee
+ * model: items grouped by vendor x shipping class, one fee per group. Null
  * when any cart item has no current offer, or any current
  * group's fee is unknown - an explicit gap, never a silent
  * zero or a silently partial total (SDD 08).
+ *
+ * D-19: a variant's fee from the shipment quote (when
+ * captured) is the real charge and wins over the
+ * product API's per-offer fee.
  */
-export function currentCartTotal(items: ComparisonItem[], snapshots: Snapshot[]): number | null {
+export function currentCartTotal(
+  items: ComparisonItem[],
+  snapshots: Snapshot[],
+  shipment?: ShipmentRecord | null,
+): number | null {
   const latest = latestSnapshotsByItem(snapshots);
+  const feeByVariant = shipmentFeeByVariant(shipment);
   const groups = new Map<string, { subtotal: number; fee: number | null }>();
   for (const item of items) {
     const snap = latest.get(itemKeyOf(item.itemId.productId, item.itemId.variantId));
@@ -76,7 +110,7 @@ export function currentCartTotal(items: ComparisonItem[], snapshots: Snapshot[])
     const groupKey = `${offer.vendor.id}|${offer.isLargeItem ? 'large' : 'seller'}`;
     const group = groups.get(groupKey) ?? { subtotal: 0, fee: null };
     group.subtotal += offer.price * item.quantity;
-    const fee = offer.delivery.feeAmount;
+    const fee = feeByVariant.get(item.itemId.variantId) ?? offer.delivery.feeAmount;
     if (fee !== null) {
       // One vendor x class charges one fee; conflicting reads take
       // the higher, the honest charge.
@@ -97,11 +131,18 @@ export function currentCartTotal(items: ComparisonItem[], snapshots: Snapshot[])
  * The solver input for the whole comparison list: every captured
  * variant of every cart item's product (D-17) is an offer the
  * solver may choose. Locks ride along from the stored items.
+ *
+ * D-19: when a shipment quote was captured with the crawl, the
+ * cart's current arrangement is priced with the real package
+ * fees (only the current variant's offer - the arrangement
+ * the user is actually being charged for; alternative offers
+ * keep the product-API fees).
  */
 export function buildSolverInput(
   items: ComparisonItem[],
   snapshots: Snapshot[],
   settings: { hasPlus: boolean; tolerancePercent: number },
+  shipment?: ShipmentRecord | null,
 ): SolverInput {
   const byProduct = new Map<string, Snapshot[]>();
   for (const snap of snapshots) {
@@ -109,9 +150,23 @@ export function buildSolverInput(
     list.push(snap);
     byProduct.set(snap.itemId.productId, list);
   }
+  const feeByVariant = shipmentFeeByVariant(shipment);
   const solverItems: SolverItem[] = items.map((item) => {
     const productSnaps = byProduct.get(item.itemId.productId) ?? [];
-    const offers = productSnaps.flatMap((snap) => snap.offers.map((o) => toSolverOffer(snap, o)));
+    const isCurrentVariant = (snap: Snapshot): boolean =>
+      snap.itemId.variantId === item.itemId.variantId;
+    const offers = productSnaps.flatMap((snap) =>
+      snap.offers.map((o) =>
+        toSolverOffer(
+          snap,
+          o,
+          // Only the cart's current selection is priced
+          // from the quote (its package fee is observed);
+          // every alternative keeps the product-API fee.
+          isCurrentVariant(snap) ? feeByVariant.get(snap.itemId.variantId) : undefined,
+        ),
+      ),
+    );
     return {
       itemKey: itemKeyOf(item.itemId.productId, item.itemId.variantId),
       ...(item.product.title ? { title: item.product.title } : {}),
@@ -130,7 +185,7 @@ export function buildSolverInput(
     },
     // SDD 08: unknown fees score at the largest known fee.
     unknownFeeFallback: largestKnownFee(solverItems),
-    currentCartTotal: currentCartTotal(items, snapshots),
+    currentCartTotal: currentCartTotal(items, snapshots, shipment),
   };
 }
 

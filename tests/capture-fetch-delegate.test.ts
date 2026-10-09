@@ -40,12 +40,17 @@
  * The site routing header set is asserted
  * verbatim (live-captured via CDP 2026-10-07).
  */
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { SITE_API_HEADERS } from '../src/capture/fetch/site-headers';
 import {
   delegateFetchJson,
+  delegateShipmentQuote,
+  EXECUTE_TIMING,
   mainWorldFetch,
+  mainWorldShipmentQuote,
   readDelegateResult,
+  SHIPMENT_API_BODY,
+  SHIPMENT_API_URL,
 } from '../src/capture/fetch/delegate';
 
 const CART_URL = 'https://api.digikala.com/checkout/v1/carts';
@@ -108,7 +113,7 @@ describe('mainWorldFetch (page main-world executor)', () => {
     // result - finding 2026-10-08 (7)).
     // The injected funcs must therefore use
     // literals only.
-    for (const fn of [mainWorldFetch, readDelegateResult]) {
+    for (const fn of [mainWorldFetch, mainWorldShipmentQuote, readDelegateResult]) {
       const src = fn.toString();
       expect(src).not.toContain('RESULT_ATTR');
       expect(src).not.toContain('DELEGATE_TIMEOUT_MS');
@@ -436,5 +441,232 @@ describe('delegateFetchJson (service-worker sender)', () => {
       code: 'OUT_OF_SCOPE',
     });
     expect(executeScript).not.toHaveBeenCalled();
+  });
+});
+
+describe('mainWorldShipmentQuote (D-19 page executor)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
+
+  it('D-19 audit: the executor is POST-only with session credentials', () => {
+    // Structural guarantee: the method is baked in
+    // as POST - the extension's only POST - and no
+    // caller can change the verb or drop the
+    // session credentials.
+    const src = mainWorldShipmentQuote.toString();
+    expect(src).toMatch(/method:\s*['"]POST['"]/);
+    expect(src).toMatch(/credentials:\s*['"]include['"]/);
+  });
+
+  it('POSTs the fixed body with only the JSON content type', async () => {
+    // Live preflight probe 2026-10-09: the
+    // routing header set breaks this endpoint's
+    // CORS preflight ("Failed to fetch"); the
+    // quote authenticates with the session
+    // cookie alone, so the POST carries only
+    // the content type.
+    const initSeen: RequestInit[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        initSeen.push(init ?? {});
+        return responseOf(200, { data: { shipment_types: {} } });
+      }),
+    );
+    const nonce = 'n-ship-1';
+    mainWorldShipmentQuote({
+      url: SHIPMENT_API_URL,
+      nonce,
+      body: SHIPMENT_API_BODY,
+    });
+    const outcome = await outcomeFor(nonce);
+    expect(outcome.ok).toBe(true);
+    expect(initSeen).toHaveLength(1);
+    expect(initSeen[0]?.method).toBe('POST');
+    expect(initSeen[0]?.body).toBe(SHIPMENT_API_BODY);
+    expect(initSeen[0]?.headers).toEqual({
+      'Content-Type': 'application/json',
+    });
+  });
+
+  it('D-02: refuses non-digikala hosts without fetching', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const nonce = 'n-ship-2';
+    mainWorldShipmentQuote({
+      url: 'https://evil.example.com/shipment',
+      nonce,
+      body: SHIPMENT_API_BODY,
+    });
+    const outcome = await outcomeFor(nonce);
+    expect(outcome).toMatchObject({ ok: false, errorCode: 'OUT_OF_SCOPE' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('delegateShipmentQuote (service-worker sender)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
+
+  function stubShipmentFlow(outcome: Record<string, unknown> | null): Mock {
+    let nonce: string | undefined;
+    let calls = 0;
+    const mock = vi.fn(
+      (options: { target: { tabId: number }; world: string; func: unknown; args?: unknown[] }) => {
+        calls += 1;
+        if (calls === 1) {
+          nonce = ((options.args as unknown[])?.[0] as { nonce: string }).nonce;
+          return [{ documentId: 'd1', frameId: 0, result: null }];
+        }
+        if (outcome === null) {
+          return [{ documentId: 'd1', frameId: 0, result: null }];
+        }
+        return [
+          {
+            documentId: 'd1',
+            frameId: 0,
+            result: `${nonce}:${JSON.stringify(outcome)}`,
+          },
+        ];
+      },
+    );
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
+    });
+    return mock;
+  }
+
+  it('resolves with the quoted JSON from the tab', async () => {
+    const quote = { data: { shipment_types: { normal: [] } } };
+    stubShipmentFlow({ ok: true, json: quote });
+    await expect(delegateShipmentQuote(7, SHIPMENT_API_URL, SHIPMENT_API_BODY)).resolves.toEqual(
+      quote,
+    );
+  });
+
+  it('rejects on an HTTP error outcome', async () => {
+    stubShipmentFlow({ ok: false, errorCode: 'HTTP_STATUS', message: 'HTTP 401', status: 401 });
+    await expect(
+      delegateShipmentQuote(7, SHIPMENT_API_URL, SHIPMENT_API_BODY),
+    ).rejects.toMatchObject({ code: 'HTTP_STATUS' });
+  });
+
+  it('D-02: refuses non-digikala hosts before touching the tab', async () => {
+    const executeScript = vi.fn(() => [{ documentId: 'd1', frameId: 0, result: null }]);
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript },
+      storage: { local: { set: vi.fn() } },
+    });
+    await expect(
+      delegateShipmentQuote(7, 'https://evil.example.com/v4/shipment/', '{}'),
+    ).rejects.toMatchObject({ code: 'OUT_OF_SCOPE' });
+    expect(executeScript).not.toHaveBeenCalled();
+  });
+});
+
+describe('executeScript callback loss (D-20)', () => {
+  const realTiming = { ...EXECUTE_TIMING };
+
+  /** Stubs chrome.scripting.executeScript (mirrors
+   * the sender describe's helper). */
+  function stubScript(
+    impl: (options: {
+      target: { tabId: number };
+      world: string;
+      func: unknown;
+      args: unknown[];
+    }) => unknown,
+  ): Mock {
+    const mock = vi.fn(impl);
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
+    });
+    return mock;
+  }
+
+  beforeEach(() => {
+    EXECUTE_TIMING.timeoutMs = 50;
+    EXECUTE_TIMING.attempts = 3;
+    EXECUTE_TIMING.retryDelayMs = 5;
+  });
+
+  afterEach(() => {
+    Object.assign(EXECUTE_TIMING, realTiming);
+    vi.unstubAllGlobals();
+  });
+
+  it('a lost executeScript callback retries and recovers', async () => {
+    let fetchCalls = 0;
+    let nonce = '';
+    const outcome = { ok: true, json: { data: { recovered: true } } };
+    const executeScript = stubScript((options) => {
+      if (options.func === mainWorldFetch) {
+        fetchCalls += 1;
+        if (fetchCalls === 1) {
+          // Cold-SW flake: the callback never
+          // arrives, so the call never settles.
+          return new Promise(() => {});
+        }
+        nonce = (options.args[0] as { nonce: string }).nonce;
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      // readDelegateResult: the page holds the
+      // outcome for the retried call's nonce.
+      return [
+        {
+          documentId: 'd1',
+          frameId: 0,
+          result: `${nonce}:${JSON.stringify(outcome)}`,
+        },
+      ];
+    });
+
+    const out = await delegateFetchJson(42, CART_URL);
+    expect(out).toEqual({ data: { recovered: true } });
+    // The lost callback was retried, not fatal.
+    expect(fetchCalls).toBe(2);
+    expect(executeScript).toHaveBeenCalled();
+  });
+
+  it('a lost read callback counts as "no outcome yet"', async () => {
+    let reads = 0;
+    let nonce = '';
+    const outcome = { ok: true, json: { data: { slow: true } } };
+    stubScript((options) => {
+      if (options.func === mainWorldFetch) {
+        nonce = (options.args[0] as { nonce: string }).nonce;
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      reads += 1;
+      if (reads === 1) {
+        // Lost read callback: no result, no
+        // rejection - the loop must keep going.
+        return new Promise(() => {});
+      }
+      return [
+        {
+          documentId: 'd1',
+          frameId: 0,
+          result: `${nonce}:${JSON.stringify(outcome)}`,
+        },
+      ];
+    });
+
+    const out = await delegateFetchJson(42, CART_URL);
+    expect(out).toEqual({ data: { slow: true } });
+    expect(reads).toBe(2);
+  });
+
+  it('a permanently lost callback rejects as a network failure', async () => {
+    stubScript(() => new Promise(() => {}));
+    await expect(delegateFetchJson(42, CART_URL)).rejects.toMatchObject({
+      code: 'NETWORK',
+    });
   });
 });

@@ -3,18 +3,19 @@
  * technology defaults). The factory is injected so tests can run against
  * fake-indexeddb while production passes window.indexedDB.
  */
-import type { ComparisonItem, ItemId, Snapshot, Promo } from '../types';
+import type { ComparisonItem, ItemId, ShipmentRecord, Snapshot, Promo } from '../types';
 
 export type DbFactory = IDBFactory;
 
 export const DB_NAME = 'digikala-cart-optimizer';
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export const STORE_ITEMS = 'items';
 export const STORE_SNAPSHOTS = 'snapshots';
 export const STORE_PROMOS = 'promos';
+export const STORE_SHIPMENTS = 'shipments';
 
-const ALL_STORES = [STORE_ITEMS, STORE_SNAPSHOTS, STORE_PROMOS] as const;
+const ALL_STORES = [STORE_ITEMS, STORE_SNAPSHOTS, STORE_PROMOS, STORE_SHIPMENTS] as const;
 export type StoreName = (typeof ALL_STORES)[number];
 
 /** Store key for an item: productId + variantId (D-05). */
@@ -39,6 +40,11 @@ function openDatabase(factory: DbFactory): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_PROMOS)) {
         db.createObjectStore(STORE_PROMOS, { keyPath: 'promoId' });
+      }
+      if (!db.objectStoreNames.contains(STORE_SHIPMENTS)) {
+        // D-19: the shipment quote is cart-level, one row
+        // ('latest') re-quoted on every crawl.
+        db.createObjectStore(STORE_SHIPMENTS, { keyPath: 'key' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -205,6 +211,26 @@ export async function putPromos(factory: DbFactory, promos: Promo[]): Promise<vo
 
 export async function getAllPromos(factory: DbFactory): Promise<Promo[]> {
   return withStore(factory, STORE_PROMOS, 'readonly', (s) => s.getAll());
+}
+
+// ---- shipments (D-19) ----
+
+/** Stores (or replaces) the latest shipment quote. */
+export async function putShipment(factory: DbFactory, record: ShipmentRecord): Promise<void> {
+  await withStore(factory, STORE_SHIPMENTS, 'readwrite', (s) => {
+    s.put(record);
+  });
+}
+
+/** The latest shipment quote, or null when none was captured. */
+export async function getShipment(factory: DbFactory): Promise<ShipmentRecord | null> {
+  const rec = await withStore<ShipmentRecord | undefined>(
+    factory,
+    STORE_SHIPMENTS,
+    'readonly',
+    (s) => s.get('latest'),
+  );
+  return rec ?? null;
 }
 
 // ---- danger zone ----

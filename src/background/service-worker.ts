@@ -19,7 +19,12 @@ import {
   handleCrawlAbort,
   syncBadge,
 } from '../capture/sw-controller';
-import { delegateFetchJson } from '../capture/fetch/delegate';
+import {
+  delegateFetchJson,
+  delegateShipmentQuote,
+  SHIPMENT_API_BODY,
+  SHIPMENT_API_URL,
+} from '../capture/fetch/delegate';
 
 function broadcast(msg: unknown): void {
   // No tab filtering on purpose: progress is relevant on any open surface
@@ -83,6 +88,10 @@ function deps() {
     // the requesting tab (the checkout API requires the site's
     // routing header set, which only the page context sends).
     delegateFetch: delegateFetchJson,
+    // D-19: the fixed shipment-quote POST (the
+    // extension's only POST - read-only quote).
+    shipmentQuote: (tabId: number) =>
+      delegateShipmentQuote(tabId, SHIPMENT_API_URL, SHIPMENT_API_BODY),
     onProgress: broadcast,
     badge: chrome.action,
   };

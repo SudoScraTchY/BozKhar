@@ -57,11 +57,16 @@
  * Cost: the "scripting" permission (NFR-06 requires a
  * decision-log entry - recorded under D-16).
  *
- * D-01: the executor is GET-only and session-credentialed,
+ * D-01: the GET executor is GET-only and session-credentialed,
  * baked into mainWorldFetch below - no caller can turn a
- * crawl fetch into a write. D-02: the closed *.digikala.com
- * scope is enforced on both sides (here before the tab is
- * touched, and inside the injected func itself).
+ * crawl fetch into a write. D-19 adds the one sanctioned
+ * exception: mainWorldShipmentQuote, whose method is baked
+ * in as 'POST' and whose URL and body the service worker
+ * fixes to the shipment-quote endpoint (a read-only quote
+ * that does not modify the cart). D-02: the closed
+ * *.digikala.com scope is enforced on both sides (here
+ * before the tab is touched, and inside the injected
+ * func itself).
  */
 import { httpStatusError, networkError, outOfScopeError, structureUnrecognized } from '../errors';
 import { assertDigikalaUrl } from '../readers/url';
@@ -79,6 +84,19 @@ type DelegateResult =
 
 /** How often the worker re-reads the outcome. */
 const DELEGATE_POLL_MS = 120;
+
+/**
+ * D-19: the shipment-quote endpoint and its fixed
+ * request body. The extension's only POST targets
+ * exactly this URL with exactly this body (a
+ * read-only quote query - it returns per-package
+ * delivery pricing and does not modify the cart).
+ * Fixed at module level here; the SW passes them
+ * as fetch args (args are serialized by value, so
+ * module constants are safe to pass).
+ */
+export const SHIPMENT_API_URL = 'https://api.digikala.com/v4/shipment/';
+export const SHIPMENT_API_BODY = '{"is_initial_load":true}';
 
 /** Time budget for a delegated fetch (the crawl retries per item). */
 const DELEGATE_TIMEOUT_MS = 30_000;
@@ -208,6 +226,81 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Timing for main-world execution. Kept in a
+ * mutable object so tests can shrink the
+ * timeouts; production never touches it.
+ */
+export const EXECUTE_TIMING = {
+  timeoutMs: 8_000,
+  attempts: 3,
+  retryDelayMs: 300,
+};
+
+/**
+ * Bounds a chrome.scripting.executeScript call.
+ * Live finding 2026-10-09: a cold MV3 service
+ * worker sometimes never invokes the
+ * executeScript callback - the crawl then hung
+ * on "starting cart review..." with no request
+ * ever issued (the user's 2026-10-08 stuck
+ * report). The timeout turns the hang into a
+ * normal rejection the caller retries or
+ * contains.
+ */
+function withTimeout<T>(call: Promise<T>, ms: number, what: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(networkError(`${what} timed out after ${ms}ms`)), ms);
+    call.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+/**
+ * Runs func in the tab's MAIN world, retrying
+ * when the executeScript callback never arrives.
+ * A retried run is idempotent here: every
+ * delegated call is a read (a GET fetch or the
+ * fixed quote POST), and the outcome channel is
+ * keyed by the caller's nonce.
+ */
+async function executeMainWorld(
+  tabId: number,
+  func: (...args: never[]) => unknown,
+  args: unknown[] | undefined,
+  what: string,
+): Promise<chrome.scripting.InjectionResult[]> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= EXECUTE_TIMING.attempts; attempt += 1) {
+    try {
+      return await withTimeout(
+        Promise.resolve(
+          chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func,
+            ...(args !== undefined ? { args } : {}),
+          }),
+        ),
+        EXECUTE_TIMING.timeoutMs,
+        `${what} (attempt ${attempt})`,
+      );
+    } catch (error) {
+      lastError = error;
+      await sleep(EXECUTE_TIMING.retryDelayMs);
+    }
+  }
+  throw networkError(`main-world execution failed for ${what}: ${String(lastError)}`);
+}
+
+/**
  * Service-worker side: runs a delegated GET in the
  * requesting tab's main world and resolves with the
  * parsed JSON. Rejects with the same CaptureError
@@ -224,12 +317,12 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
   // call.
   const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      world: 'MAIN',
-      func: mainWorldFetch,
-      args: [{ url, headers: SITE_API_HEADERS, nonce }],
-    });
+    await executeMainWorld(
+      tabId,
+      mainWorldFetch,
+      [{ url, headers: SITE_API_HEADERS, nonce }],
+      `mainWorldFetch ${url}`,
+    );
   } catch {
     // The tab is gone or not reachable from the
     // extension (same class of failure as an
@@ -240,21 +333,209 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
   // Poll the page DOM for the outcome. A plain
   // string return from an injected func is the
   // reliable channel (file header, finding
-  // 2026-10-08 (5)).
+  // 2026-10-08 (5)). A read whose callback is
+  // lost counts as "no outcome yet": the
+  // deadline bounds the loop.
   const deadline = Date.now() + DELEGATE_TIMEOUT_MS;
   for (;;) {
-    let frames: chrome.scripting.InjectionResult[];
+    let raw: string | null = null;
     try {
-      frames = await chrome.scripting.executeScript({
-        target: { tabId },
-        world: 'MAIN',
-        func: readDelegateResult,
-      });
+      const frames = await withTimeout(
+        Promise.resolve(
+          chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: readDelegateResult,
+          }),
+        ),
+        EXECUTE_TIMING.timeoutMs,
+        `readDelegateResult for ${url}`,
+      );
+      const value = frames?.[0]?.result;
+      raw = typeof value === 'string' ? value : null;
     } catch {
-      throw networkError(`main-world execution failed for ${url}`);
+      raw = null;
     }
-    const raw = frames?.[0]?.result;
-    if (typeof raw === 'string' && raw.startsWith(`${nonce}:`)) {
+    if (raw !== null && raw.startsWith(`${nonce}:`)) {
+      const result = JSON.parse(raw.slice(nonce.length + 1)) as DelegateResult;
+      if (result.ok) {
+        return result.json;
+      }
+      switch (result.errorCode) {
+        case 'HTTP_STATUS':
+          throw httpStatusError(typeof result.status === 'number' ? result.status : 0, url);
+        case 'NETWORK':
+          throw networkError(result.message);
+        case 'OUT_OF_SCOPE':
+          throw outOfScopeError(url);
+        default:
+          throw structureUnrecognized(
+            `unknown delegate error code "${String(result.errorCode)}" for ${url}`,
+          );
+      }
+    }
+    if (Date.now() >= deadline) {
+      throw networkError(`no result from the main world for ${url}`);
+    }
+    await sleep(DELEGATE_POLL_MS);
+  }
+}
+
+/**
+ * Page MAIN world: the shipment-quote query (D-19).
+ *
+ * The extension's ONLY POST: a fixed, read-only quote
+ * request to the checkout shipment API (it returns
+ * per-package delivery pricing for the current cart;
+ * it does not modify the cart). The method is baked
+ * in here as a literal - no caller can turn it into
+ * a GET or any other verb - and the service-worker
+ * wrapper (delegateShipmentQuote) fixes the URL and
+ * body to the quote endpoint. Same self-containment
+ * contract as mainWorldFetch: every constant is a
+ * literal inside this func, each appearing exactly
+ * once, so the minifier cannot hoist it to a module
+ * binding the injected copy could not see.
+ *
+ * Header note (live preflight probe 2026-10-09):
+ * the routing header set (x-site / x-source /
+ * x-web-optimize-response) is REJECTED by this
+ * endpoint's CORS preflight - a POST carrying it
+ * fails with "Failed to fetch", while the same
+ * POST with only Content-Type answers 200. The
+ * quote endpoint authenticates with the session
+ * cookie alone; the routing markers are a
+ * checkout-cart-API requirement, not a shipment
+ * one.
+ */
+export function mainWorldShipmentQuote(args: { url: string; nonce: string; body: string }): void {
+  const { url, nonce, body } = args;
+
+  // The single write path (same channel and
+  // nonce contract as mainWorldFetch; the
+  // literal appears once, inside this func).
+  const write = (value: string): void => {
+    document.documentElement.setAttribute('data-dkopt-result', value);
+  };
+  const finish = (outcome: DelegateResult): void => {
+    write(`${nonce}:${JSON.stringify(outcome)}`);
+  };
+
+  // D-02 (defense in depth): refuse anything outside
+  // the closed *.digikala.com scope before fetching.
+  let host = '';
+  try {
+    host = new URL(url).hostname.toLowerCase();
+  } catch {
+    finish({
+      ok: false,
+      errorCode: 'OUT_OF_SCOPE',
+      message: `URL outside the closed *.digikala.com scope: ${url}`,
+    });
+    return;
+  }
+  if (host !== 'digikala.com' && !host.endsWith('.digikala.com')) {
+    finish({
+      ok: false,
+      errorCode: 'OUT_OF_SCOPE',
+      message: `URL outside the closed *.digikala.com scope: ${url}`,
+    });
+    return;
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body,
+    signal: controller.signal,
+  })
+    .then(async (res: Response) => {
+      clearTimeout(timer);
+      let json: unknown = null;
+      try {
+        json = await res.json();
+      } catch {
+        // non-JSON body: surfaced as null (the reader rejects it)
+      }
+      if (!res.ok) {
+        finish({
+          ok: false,
+          errorCode: 'HTTP_STATUS',
+          message: `HTTP ${res.status} from ${url}`,
+          status: res.status,
+        });
+        return;
+      }
+      finish({ ok: true, json });
+    })
+    .catch((e: Error) => {
+      clearTimeout(timer);
+      finish({
+        ok: false,
+        errorCode: 'NETWORK',
+        message: `Network failure: ${e.message}`,
+      });
+    });
+}
+
+/**
+ * Service-worker side: runs the fixed shipment-quote
+ * POST (D-19) in the requesting tab's main world and
+ * resolves with the parsed JSON. The URL and body are
+ * fixed here - the injected func can only ever quote
+ * this endpoint, never another, and never another verb.
+ */
+export async function delegateShipmentQuote(
+  tabId: number,
+  url: string,
+  body: string,
+): Promise<unknown> {
+  assertDigikalaUrl(url);
+
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await executeMainWorld(
+      tabId,
+      mainWorldShipmentQuote,
+      [{ url, nonce, body }],
+      `mainWorldShipmentQuote ${url}`,
+    );
+  } catch {
+    // The tab is gone or not reachable from the
+    // extension (same class of failure as an
+    // unreachable content script).
+    throw networkError(`main-world execution failed for ${url}`);
+  }
+
+  // Same polling channel as delegateFetchJson
+  // (finding 2026-10-08 (5)): a plain string
+  // return from an injected func is the reliable
+  // one. A read whose callback is lost counts as
+  // "no outcome yet": the deadline bounds us.
+  const deadline = Date.now() + DELEGATE_TIMEOUT_MS;
+  for (;;) {
+    let raw: string | null = null;
+    try {
+      const frames = await withTimeout(
+        Promise.resolve(
+          chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: readDelegateResult,
+          }),
+        ),
+        EXECUTE_TIMING.timeoutMs,
+        `readDelegateResult for ${url}`,
+      );
+      const value = frames?.[0]?.result;
+      raw = typeof value === 'string' ? value : null;
+    } catch {
+      raw = null;
+    }
+    if (raw !== null && raw.startsWith(`${nonce}:`)) {
       const result = JSON.parse(raw.slice(nonce.length + 1)) as DelegateResult;
       if (result.ok) {
         return result.json;

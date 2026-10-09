@@ -442,3 +442,22 @@ current offer to its package's real cost (exact current-cart total;
 product-API fees remain the fallback for alternative arrangements).
 The package fee is per vendor group, matching the solver's
 one-fee-per-vendor-group model (SDD 08).
+
+## 2026-10-09 - Shipment endpoint CORS preflight
+
+Four-way probe from the logged-in cart page
+(fetch to api.digikala.com/v4/shipment/):
+
+- no headers, JSON body -> 200
+- Content-Type: application/json only -> 200
+- x-site/x-source/x-web-optimize-response -> TypeError: Failed to fetch
+- routing headers + Content-Type -> TypeError: Failed to fetch
+
+The shipment endpoint's CORS preflight does
+not allow the routing header set that the
+checkout-cart API requires (D-16's captured
+markers). The quote authenticates with the
+session cookie alone. Consequence: the D-19
+quote executor sends only Content-Type:
+application/json; the routing headers are
+GET/checkout-cart-only.

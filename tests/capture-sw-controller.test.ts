@@ -305,3 +305,76 @@ describe('handleCrawlStart: fetch delegation (D-16)', () => {
 function fail(msg: string): never {
   throw new Error(msg);
 }
+
+describe('handleCrawlStart: shipment quote (D-19)', () => {
+  const quoteResponse = {
+    status: 200,
+    data: {
+      shipment_types: {
+        normal: [
+          {
+            shipment_id: 'b8d1bf_1_23',
+            submit_types: [{ id: 16, shipping_cost: 1200000 }],
+            cart_items: [
+              {
+                id: 259702067,
+                quantity: 1,
+                variant: { id: 62270876 },
+                product: { id: 1000001 },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  it('stores the quoted package fees with the crawl', async () => {
+    const deps = makeDeps();
+    const shipmentQuote = vi.fn(async () => quoteResponse);
+    const res = await handleCrawlStart({ ...deps, shipmentQuote }, 42);
+    expect(res.ok).toBe(true);
+    expect(shipmentQuote).toHaveBeenCalledWith(42);
+
+    const { getShipment } = await import('../src/shared/storage/db');
+    const record = await getShipment(deps.dbFactory);
+    expect(record).not.toBeNull();
+    expect(record?.key).toBe('latest');
+    expect(record?.packages).toHaveLength(1);
+    expect(record?.packages[0]).toEqual({
+      shipmentId: 'b8d1bf_1_23',
+      shippingCost: 1200000,
+      items: [{ productId: '1000001', variantId: '62270876' }],
+    });
+  });
+
+  it('a failed quote is contained: the crawl still succeeds', async () => {
+    const deps = makeDeps();
+    const shipmentQuote = vi.fn(async () => {
+      throw new Error('quote unreachable');
+    });
+    const res = await handleCrawlStart({ ...deps, shipmentQuote }, 42);
+    // The crawl itself completed; the fee
+    // correction simply did not happen.
+    expect(res.ok).toBe(true);
+    const { getShipment } = await import('../src/shared/storage/db');
+    expect(await getShipment(deps.dbFactory)).toBeNull();
+  });
+
+  it('no quote dep (or no tab): nothing is stored, crawl unaffected', async () => {
+    const deps = makeDeps();
+    const res = await handleCrawlStart(deps, 42);
+    expect(res.ok).toBe(true);
+    const { getShipment } = await import('../src/shared/storage/db');
+    expect(await getShipment(deps.dbFactory)).toBeNull();
+  });
+
+  it('a quote without packages stores nothing', async () => {
+    const deps = makeDeps();
+    const shipmentQuote = vi.fn(async () => ({ status: 200, data: {} }));
+    const res = await handleCrawlStart({ ...deps, shipmentQuote }, 42);
+    expect(res.ok).toBe(true);
+    const { getShipment } = await import('../src/shared/storage/db');
+    expect(await getShipment(deps.dbFactory)).toBeNull();
+  });
+});
