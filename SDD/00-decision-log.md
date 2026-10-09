@@ -264,3 +264,109 @@ user's current total read 9,000,000+ against a real ~3,500,000 with
 fabricated 6,000,000 "savings". `readShipmentRecord` now converts via
 `rialToToman` at read time; the correction is the only conversion (same rule
 as every other payload).
+
+## D-22 - the fee table prefers shipment-observed fees (2026-10-09)
+
+**Problem:** the fee table took the maximum product-API fee per vendor.
+The live package quote (D-19) is the real charge; the product API's
+per-offer fee is a per-seller guess that can sit above or below it.
+Charging the estimate when the real fee is known overstates the total.
+
+**Decision:** `buildFeeTable` (evaluate.ts) gives any offer whose
+`feeSource` is 'shipment' (assembler-stamped from the live quote)
+precedence over product-API estimates. Two observed packages for one
+vendor in one quote charge the higher - never quote a total too low
+(SDD 08). Estimates only fill vendors the quote did not cover.
+
+**Alternatives:** (a) always max everything - overstates when the real
+fee is known; (b) prefer the lower - can quote too low.
+
+**Consequences:** fees for quoted vendors are the real charges; the
+estimate fallback remains for unpriced vendors and is still labelled.
+
+**Evidence:** tests/solver-consolidate.test.ts "uses the live package
+fee over the product-API estimate", "charges the higher of two observed
+packages for one vendor".
+
+## D-23 - fee-consolidation repair pass for approximate mode (2026-10-09)
+
+**Problem (user report, exact example):** Item A costs 280 at vendor 1
+and 320 at vendor 2; Item B costs 300 at vendor 2; every vendor package
+costs ~100. The greedy baseline picks the per-item cheapest vendor
+(A->v1, B->v2) with the fee only as a tie-breaker: 280 + 100 + 300 +
+100 = 780. Joining both items on vendor 2 pays one package: 320 + 300
++ 100 = 720. The user's cart has 40 distinct vendors - above the
+exact-mode envelope (15) - so it runs approximate mode and always saw
+the unconsolidated 780.
+
+**Decision:** `consolidate.ts` runs a repair pass over the greedy
+assignment. For each vendor group holding a single item, it tries
+moving that item onto every other vendor in the assignment (and onto
+vendors that would merge groups), recomputes the true grouped total
+(items + one fee per vendor group), and applies the move only when it
+strictly lowers the total. The pass repeats until no move helps. The
+repaired assignment is evaluated through the normal `buildGroups` path,
+so locks, stock, large-item classes and promos all still apply.
+
+**Alternatives:** (a) raise the exact-mode envelope - combinatorial
+explosion at 40 vendors; (b) a full local-search metaheuristic -
+overkill for a single-fee saving; (c) leave it - the user's manual
+720 beats the tool's 780, which defeats the tool's purpose.
+
+**Consequences:** approximate-mode plans now find vendor consolidations
+the greedy baseline misses; exact mode is unchanged (it already
+optimizes globally). The repair is a strict improvement pass: the
+repaired total never exceeds the greedy total.
+
+**Evidence:** tests/solver-consolidate.test.ts "repairs the greedy
+baseline to the vendor-consolidated arrangement (user example)"
+(grandTotal 720, one group, one fee), "never repairs into a worse
+arrangement than the greedy baseline", "keeps splitting when
+consolidation does not pay off".
+
+## D-24 - the stored item set mirrors the live cart (2026-10-09)
+
+**Problem (user report):** "prices get added together instead of full
+clearing previous results." The crawl merged the cart into the item
+store (union) and never deleted items the user removed, so every later
+report rendered the accumulated union of all crawled carts.
+
+**Decision:** `sw-controller` `onCart` now deletes stored items whose
+keys are absent from the fresh cart before putting the merged entries
+(the merge still preserves locks/identity for surviving items), and
+puts only the cart's entries. The item store is exactly the live cart.
+
+**Alternatives:** (a) clear the whole store per crawl - loses locks for
+items still in the cart; (b) leave the union - the reported bug.
+
+**Consequences:** removing an item from the cart removes it from the
+next report; totals no longer accumulate across runs.
+
+**Evidence:** tests/capture-sw-controller.test.ts "drops items the user
+removed from the cart (D-24)".
+
+## D-25 - crawl UX: button lock, progress heartbeat, unknown-fee marker (2026-10-09)
+
+**Problem (user report):** the optimize button stayed clickable during
+the crawl (a second click just failed against the worker latch); the
+overlay sat on "در حال شروع بررسی سبد…" until the first product
+fetch landed (seconds on a cold worker); unknown seller fees showed
+the fallback number with no per-row indication of which seller is
+unpriced.
+
+**Decision:** (1) the button enters a capturing state with a live
+label for the whole crawl and restores on finish; (2) the worker
+broadcasts a progress heartbeat (done 0 of N) immediately after the
+cart read, so the overlay leaves "starting…" at once; (3) a plan
+group with an unknown fee (fee === null) carries a per-row
+"feeUnknown" marker in addition to the page-level estimate caveat.
+
+**Alternatives:** none meaningful - all three are direct UI responses
+to the report.
+
+**Consequences:** the crawl feels live and cannot be double-started;
+the user can see exactly which seller's delivery fee is unknown.
+
+**Evidence:** tests/capture-sw-controller.test.ts (heartbeat asserted
+via the onProgress stub in the D-24 crawl tests); message keys
+crawlRunning/feeUnknown in src/shared/i18n/messages.ts.

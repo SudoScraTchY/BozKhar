@@ -34,6 +34,8 @@ export type MessageKey =
   | 'capturedOffersToast'
   | 'optimizeCart'
   | 'crawlProgress'
+  | 'crawlRunning'
+  | 'feeUnknown'
   | 'crawlAborted'
   | 'crawlFinished'
   | 'crawlStarting'
@@ -111,6 +113,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlAborted: 'بررسی متوقف شد. نتایج تا همین‌جا ذخیره شده‌اند.',
     crawlFinished: 'بررسی کامل شد؛ {failed} مورد ناموفق.',
     crawlStarting: 'در حال شروع بررسی سبد…',
+    crawlRunning: 'در حال بررسی سبد…',
+    feeUnknown: 'هزینه‌ی ارسال این فروشنده نامشخص است؛ حداقل ممکن نشان داده شده.',
     crawlStartFailed:
       'برقراری ارتباط با سرویس‌دهنده‌ی پس‌زمینه ناموفق؛ افزونه را دوباره بارگذاری کنید.',
     abortCrawl: 'توقف',
@@ -181,6 +185,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlAborted: 'Crawl stopped. Everything so far is kept.',
     crawlFinished: 'Crawl complete; {failed} item(s) failed.',
     crawlStarting: 'Starting the cart crawl…',
+    crawlRunning: 'Reviewing the cart…',
+    feeUnknown: "This seller's delivery fee is unknown; the minimum possible is shown.",
     crawlStartFailed: 'Could not reach the background service worker; please reload the extension.',
     abortCrawl: 'Stop',
     resultsTitle: 'Cart optimization report',

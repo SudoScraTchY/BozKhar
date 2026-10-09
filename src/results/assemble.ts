@@ -54,6 +54,11 @@ function toSolverOffer(snap: Snapshot, offer: Offer, correctedFee?: number): Sol
     // per-offer estimate. Alternative variants keep the
     // product-API fee - their package fee is unobserved.
     fee: correctedFee ?? offer.delivery.feeAmount,
+    ...(correctedFee !== undefined
+      ? { feeSource: 'shipment' as const }
+      : offer.delivery.feeAmount !== null
+        ? { feeSource: 'product-api' as const }
+        : {}),
     plusCoversFee: offer.delivery.plusApplies,
     ...(offer.capturedAt ? { capturedAt: offer.capturedAt } : {}),
     // D-17 passthrough: the variant this offer belongs to.

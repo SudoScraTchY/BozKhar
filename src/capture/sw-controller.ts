@@ -18,10 +18,15 @@
 import type { ComparisonItem, Snapshot, Settings } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/types';
 import type { DbFactory } from '../shared/storage/db';
-import { getAllItems, putItem, putShipment, appendSnapshot } from '../shared/storage/db';
+import {
+  deleteItem,
+  getAllItems,
+  putItem,
+  putShipment,
+  appendSnapshot,
+} from '../shared/storage/db';
 import { coerceSettings, type StorageAreaLike } from '../shared/settings/settings';
 import { digikalaFetchJson, type RawFetch } from './fetch/digikala-fetch';
-import { delegateShipmentQuote, SHIPMENT_API_BODY, SHIPMENT_API_URL } from './fetch/delegate';
 import { readShipmentRecord } from './readers/shipment';
 import { readProductPayload, type ProductVariantView } from './readers/product';
 import { productApiUrl } from './readers/url';
@@ -255,8 +260,41 @@ export async function handleCrawlStart(
       loadState: async () => state,
       onCart: async (cartItems) => {
         const existing = await getAllItems(deps.dbFactory);
-        const { items } = mergeCartIntoItems(existing, cartViewsToEntries(cartItems));
-        for (const item of items) await putItem(deps.dbFactory, item);
+        const entries = cartViewsToEntries(cartItems);
+        const { items } = mergeCartIntoItems(existing, entries);
+        // D-24: the stored comparison set mirrors the
+        // live cart exactly. Items the user removed
+        // from the cart are dropped - the union merge
+        // used to keep them forever, so their prices
+        // accumulated into every later report. Locks
+        // survive for items still in the cart.
+        const cartKeys = new Set(entries.map((e) => `${e.productId}::${e.variantId}`));
+        for (const item of existing) {
+          const key = `${item.itemId.productId}::${item.itemId.variantId}`;
+          if (!cartKeys.has(key)) {
+            await deleteItem(deps.dbFactory, item.itemId);
+          }
+        }
+        // The merge returns the union; only the
+        // cart's entries belong in the store now.
+        for (const item of items) {
+          const key = `${item.itemId.productId}::${item.itemId.variantId}`;
+          if (cartKeys.has(key)) {
+            await putItem(deps.dbFactory, item);
+          }
+        }
+        // Heartbeat: the first per-item progress only
+        // lands after the first product fetch, which can
+        // take seconds on a cold worker. Broadcast the
+        // cart size immediately so the overlay leaves
+        // "starting..." (live report 2026-10-09).
+        deps.onProgress?.({
+          kind: 'capture/progress',
+          step: 1,
+          total: cartItems.length,
+          done: 0,
+          failed: 0,
+        });
         await syncBadge(deps);
       },
       onProduct: async (productId, variantId, raw) => {

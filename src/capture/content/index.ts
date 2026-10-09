@@ -29,6 +29,7 @@ function labels(lang: Lang) {
       m.capturedOffersToast.replaceAll('{count}', String(count)).replaceAll('{variant}', variant),
     optimizeCart: m.optimizeCart,
     crawlStarting: m.crawlStarting,
+    crawlRunning: m.crawlRunning,
     crawlStartFailed: m.crawlStartFailed,
     crawlProgress: (done: number, total: number) =>
       m.crawlProgress.replaceAll('{done}', String(done)).replaceAll('{total}', String(total)),

@@ -21,6 +21,8 @@ export interface CartSurfaceDeps {
   labels: {
     optimizeCart: string;
     crawlStarting: string;
+    /** Button label while the crawl runs (the button is locked). */
+    crawlRunning: string;
     crawlStartFailed: string;
     crawlProgress: (done: number, total: number) => string;
     crawlAborted: string;

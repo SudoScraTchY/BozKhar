@@ -23,6 +23,7 @@ const PDP_LABELS = {
 const CART_LABELS = {
   optimizeCart: 'بهینه‌سازی سبد خرید',
   crawlStarting: 'در حال شروع…',
+  crawlRunning: 'در حال بررسی…',
   crawlStartFailed: 'ارتباط با سرویس‌دهنده برقرار نشد',
   crawlProgress: (done: number, total: number) => `بررسی ${done} از ${total}…`,
   crawlAborted: 'متوقف شد',

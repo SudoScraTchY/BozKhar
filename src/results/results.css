@@ -196,6 +196,12 @@ tr.subtotal-row td {
   color: var(--accent);
 }
 
+.fee-unknown {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--warn, #a55);
+}
+
 .captured-at {
   display: block;
   font-size: 0.72rem;

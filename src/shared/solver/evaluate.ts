@@ -86,10 +86,28 @@ export interface FeeTable {
 export function buildFeeTable(input: SolverInput): FeeTable {
   const seller = new Map<string, number | null>();
   const large = new Map<string, number | null>();
+  // D-22: a live-quoted package fee (feeSource 'shipment')
+  // is the real charge for that vendor's package and wins
+  // over product-API estimates, which are per-offer
+  // guesses that can sit above (or below) the real fee.
+  const observed = { seller: new Set<string>(), large: new Set<string>() };
   for (const item of input.items) {
     for (const o of item.offers) {
       if (o.stock === 'out-of-stock') continue; // unreachable, never a fee source
       const map = o.isLargeItem ? large : seller;
+      const seen = o.isLargeItem ? observed.large : observed.seller;
+      if (o.feeSource === 'shipment' && o.fee !== null) {
+        seen.add(o.vendorId);
+        // Two observed packages for one vendor: charge
+        // the higher - never quote a total too low.
+        const current = map.get(o.vendorId);
+        map.set(
+          o.vendorId,
+          current === null || current === undefined ? o.fee : Math.max(current, o.fee),
+        );
+        continue;
+      }
+      if (seen.has(o.vendorId)) continue; // an observed fee already owns this vendor
       const current = map.get(o.vendorId);
       if (o.fee !== null) {
         map.set(o.vendorId, Math.max(current ?? 0, o.fee));

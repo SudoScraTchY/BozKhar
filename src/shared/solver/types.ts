@@ -32,6 +32,14 @@ export interface SolverOffer {
   isLargeItem: boolean;
   /** Effective per-shipment delivery fee in Toman; null = unknown. */
   fee: number | null;
+  /**
+   * Where `fee` came from. 'shipment' marks the live
+   * package quote (D-19) - the real charge for that
+   * vendor's package; 'product-api' is the product
+   * API's per-offer estimate. The fee table prefers
+   * the observed charge over estimates.
+   */
+  feeSource?: 'shipment' | 'product-api';
   /** D-12: whether a Plus subscription waives this vendor's fee for this offer. */
   plusCoversFee: boolean;
   /** ISO timestamp of the capture this offer came from (FR-04 staleness). */

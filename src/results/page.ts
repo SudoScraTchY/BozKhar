@@ -20,9 +20,7 @@
  */
 import { t } from '../shared/i18n/messages';
 import type { MessageKey } from '../shared/i18n/messages';
-import { loadSettings } from '../shared/settings/settings';
 import type { Settings } from '../shared/types';
-import { getAllItems, getAllSnapshots, putItem } from '../shared/storage/db';
 import { solve } from '../shared/solver';
 import type { FeeFlag, Plan, PlanLine, UnsolvedReason } from '../shared/solver';
 import type {
@@ -319,9 +317,19 @@ function renderPlan(
     );
     feeRow.append(el('td'));
     feeRow.append(el('td'));
-    feeRow.append(
-      el('td', 'num', group.fee === null ? fmt(lang, unknownFeeFallback) : fmt(lang, group.fee)),
+    const feeCell = el(
+      'td',
+      'num',
+      group.fee === null ? fmt(lang, unknownFeeFallback) : fmt(lang, group.fee),
     );
+    if (group.fee === null) {
+      // Unknown fees are scored at the fallback (SDD 08) -
+      // say so on the row itself, not only in the page-level
+      // caveat, so the user sees exactly which seller is
+      // unpriced (live report 2026-10-09).
+      feeCell.append(el('span', 'fee-unknown', t(lang, 'feeUnknown')));
+    }
+    feeRow.append(feeCell);
     tbody.append(feeRow);
 
     const subtotalRow = el('tr', 'subtotal-row');

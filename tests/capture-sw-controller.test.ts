@@ -166,6 +166,49 @@ describe('handleCrawlStart (T03.6 wiring)', () => {
     expect((saved?.['crawlState'] as CrawlState | undefined)?.phase).toBe('complete');
   });
 
+  it('drops items the user removed from the cart (D-24)', async () => {
+    // Live report 2026-10-09: "prices get added
+    // together instead of full clearing previous
+    // results" - the union merge kept removed
+    // items in the store forever, so their prices
+    // accumulated into every later report. The
+    // stored comparison set must mirror the live
+    // cart exactly (locks survive for items still
+    // in the cart).
+    const cartOne = structuredClone(cartBasic);
+    cartOne.data.cart_item = cartOne.data.cart_item.slice(0, 1);
+    let currentCart = cartBasic;
+    const deps = makeDeps();
+    deps.fetch = (async (url: string, _init?: RequestInit) => {
+      if (url.includes('/checkout/v1/carts') && !url.includes('mini')) {
+        return jsonRes(currentCart);
+      }
+      if (url.includes('/products/')) return jsonRes(productBasic);
+      throw new Error(`unexpected fetch ${url}`);
+    }) as ControllerDeps['fetch'];
+
+    await handleCrawlStart(deps);
+    const afterFirst = await getAllItems(deps.dbFactory);
+    expect(afterFirst.length).toBeGreaterThanOrEqual(3);
+
+    // The user removes two of the three items.
+    currentCart = cartOne;
+    await handleCrawlStart(deps);
+    const afterSecond = await getAllItems(deps.dbFactory);
+    expect(afterSecond).toHaveLength(1);
+    // Heartbeat (D-25): the second crawl broadcast the
+    // cart size immediately after the cart read, so the
+    // overlay leaves "starting..." before the first
+    // product fetch lands.
+    const heartbeat = deps.progress.find((p) => p.done === 0 && p.total === 1);
+    expect(heartbeat).toBeDefined();
+    expect(heartbeat?.kind).toBe('capture/progress');
+    expect(afterSecond[0]?.itemId.productId).toBe('16622211');
+    expect(afterSecond[0]?.itemId.variantId).toBe('62270876');
+    // Quantity follows the live cart entry.
+    expect(afterSecond[0]?.quantity).toBe(2);
+  });
+
   it('captures every in-stock variant, not just the cart selection (D-17)', async () => {
     // Live report 2026-10-08: the user deliberately
     // picked the most expensive vendor; the optimizer
