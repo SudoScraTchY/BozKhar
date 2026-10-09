@@ -89,6 +89,8 @@ export interface Snapshot {
   promos: Promo[];
   capturedAt: string; // ISO timestamp
   extractorVersion: string;
+  /** Main product picture (CDN URL); display-only, for the results page. */
+  imageUrl?: string;
 }
 
 // ---- Shipment quote (D-19): real per-package shipping costs ----

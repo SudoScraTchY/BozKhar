@@ -123,7 +123,9 @@ export async function handleCapturePdp(
     const offer = normalizeVariantToOffer(view.productId, variant, {
       feeProvenance: 'page-visible',
     });
-    const snapshot: Snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer]);
+    const snapshot: Snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer], {
+      imageUrl: view.imageUrl,
+    });
     await appendSnapshot(deps.dbFactory, snapshot);
     await upsertItem(deps, view.productId, view.title, variant.variantId, label, 1, snapshot);
     await syncBadge(deps);
@@ -320,7 +322,9 @@ export async function handleCrawlStart(
             feeProvenance: 'page-visible',
           });
           const label = variantLabel(view.productId, variant.variantId, variant);
-          const snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer]);
+          const snapshot = buildSnapshot(view.productId, variant.variantId, label, [offer], {
+            imageUrl: view.imageUrl,
+          });
           await appendSnapshot(deps.dbFactory, snapshot);
           if (variant.variantId === variantId) {
             // The cart item tracks its own selection;

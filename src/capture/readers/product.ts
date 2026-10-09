@@ -73,6 +73,13 @@ export interface RawProductPayload {
       id?: number | string;
       title_fa?: string;
       title_en?: string;
+      /**
+       * Live API shape: images.main.url is an
+       * ARRAY of CDN URLs (verified 2026-10-10,
+       * product-image-probe.py). The first entry
+       * is the product's main picture.
+       */
+      images?: { main?: { url?: string[] } };
       variants?: RawVariant[];
     };
   };
@@ -98,6 +105,8 @@ export interface ProductVariantView {
 export interface ProductView {
   productId: string;
   title: string;
+  /** Main product picture (CDN URL); absent when the API omits images. */
+  imageUrl?: string;
   variants: ProductVariantView[];
 }
 
@@ -156,6 +165,7 @@ export function readProductPayload(raw: unknown): ProductView {
   const productId = product.id !== undefined ? String(product.id) : '';
   if (!productId) throw structureUnrecognized('product.id missing');
   const title = product.title_fa ?? product.title_en ?? '';
+  const mainImage = product.images?.main?.url?.[0];
 
   const variantsRaw = product.variants;
   if (!Array.isArray(variantsRaw)) throw structureUnrecognized('data.product.variants missing');
@@ -206,5 +216,10 @@ export function readProductPayload(raw: unknown): ProductView {
     };
   });
 
-  return { productId, title, variants };
+  return {
+    productId,
+    title,
+    ...(typeof mainImage === 'string' && mainImage ? { imageUrl: mainImage } : {}),
+    variants,
+  };
 }

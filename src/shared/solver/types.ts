@@ -65,6 +65,8 @@ export interface SolverItem {
   itemKey: ItemKey;
   title?: string;
   variantLabel?: string;
+  /** Main product picture (CDN URL); display-only passthrough, never read by the solve. */
+  imageUrl?: string;
   quantity: number;
   offers: SolverOffer[];
   lock: SolverLock;

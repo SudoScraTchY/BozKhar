@@ -33,6 +33,7 @@ function snapshot(
   price: number,
   fee: number | null,
   capturedAt = '2026-10-08T12:00:00Z',
+  imageUrl?: string,
 ): Snapshot {
   return {
     snapshotId: `${productId}::${variantId}::${capturedAt}`,
@@ -53,6 +54,7 @@ function snapshot(
     promos: [],
     capturedAt,
     extractorVersion: '0.3.0-t03',
+    ...(imageUrl ? { imageUrl } : {}),
   };
 }
 
@@ -74,6 +76,39 @@ describe('assembler (T05.1)', () => {
     expect(input.items[0]!.offers).toHaveLength(3);
     expect(input.items[0]!.offers.map((o) => o.variantId).sort()).toEqual(['v1', 'v2', 'v3']);
     expect(input.items[0]!.offers[1]!.unitPrice).toBe(80);
+  });
+
+  it('passes the product picture through to the solver input (issue #10)', () => {
+    const items = [item('p1', 'v1')];
+    const snapshots = [
+      snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10),
+      snapshot(
+        'p1',
+        'v2',
+        'vend-b',
+        'فروشنده ب',
+        80,
+        10,
+        '2026-10-08T10:00:00Z',
+        'https://dkstatics-public.digikala.com/digikala-products/pic.jpg',
+      ),
+    ];
+    const input = buildSolverInput(items, snapshots, {
+      hasPlus: false,
+      tolerancePercent: 2,
+    });
+    // Display-only: the picture rides the item the results
+    // page renders; the solve never reads it.
+    expect(input.items[0]!.imageUrl).toBe(
+      'https://dkstatics-public.digikala.com/digikala-products/pic.jpg',
+    );
+    // A product with no captured picture stays undefined.
+    const noPic = buildSolverInput(
+      [item('p2', 'v1')],
+      [snapshot('p2', 'v1', 'vend-a', 'فروشنده الف', 100, 10)],
+      { hasPlus: false, tolerancePercent: 2 },
+    );
+    expect(noPic.items[0]!.imageUrl).toBeUndefined();
   });
 
   it('computes the current-cart total with the fee model (one fee per vendor x class)', () => {

@@ -31,6 +31,8 @@ export interface NormalizeOptions {
    */
   feeProvenance?: 'page-visible' | 'cart-preview';
   snapshotId?: string;
+  /** Main product picture (CDN URL), stored on the snapshot for the results page. */
+  imageUrl?: string;
 }
 
 export function normalizeVariantToOffer(
@@ -82,6 +84,7 @@ export function buildSnapshot(
     promos: [],
     capturedAt,
     extractorVersion: EXTRACTOR_VERSION,
+    ...(options.imageUrl ? { imageUrl: options.imageUrl } : {}),
   };
 }
 

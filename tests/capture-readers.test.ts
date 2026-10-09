@@ -54,6 +54,15 @@ describe('T03 product payload reader (spike S-1 shapes)', () => {
     expect(v?.plusCoversFee).toBe(true);
   });
 
+  it('reads the product main picture (images.main.url[0], issue #10)', () => {
+    expect(view.imageUrl).toBe(
+      'https://dkstatics-public.digikala.com/digikala-products/sample-main.jpg',
+    );
+    // A payload without images reads as no picture (undefined, not '').
+    const bare = { data: { product: { id: 1, title_fa: 'x', variants: [] } } };
+    expect(readProductPayload(bare).imageUrl).toBeUndefined();
+  });
+
   it('reads out-of-stock variant without dropping it', () => {
     const v = view.variants.find((x) => x.variantId === '62270879');
     expect(v?.stockState).toBe('out-of-stock');

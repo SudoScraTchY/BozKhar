@@ -172,10 +172,15 @@ export function buildSolverInput(
         ),
       ),
     );
+    // Display-only passthrough: the product's main
+    // picture, so the results page can show it
+    // beside the item name (issue #10).
+    const withImage = productSnaps.find((snap) => snap.imageUrl);
     return {
       itemKey: itemKeyOf(item.itemId.productId, item.itemId.variantId),
       ...(item.product.title ? { title: item.product.title } : {}),
       ...(item.variant.label ? { variantLabel: item.variant.label } : {}),
+      ...(withImage?.imageUrl ? { imageUrl: withImage.imageUrl } : {}),
       quantity: item.quantity,
       offers,
       lock: { mode: item.lock.mode, vendorIds: item.lock.vendorIds },

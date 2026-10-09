@@ -252,6 +252,7 @@ function renderPlan(
   plan: Plan,
   unknownFeeFallback: number,
   controls: RowControls,
+  pictures: Map<string, string> = new Map(),
 ): HTMLElement {
   const wrap = el('div');
 
@@ -286,6 +287,15 @@ function renderPlan(
     for (const line of group.lines) {
       const row = el('tr');
       const nameCell = el('td');
+      const picture = pictures.get(line.itemKey);
+      if (picture) {
+        const img = document.createElement('img');
+        img.src = picture;
+        img.alt = line.title ?? line.itemKey;
+        img.className = 'plan-picture';
+        img.loading = 'lazy';
+        nameCell.append(img);
+      }
       nameCell.append(el('span', undefined, line.title ?? line.itemKey));
       const chosenVariant = line.variantId;
       const ownVariant = currentVariantId(line.itemKey);
@@ -492,6 +502,12 @@ export function createReportPage(deps: ReportPageDeps) {
   async function renderAll(): Promise<void> {
     const input = buildSolverInput(state.items, state.snapshots, state.settings, state.shipment);
     const { plan } = solve(input);
+    // itemKey -> product picture (display-only passthrough).
+    const pictures = new Map<string, string>(
+      input.items
+        .filter((it) => it.imageUrl !== undefined)
+        .map((it) => [it.itemKey, it.imageUrl as string]),
+    );
 
     const content = $('content');
     content.replaceChildren();
@@ -505,7 +521,9 @@ export function createReportPage(deps: ReportPageDeps) {
     }
 
     content.append(el('h2', 'card-title', t(state.lang, 'planTitle')));
-    content.append(renderPlan(state.lang, plan, input.unknownFeeFallback ?? 0, rowControls()));
+    content.append(
+      renderPlan(state.lang, plan, input.unknownFeeFallback ?? 0, rowControls(), pictures),
+    );
     const unsolved = renderUnsolved(state.lang, plan);
     if (unsolved) content.append(unsolved);
   }
