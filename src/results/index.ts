@@ -96,14 +96,22 @@ function renderVerdict(lang: Lang, plan: Plan): HTMLElement {
   const savings = plan.comparison?.savings ?? null;
   const savingCard = el(
     'div',
-    savings !== null && savings > 0 ? 'verdict savings' : 'verdict savings none',
+    savings !== null && savings > 0
+      ? 'verdict savings'
+      : savings === null
+        ? 'verdict savings unknown'
+        : 'verdict savings none',
   );
   savingCard.append(
     el('span', 'card-label', t(lang, 'savings')),
     el(
       'span',
       'card-value',
-      savings !== null && savings > 0 ? fmt(lang, savings) : t(lang, 'savingsNone'),
+      savings !== null && savings > 0
+        ? fmt(lang, savings)
+        : savings === null
+          ? t(lang, 'savingsUnknown')
+          : t(lang, 'savingsNone'),
     ),
   );
 

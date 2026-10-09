@@ -163,4 +163,27 @@ describe('assembler (T05.1)', () => {
     // passthrough) - the report is actionable.
     expect(plan.assignments[0]?.variantId).toBe('v-cheap');
   });
+
+  it('savings is null (not zero) when a current fee is unknown', async () => {
+    // The report must not claim "no cheaper arrangement"
+    // when the real reason is that the current total
+    // cannot be computed honestly (unknown fee, SDD 08).
+    const { solve } = await import('../src/shared/solver');
+    const items = [item('p1', 'v1')];
+    const snapshots = [
+      snapshot('p1', 'v1', 'vend-a', 'الف', 500, null),
+      snapshot('p1', 'v2', 'vend-b', 'ب', 200, 50),
+    ];
+    const input = buildSolverInput(items, snapshots, {
+      hasPlus: false,
+      tolerancePercent: 2,
+    });
+    expect(input.currentCartTotal).toBeNull();
+    const { plan } = solve(input);
+    expect(plan.comparison?.savings).toBeNull();
+    // The plan still switches to the cheaper variant -
+    // choosing uses the fallback fee (SDD 08), only the
+    // displayed comparison is withheld.
+    expect(plan.assignments[0]?.variantId).toBe('v2');
+  });
 });
