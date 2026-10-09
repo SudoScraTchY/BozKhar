@@ -6,8 +6,8 @@
 
 | ID | Task | Notes | Est |
 |---|---|---|---|
-| T05.1 | Results page shell | Extension page, RTL-first layout; verdict cards (current / optimized / savings, estimate caveat when any fee is an estimate); empty-state explainer linking both capture flows | 1d |
-| T05.2 | Plan rendering | Vendor-grouped table: item lines, single fee line per group with its flag, group subtotals, item/delivery/grand totals; "prices as of" per item; approximate-mode notice when the solver labels the plan so | 1d |
+| T05.1 | Results page shell | **done** (v0.3.0, D-18): extension page `src/results/`, fa/RTL-first; verdict cards (current / optimized / savings + estimate caveat); empty-state explainer; pure `assemble.ts` (items+snapshots → solver input) unit-tested incl. the D-17 variant-switch end-to-end; page auto-opens from the SW on crawl completion; overlay now also closes from the crawl-start response (done/failed counts) — fixes the live "overlay never went away" | 1d |
+| T05.2 | Plan rendering | **done** (v0.3.0, D-18): vendor-grouped table (item lines with variant label (D-17), one fee line per group carrying its flag, group subtotals, item/delivery/grand totals); every line reconciles (FR-12, tested); "prices as of" per item; unknown-fee honesty: current total is null when any fee is unknown (SDD 08) | 1d |
 | T05.3 | Lock controls | Per-item dropdown: Any vendor / Pin to … / Ban … (multi); changes re-solve debounced (< 300ms target, NFR-03); quantity editing in the same row (FR-05) | 0.5d |
 | T05.4 | Hints cards | Full arithmetic per hint (unit cost, fee removed, net effect, tolerance verdict); no apply buttons, no urgency patterns (09's copy rules) | 0.5d |
 | T05.5 | Controls cluster + staleness | Plus toggle and tolerance slider (live hint re-evaluation, FR-14); staleness banner with per-item and whole-list re-capture (FR-04); crawl progress + abort surfaced here (from T03.6) | 0.5d |

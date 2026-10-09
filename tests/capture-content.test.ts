@@ -218,7 +218,7 @@ describe('Cart surface (T03.5)', () => {
           finished: true,
           aborted: false,
         });
-        return { ok: true, kind: 'crawl-start', itemCount: 3 };
+        return { ok: true, kind: 'crawl-start', itemCount: 3, done: 2, failed: 1 };
       }
       return { ok: true, kind: 'crawl-abort' };
     });
@@ -277,7 +277,13 @@ describe('Cart surface (T03.5)', () => {
       doc: document,
       location: currentLocation,
       labels: CART_LABELS,
-      sendMessage: async () => ({ ok: true, kind: 'crawl-start', itemCount: 0 }),
+      sendMessage: async () => ({
+        ok: true,
+        kind: 'crawl-start',
+        itemCount: 0,
+        done: 0,
+        failed: 0,
+      }),
       onProgress() {
         return () => {};
       },
@@ -296,12 +302,17 @@ describe('Cart surface (T03.5)', () => {
 
   it('the overlay abort control sends crawl-abort', async () => {
     const seen: string[] = [];
+    let crawlSettled = false;
     const sendMessage = vi.fn(async (req: unknown): Promise<CaptureResponse> => {
       const kind = (req as { kind: string }).kind;
       seen.push(kind);
-      return kind === 'capture/crawl-abort'
-        ? { ok: true, kind: 'crawl-abort' }
-        : { ok: true, kind: 'crawl-start', itemCount: 2 };
+      if (kind === 'capture/crawl-abort') return { ok: true, kind: 'crawl-abort' };
+      // Hold the crawl-start response until the abort click
+      // has been observed: the response now closes the
+      // overlay (it carries the final counts), so a
+      // synchronous return would race the abort button.
+      await vi.waitFor(() => expect(crawlSettled).toBe(true));
+      return { ok: true, kind: 'crawl-start', itemCount: 2, done: 0, failed: 0 };
     });
     const surface = mountCartSurface({
       doc: document,
@@ -315,7 +326,36 @@ describe('Cart surface (T03.5)', () => {
     const abortBtn = document.querySelector('.dkopt-progress button') as HTMLButtonElement;
     expect(abortBtn.textContent).toBe('توقف');
     abortBtn.click();
+    crawlSettled = true;
     await vi.waitFor(() => expect(seen).toContain('capture/crawl-abort'));
+    surface?.destroy();
+  });
+
+  it('closes the overlay from the response when the finished broadcast is missed', async () => {
+    // Live report 2026-10-08: the crawl completed but
+    // the final progress broadcast never reached the
+    // content script, leaving the overlay up forever.
+    // The crawl-start response now carries the final
+    // counts and closes the overlay itself.
+    const surface = mountCartSurface({
+      doc: document,
+      location: currentLocation,
+      labels: CART_LABELS,
+      sendMessage: async () => ({
+        ok: true,
+        kind: 'crawl-start',
+        itemCount: 2,
+        done: 2,
+        failed: 0,
+      }),
+      onProgress: () => () => {},
+    });
+    (document.querySelector('button.dkopt-btn') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(document.querySelector('.dkopt-progress')).not.toBeNull());
+    // The response resolves: the overlay must close and
+    // the finished toast must appear - no eternal overlay.
+    await vi.waitFor(() => expect(document.querySelector('.dkopt-progress')).toBeNull());
+    expect(document.body.textContent).toContain('کامل شد؛ 0 ناموفق');
     surface?.destroy();
   });
 
@@ -327,7 +367,13 @@ describe('Cart surface (T03.5)', () => {
         doc: document,
         location: currentLocation,
         labels: CART_LABELS,
-        sendMessage: async () => ({ ok: true, kind: 'crawl-start', itemCount: 1 }),
+        sendMessage: async () => ({
+          ok: true,
+          kind: 'crawl-start',
+          itemCount: 1,
+          done: 0,
+          failed: 0,
+        }),
         onProgress: () => () => {},
       });
       expect(surface).not.toBeNull();

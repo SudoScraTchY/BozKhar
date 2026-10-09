@@ -37,6 +37,8 @@ export interface Assignment {
   plusCoversFee: boolean;
   /** Chosen offer's fee (null = unknown). Kept so plan building needs no re-lookup. */
   fee: number | null;
+  /** D-17 passthrough: the variant the chosen offer belongs to. */
+  variantId?: string;
   capturedAt?: string;
 }
 
@@ -146,6 +148,7 @@ export function buildGroups(
       quantity: a.quantity,
       lineTotal: a.unitPrice * a.quantity,
       isLargeItem: a.isLargeItem,
+      ...(a.variantId !== undefined ? { variantId: a.variantId } : {}),
       ...(a.capturedAt !== undefined ? { capturedAt: a.capturedAt } : {}),
     };
     // An item's title/variant ride along from the input for display.
@@ -341,6 +344,7 @@ export function toAssignment(item: SolverItem, offer: SolverOffer): Assignment {
     isLargeItem: offer.isLargeItem,
     plusCoversFee: offer.plusCoversFee,
     fee: offer.fee,
+    ...(offer.variantId !== undefined ? { variantId: offer.variantId } : {}),
     ...(offer.capturedAt !== undefined ? { capturedAt: offer.capturedAt } : {}),
   };
 }

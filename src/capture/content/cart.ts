@@ -90,6 +90,22 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       unsub = null;
       toast?.remove();
       toast = showToast(doc, `${res.errorCode}: ${res.message}`, 6000);
+      return;
+    }
+    if (overlay) {
+      // The crawl finished, but the final progress broadcast
+      // never reached this surface (SW restart, messaging
+      // miss - live report 2026-10-08: the overlay outlived
+      // a completed crawl). The response carries the final
+      // counts, so close the overlay here instead of leaving
+      // it up forever. Unsubscribing makes a late broadcast
+      // a no-op, so the finished toast never doubles.
+      overlay.remove();
+      overlay = null;
+      unsub?.();
+      unsub = null;
+      toast?.remove();
+      toast = showToast(doc, deps.labels.crawlFinished((res as { failed: number }).failed), 6000);
     }
   };
 

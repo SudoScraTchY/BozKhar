@@ -25,7 +25,10 @@ export type CaptureRequest =
 /** Responses mirror the success/failure of the underlying capture step. */
 export type CaptureResponse =
   | { ok: true; kind: 'pdp'; snapshotId: string; offerCount: number; variantLabel: string }
-  | { ok: true; kind: 'crawl-start'; itemCount: number }
+  // done/failed let the content script close the crawl overlay
+  // even if the final progress broadcast was missed (live report
+  // 2026-10-08: the overlay stayed up after a completed crawl).
+  | { ok: true; kind: 'crawl-start'; itemCount: number; done: number; failed: number }
   | { ok: true; kind: 'crawl-abort' }
   | { ok: true; kind: 'badge-sync'; count: number }
   | { ok: false; errorCode: string; message: string };

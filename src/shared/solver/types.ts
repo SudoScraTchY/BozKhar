@@ -36,6 +36,13 @@ export interface SolverOffer {
   plusCoversFee: boolean;
   /** ISO timestamp of the capture this offer came from (FR-04 staleness). */
   capturedAt?: string;
+  /**
+   * Passthrough identity (D-17): the variant this offer belongs
+   * to. The solver's arithmetic never reads it; the results page
+   * (T05) needs it to say WHICH variant the plan chose - a plan
+   * that switches items silently would be unactionable.
+   */
+  variantId?: string;
 }
 
 export type LockMode = 'none' | 'pin' | 'ban';
@@ -117,6 +124,8 @@ export interface PlanLine {
   /** unitPrice * quantity. */
   lineTotal: number;
   isLargeItem: boolean;
+  /** Passthrough (D-17): the variant the chosen offer belongs to. */
+  variantId?: string;
   capturedAt?: string;
 }
 

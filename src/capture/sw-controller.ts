@@ -298,7 +298,13 @@ export async function handleCrawlStart(
     });
 
     const itemCount = result.state.items.length;
-    return { ok: true, kind: 'crawl-start', itemCount };
+    return {
+      ok: true,
+      kind: 'crawl-start',
+      itemCount,
+      done: result.done,
+      failed: result.failed,
+    };
   } catch (e) {
     return errResponse(e);
   } finally {

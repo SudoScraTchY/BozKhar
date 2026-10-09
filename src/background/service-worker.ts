@@ -40,8 +40,20 @@ chrome.runtime.onMessage.addListener(
       // The requesting tab's content script executes the
       // delegated crawl fetches (D-16); sender.tab is set for
       // content-script messages (options-page starts have none).
-      void handleCrawlStart(deps(), sender.tab?.id).then(sendResponse);
-      return true;
+      void handleCrawlStart(deps(), sender.tab?.id).then((res) => {
+        // 09-ui-spec Surface 3: on completion the results
+        // page opens automatically - failed items included,
+        // with the gaps honestly listed. Partial and aborted
+        // crawls open it too (everything so far is kept).
+        if (res.ok) {
+          chrome.tabs.create(
+            { url: chrome.runtime.getURL('src/results/index.html') },
+            () => void chrome.runtime.lastError,
+          );
+        }
+        sendResponse(res);
+      });
+      return true; // async response
     }
     if (req.kind === 'capture/crawl-abort') {
       sendResponse(handleCrawlAbort());

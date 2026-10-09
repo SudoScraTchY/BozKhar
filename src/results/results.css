@@ -1,0 +1,214 @@
+/*
+ * Results page (T05.1/T05.2) - same aesthetic preset as the
+ * options page ("11 Build": luxury minimalism). fa/RTL is the
+ * primary layout; [dir=ltr] only flips direction.
+ */
+:root {
+  --bg: #fafaf8;
+  --surface: #ffffff;
+  --ink: #17181a;
+  --ink-soft: #6f7277;
+  --line: #e8e8e4;
+  --accent: #e6504d;
+  --good: #1a7f37;
+  --radius: 14px;
+  --space: clamp(16px, 3vw, 28px);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Vazirmatn, 'Segoe UI', Tahoma, sans-serif;
+  font-weight: 400;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: calc(var(--space) * 2) var(--space) calc(var(--space) * 4);
+}
+
+.page-header {
+  margin-block-end: var(--space);
+}
+
+.title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-block-end: var(--space);
+}
+
+.verdict {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.verdict.savings {
+  border-color: var(--accent);
+}
+
+.verdict.savings.none {
+  border-color: var(--line);
+}
+
+.card-label {
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.card-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.verdict.savings .card-value {
+  color: var(--good);
+}
+
+.verdict.savings.none .card-value {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-block-end: var(--space);
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 10px;
+}
+
+.note {
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+  margin: 0 0 var(--space);
+}
+
+.note.warn {
+  color: var(--accent);
+}
+
+table.plan {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+}
+
+table.plan th,
+table.plan td {
+  text-align: start;
+  padding: 6px 4px;
+  border-block-end: 1px solid var(--line);
+  vertical-align: top;
+}
+
+table.plan th {
+  color: var(--ink-soft);
+  font-weight: 500;
+  font-size: 0.78rem;
+}
+
+table.plan td.num,
+table.plan th.num {
+  text-align: end;
+  white-space: nowrap;
+}
+
+tr.fee-line td {
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+tr.subtotal-row td {
+  font-weight: 700;
+  border-block-end: none;
+}
+
+.variant-note {
+  display: block;
+  font-size: 0.76rem;
+  color: var(--accent);
+}
+
+.captured-at {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.totals {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-block-end: var(--space);
+}
+
+.totals > div {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+.totals dt {
+  color: var(--ink-soft);
+}
+
+.totals dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.totals .grand dd,
+.totals .grand dt {
+  font-weight: 800;
+  font-size: 1.05rem;
+}
+
+.empty {
+  text-align: center;
+  padding: calc(var(--space) * 2) var(--space);
+}
+
+.empty p {
+  color: var(--ink-soft);
+  max-width: 46ch;
+  margin-inline: auto;
+}
+
+.unsolved li {
+  margin-block-end: 4px;
+  font-size: 0.9rem;
+}

@@ -157,6 +157,24 @@ export async function getSnapshotsForItem(factory: DbFactory, itemId: ItemId): P
     );
 }
 
+/**
+ * Every snapshot in the store (append-only history). The results
+ * page (T05) groups these per product to span all captured
+ * variants (D-17); cart-scale data is small enough that a full
+ * read plus an in-memory grouping is the honest query.
+ */
+export async function getAllSnapshots(factory: DbFactory): Promise<Snapshot[]> {
+  const all = await withStore<SnapshotRecord[]>(factory, STORE_SNAPSHOTS, 'readonly', (s) =>
+    s.getAll(),
+  );
+  return all
+    .map(({ itemKey: _k, ...snap }) => snap)
+    .sort(
+      (a, b) =>
+        a.capturedAt.localeCompare(b.capturedAt) || a.snapshotId.localeCompare(b.snapshotId),
+    );
+}
+
 /** Latest snapshot per item ("latest" = capturedAt, tie-break on snapshotId). */
 export async function getLatestSnapshots(factory: DbFactory): Promise<Map<string, Snapshot>> {
   const all = await withStore<SnapshotRecord[]>(factory, STORE_SNAPSHOTS, 'readonly', (s) =>

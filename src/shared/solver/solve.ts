@@ -15,7 +15,13 @@ import type { Assignment } from './evaluate';
 export { MAX_EXACT_ITEMS, MAX_EXACT_VENDORS, selectMode, isWithinEnvelope } from './envelope';
 
 export function solve(input: SolverInput): SolverResult {
-  const pf = prefilter(input);
+  // SDD 08: an unknown fee scores at the largest known fee in
+  // the input (the documented default for unknownFeeFallback) -
+  // never a silent zero, which would quote a total too low.
+  const fallback = input.unknownFeeFallback ?? largestKnownFee(input);
+  const scoped: SolverInput =
+    fallback === undefined ? input : { ...input, unknownFeeFallback: fallback };
+  const pf = prefilter(scoped);
 
   const vendorCount = pf.poolVendorIds.length;
   const itemCount = pf.solvable.length + pf.pinned.length;
@@ -23,16 +29,29 @@ export function solve(input: SolverInput): SolverResult {
 
   let assignments: Assignment[];
   if (mode === 'exact') {
-    assignments = enumerateBest(input, pf);
+    assignments = enumerateBest(scoped, pf);
   } else {
-    assignments = approximateAssignments(input);
+    assignments = approximateAssignments(scoped);
   }
 
   const unsolved: UnsolvedItem[] = pf.unsolved;
-  const plan = buildPlan(input, assignments, mode, unsolved);
-  const hints = buildHints(input, plan);
+  const plan = buildPlan(scoped, assignments, mode, unsolved);
+  const hints = buildHints(scoped, plan);
 
   return { plan, hints };
+}
+
+/** The largest known (non-null) fee in the input; undefined when none is known. */
+function largestKnownFee(input: SolverInput): number | undefined {
+  let max: number | undefined;
+  for (const item of input.items) {
+    for (const offer of item.offers) {
+      if (offer.fee !== null && (max === undefined || offer.fee > max)) {
+        max = offer.fee;
+      }
+    }
+  }
+  return max;
 }
 
 export { perItemCheapestBaseline } from './evaluate';

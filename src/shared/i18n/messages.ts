@@ -38,7 +38,36 @@ export type MessageKey =
   | 'crawlFinished'
   | 'crawlStarting'
   | 'crawlStartFailed'
-  | 'abortCrawl';
+  | 'abortCrawl'
+  // T05.1/T05.2 results page (09-ui-spec Surface 3)
+  | 'resultsTitle'
+  | 'currentTotal'
+  | 'optimizedTotal'
+  | 'savings'
+  | 'savingsNone'
+  | 'estimateCaveat'
+  | 'approximateNotice'
+  | 'emptyTitle'
+  | 'emptyBody'
+  | 'planTitle'
+  | 'itemsSubtotal'
+  | 'deliverySubtotal'
+  | 'grandTotal'
+  | 'deliveryFee'
+  | 'unitPrice'
+  | 'quantity'
+  | 'lineTotal'
+  | 'feeRegular'
+  | 'feePlusCovered'
+  | 'feePromoWaived'
+  | 'feeLargeItem'
+  | 'feeAlreadyPaidByLock'
+  | 'switchToVariant'
+  | 'pricesAsOf'
+  | 'unsolvedTitle'
+  | 'reasonNoVendor'
+  | 'reasonOutOfStock'
+  | 'reasonPinnedUnavailable';
 
 type Catalog = Record<MessageKey, string>;
 
@@ -80,6 +109,36 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlStartFailed:
       'برقراری ارتباط با سرویس‌دهنده‌ی پس‌زمینه ناموفق؛ افزونه را دوباره بارگذاری کنید.',
     abortCrawl: 'توقف',
+    resultsTitle: 'گزارش بهینه‌سازی سبد خرید',
+    currentTotal: 'مجموع فعلی سبد',
+    optimizedTotal: 'مجموع بهینه',
+    savings: 'صرفه‌جویی',
+    savingsNone: 'چینش ارزان‌تری یافت نشد',
+    estimateCaveat:
+      'هزینه‌ی ارسالِ برخی فروشنده‌ها ناشناخته است؛ مجموع‌ها تخمینی‌اند و کران پایین در کارت اول آمده است.',
+    approximateNotice: 'سبد بزرگ است؛ این برنامه تقریبی است (دقیق نیست).',
+    emptyTitle: 'هنوز چیزی برای مقایسه جمع‌آوری نشده',
+    emptyBody:
+      'در صفحه‌ی کالا «افزودن به مقایسه» را بزنید، یا در صفحه‌ی سبد «بهینه‌سازی سبد خرید» را بزنید تا سبد کامل ثبت شود.',
+    planTitle: 'برنامه',
+    itemsSubtotal: 'مجموع کالاها',
+    deliverySubtotal: 'مجموع ارسال',
+    grandTotal: 'مجموع کل',
+    deliveryFee: 'هزینه‌ی ارسال',
+    unitPrice: 'قیمت هر واحد',
+    quantity: 'تعداد',
+    lineTotal: 'مجموع خط',
+    feeRegular: 'عادی',
+    feePlusCovered: 'پوشش‌داده‌شده توسط پلاس',
+    feePromoWaived: 'حذف‌شده با پیشنهاد',
+    feeLargeItem: 'کالای بزرگ و سنگین (پلاس معاف است)',
+    feeAlreadyPaidByLock: 'پیش‌پرداخت‌شده به دلیل قفل',
+    switchToVariant: 'رفت به گونه‌ی {variant}',
+    pricesAsOf: 'قیمت‌ها تا {time} ثبت شده‌اند',
+    unsolvedTitle: 'بهینه‌سازی نشد',
+    reasonNoVendor: 'فروشنده‌ای در دسترس نیست',
+    reasonOutOfStock: 'همه‌ی گزینه‌ها ناموجود هستند',
+    reasonPinnedUnavailable: 'فروشنده‌ی قفل‌شده موجود نیست',
   },
   en: {
     optionsTitle: 'Digikala Cart Optimizer - Settings',
@@ -115,6 +174,36 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlStarting: 'Starting the cart crawl…',
     crawlStartFailed: 'Could not reach the background service worker; please reload the extension.',
     abortCrawl: 'Stop',
+    resultsTitle: 'Cart optimization report',
+    currentTotal: 'Current cart total',
+    optimizedTotal: 'Optimized total',
+    savings: 'Savings',
+    savingsNone: 'No cheaper arrangement found',
+    estimateCaveat:
+      'Some sellers’ delivery fees are unknown; totals are estimates, with the honest lower bound shown first.',
+    approximateNotice: 'This cart is large; the plan is approximate (not exact).',
+    emptyTitle: 'Nothing captured for comparison yet',
+    emptyBody:
+      'Use “Add to comparison” on product pages, or “Optimize this cart” on the cart page to capture the whole cart.',
+    planTitle: 'The plan',
+    itemsSubtotal: 'Items subtotal',
+    deliverySubtotal: 'Delivery subtotal',
+    grandTotal: 'Grand total',
+    deliveryFee: 'Delivery fee',
+    unitPrice: 'Unit price',
+    quantity: 'Qty',
+    lineTotal: 'Line total',
+    feeRegular: 'regular',
+    feePlusCovered: 'Plus-covered',
+    feePromoWaived: 'promo-waived',
+    feeLargeItem: 'large item (Plus exempt)',
+    feeAlreadyPaidByLock: 'already paid by your lock',
+    switchToVariant: 'switch to variant {variant}',
+    pricesAsOf: 'Prices as of {time}',
+    unsolvedTitle: 'Could not optimize',
+    reasonNoVendor: 'no vendor available',
+    reasonOutOfStock: 'all offers out of stock',
+    reasonPinnedUnavailable: 'the pinned vendor is unavailable',
   },
 };
 
