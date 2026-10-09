@@ -73,7 +73,7 @@ describe('readShipmentRecord (D-19)', () => {
     expect(record?.packages).toHaveLength(2);
     expect(record?.packages[0]).toEqual({
       shipmentId: 'b8d1bf_1_23',
-      shippingCost: 1200000,
+      shippingCost: 120000,
       items: [{ productId: '3537380', variantId: '52584941' }],
     });
     // The two-item package carries BOTH items -
@@ -82,7 +82,7 @@ describe('readShipmentRecord (D-19)', () => {
       { productId: '16622211', variantId: '82074892' },
       { productId: '8881997', variantId: '53078909' },
     ]);
-    expect(record?.packages[1]?.shippingCost).toBe(1100000);
+    expect(record?.packages[1]?.shippingCost).toBe(110000);
   });
 
   it('returns null for a response without quotable packages', () => {
@@ -119,7 +119,7 @@ describe('readShipmentRecord (D-19)', () => {
     );
     expect(record?.packages).toHaveLength(1);
     expect(record?.packages[0]?.shipmentId).toBe('z');
-    expect(record?.packages[0]?.shippingCost).toBe(2000);
+    expect(record?.packages[0]?.shippingCost).toBe(200);
   });
 
   it('ignores non-numeric fees and malformed item entries', () => {

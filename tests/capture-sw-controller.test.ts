@@ -314,7 +314,7 @@ describe('handleCrawlStart: shipment quote (D-19)', () => {
         normal: [
           {
             shipment_id: 'b8d1bf_1_23',
-            submit_types: [{ id: 16, shipping_cost: 1200000 }],
+            submit_types: [{ id: 16, shipping_cost: 12000000 }],
             cart_items: [
               {
                 id: 259702067,

@@ -491,6 +491,56 @@ describe('mainWorldShipmentQuote (D-19 page executor)', () => {
     });
   });
 
+  it('retries a burst preflight rejection (live finding 2026-10-09)', async () => {
+    // The crawl bursts several API reads before
+    // the quote; the shipment endpoint's preflight
+    // sometimes rejects under that burst ("Failed
+    // to fetch" - fast, not an HTTP error). The
+    // bounded retry with a backoff recovers.
+    vi.useFakeTimers();
+    let calls = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        calls += 1;
+        if (calls < 3) {
+          throw new TypeError('Failed to fetch');
+        }
+        return responseOf(200, { data: { shipment_types: {} } });
+      }),
+    );
+    const nonce = 'n-ship-retry';
+    mainWorldShipmentQuote({
+      url: SHIPMENT_API_URL,
+      nonce,
+      body: SHIPMENT_API_BODY,
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const outcome = await outcomeFor(nonce);
+    expect(outcome.ok).toBe(true);
+    expect(calls).toBe(3);
+    vi.useRealTimers();
+  });
+
+  it('reports NETWORK once the bounded retries are exhausted', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const nonce = 'n-ship-retry-exhausted';
+    mainWorldShipmentQuote({
+      url: SHIPMENT_API_URL,
+      nonce,
+      body: SHIPMENT_API_BODY,
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+    const outcome = await outcomeFor(nonce);
+    expect(outcome).toMatchObject({ ok: false, errorCode: 'NETWORK' });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.useRealTimers();
+  });
+
   it('D-02: refuses non-digikala hosts without fetching', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);

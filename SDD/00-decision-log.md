@@ -252,3 +252,15 @@ d19_cold.py (second click restarted the
 crawl - 7 fresh API requests) and
 d19_trace.py (cold-worker run completing
 with the D-19 quote POST).
+
+**Amendment (unit correction, 2026-10-09, user report "wrong total"):** the
+first D-19 build stored `submit_types[0].shipping_cost` raw. The shipment API
+reports **Rial** (verified live: shipping_cost sum 5,080,000 vs the checkout
+page's displayed fees 508,000 toman - exactly 10x), while the canonical model
+is **Toman** (SDD 08: "payloads are Rial, the canonical model and the solver
+are Toman"). The product API's fees reach the solver already converted
+(`normalize.ts`), so the raw value inflated every corrected fee 10x - the
+user's current total read 9,000,000+ against a real ~3,500,000 with
+fabricated 6,000,000 "savings". `readShipmentRecord` now converts via
+`rialToToman` at read time; the correction is the only conversion (same rule
+as every other payload).

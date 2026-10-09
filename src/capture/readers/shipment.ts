@@ -11,6 +11,7 @@
  * the parsed JSON.
  */
 import type { ShipmentPackage, ShipmentRecord } from '../../shared/types';
+import { rialToToman } from '../normalize';
 
 /** Shape-inspected accessors: the quote is API data, never trusted. */
 function asRecord(v: unknown): Record<string, unknown> {
@@ -52,8 +53,14 @@ export function readShipmentRecord(json: unknown, capturedAt: string): ShipmentR
 }
 
 function readPackage(raw: Record<string, unknown>): ShipmentPackage | null {
-  const shippingCost = asNumber(asRecord(asArray(raw.submit_types)[0]).shipping_cost);
-  if (shippingCost === null) return null;
+  // The shipment API, like every payload, reports Rial; the
+  // canonical model is Toman (SDD 08 money convention - the
+  // conversion happens here, once, so downstream never mixes
+  // units. The first D-19 build stored the raw value, which
+  // inflated every corrected fee 10x against the product-API
+  // fees already converted to Toman.
+  const shippingCostRial = asNumber(asRecord(asArray(raw.submit_types)[0]).shipping_cost);
+  if (shippingCostRial === null) return null;
   const items = asArray(raw.cart_items)
     .map((rawItem) => {
       const it = asRecord(rawItem);
@@ -65,7 +72,7 @@ function readPackage(raw: Record<string, unknown>): ShipmentPackage | null {
   if (items.length === 0) return null;
   return {
     shipmentId: asString(raw.shipment_id),
-    shippingCost,
+    shippingCost: rialToToman(shippingCostRial),
     items,
   };
 }

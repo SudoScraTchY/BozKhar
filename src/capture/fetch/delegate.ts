@@ -443,42 +443,65 @@ export function mainWorldShipmentQuote(args: { url: string; nonce: string; body:
     return;
   }
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-  fetch(url, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
-    body,
-    signal: controller.signal,
-  })
-    .then(async (res: Response) => {
-      clearTimeout(timer);
-      let json: unknown = null;
-      try {
-        json = await res.json();
-      } catch {
-        // non-JSON body: surfaced as null (the reader rejects it)
-      }
-      if (!res.ok) {
+  // The crawl bursts several API reads before the
+  // quote; the shipment endpoint's preflight
+  // sometimes rejects under that burst ("Failed
+  // to fetch" - a CORS/preflight rejection, not
+  // an HTTP error, and it fails fast). Bounded
+  // retry with a backoff that can clear the
+  // window; the crawl is never blocked more than
+  // a few seconds by it.
+  const QUOTE_ATTEMPTS = 3;
+  const QUOTE_BACKOFF_MS = 2000;
+  const attemptFetch = (attempt: number): void => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2_500);
+    fetch(url, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal: controller.signal,
+    })
+      .then(async (res: Response) => {
+        clearTimeout(timer);
+        let json: unknown = null;
+        try {
+          json = await res.json();
+        } catch {
+          // non-JSON body: surfaced as null (the reader rejects it)
+        }
+        if (!res.ok) {
+          // A rate-limit or server hiccup on a read-only
+          // quote is retryable; anything else is final.
+          if (attempt < QUOTE_ATTEMPTS && (res.status === 429 || res.status >= 500)) {
+            setTimeout(() => attemptFetch(attempt + 1), QUOTE_BACKOFF_MS);
+            return;
+          }
+          finish({
+            ok: false,
+            errorCode: 'HTTP_STATUS',
+            message: `HTTP ${res.status} from ${url}`,
+            status: res.status,
+          });
+          return;
+        }
+        finish({ ok: true, json });
+      })
+      .catch((e: Error) => {
+        clearTimeout(timer);
+        if (attempt < QUOTE_ATTEMPTS) {
+          setTimeout(() => attemptFetch(attempt + 1), QUOTE_BACKOFF_MS);
+          return;
+        }
         finish({
           ok: false,
-          errorCode: 'HTTP_STATUS',
-          message: `HTTP ${res.status} from ${url}`,
-          status: res.status,
+          errorCode: 'NETWORK',
+          message: `Network failure: ${e.message}`,
         });
-        return;
-      }
-      finish({ ok: true, json });
-    })
-    .catch((e: Error) => {
-      clearTimeout(timer);
-      finish({
-        ok: false,
-        errorCode: 'NETWORK',
-        message: `Network failure: ${e.message}`,
       });
-    });
+  };
+  attemptFetch(1);
 }
 
 /**
