@@ -2,7 +2,7 @@
 
 **Goal:** The user-facing half: results page (verdict, plan, locks, hints, live re-solving), options page completion, toasts — bilingual fa-primary RTL, advise-only in wording and behavior.
 **Depends on:** T03 (real captured data) + T04 (the solver). **Spec source:** `09-ui-spec.md` (authoritative), FR-04–FR-14, NFR-03/08/10.
-**Estimate:** 4–5 ideal days. **Status:** todo.
+**Estimate:** 4–5 ideal days. **Status:** in-progress (T05.1/T05.2 done 2026-10-09, v0.3.0, commit 42b49eb, D-18: results page shell + plan rendering + pure assembler, 174/174; T05.3–T05.7 remain).
 
 | ID | Task | Notes | Est |
 |---|---|---|---|
