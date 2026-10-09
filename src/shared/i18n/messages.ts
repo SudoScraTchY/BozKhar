@@ -51,6 +51,10 @@ export type MessageKey =
   | 'emptyTitle'
   | 'emptyBody'
   | 'planTitle'
+  // T05.3 lock controls (D-06 model made visible)
+  | 'lockAny'
+  | 'lockPin'
+  | 'lockBan'
   | 'itemsSubtotal'
   | 'deliverySubtotal'
   | 'grandTotal'
@@ -116,6 +120,9 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     savings: 'صرفه‌جویی',
     savingsNone: 'چینش ارزان‌تری یافت نشد',
     savingsUnknown: 'مقایسه امکان‌پذیر نیست؛ هزینه‌ی ارسالِ برخی فروشنده‌ها ناشناخته است.',
+    lockAny: 'هر فروشنده‌ای',
+    lockPin: 'قفل به',
+    lockBan: 'بدون',
     estimateCaveat:
       'هزینه‌ی ارسالِ برخی فروشنده‌ها ناشناخته است؛ مجموع‌ها تخمینی‌اند و کران پایین در کارت اول آمده است.',
     approximateNotice: 'سبد بزرگ است؛ این برنامه تقریبی است (دقیق نیست).',
@@ -182,6 +189,9 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     savings: 'Savings',
     savingsNone: 'No cheaper arrangement found',
     savingsUnknown: 'Cannot compare — some vendors’ delivery fees are unknown.',
+    lockAny: 'Any vendor',
+    lockPin: 'Pin to',
+    lockBan: 'Without',
     estimateCaveat:
       'Some sellers’ delivery fees are unknown; totals are estimates, with the honest lower bound shown first.',
     approximateNotice: 'This cart is large; the plan is approximate (not exact).',
