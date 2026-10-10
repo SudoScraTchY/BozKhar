@@ -370,3 +370,77 @@ the user can see exactly which seller's delivery fee is unknown.
 **Evidence:** tests/capture-sw-controller.test.ts (heartbeat asserted
 via the onProgress stub in the D-24 crawl tests); message keys
 crawlRunning/feeUnknown in src/shared/i18n/messages.ts.
+
+## D-26 — Apply-to-cart flow: user consent + CartApplier isolation (2026-10-10)
+
+**Problem.** The results page ends at insight (T05 advise-only, D-01): the
+user must redo the plan by hand in Digikala. The user explicitly consented
+to an "Apply to cart" action on 2026-10-10 ("yes i do consent with the
+apply button, its a must have") and supplied the result-page redesign brief
+(Result-Page-Redesign.md) whose section 5 specifies the flow.
+
+**Decision.** Amend D-01: the extension may now WRITE to the cart, but only
+inside a user-initiated apply flow and never on its own:
+- All cart mutation sits behind `CartApplier { preflight(plan), apply(plan,
+  onProgress), undo(snapshot) }` so the transport can change (internal API
+  or UI automation is open decision 10.3 of the brief).
+- Preflight re-fetches every chosen offer (price, stock, seller still offers
+  it) BEFORE any mutation; a change or a stock-out opens a sheet, never a
+  silent continue.
+- The current cart is snapshotted to extension storage before the first
+  mutation and kept until the next apply; undo restores it with the same
+  progress UI.
+- Apply is sequential per line: add the new offer, VERIFY it is in the
+  cart, only then remove the old line. Unchanged lines and locked items
+  are left alone. No automatic retries; partial failure keeps the old
+  rows in place and offers per-item retry + undo-all.
+- The flow never navigates on its own, never checks out, never pays.
+
+**Alternatives.** (a) Stay advise-only — rejected by the user's explicit
+consent. (b) UI-automation-only transport — premature; the interface keeps
+both open.
+
+**Consequences.** D-01's GET-only rule is amended (this entry is the
+required decision-log record for the new permission scope; no new
+manifest permission is needed — host access already covers the API).
+The apply button is the only primary action on the page.
+
+**Evidence.** Result-Page-Redesign.md section 5 (user-supplied brief);
+user consent message 2026-10-10.
+
+## D-27 — Result-page redesign adopted (2026-10-10)
+
+**Problem.** The exported PDF critique (brief section 2) lists P0 defects:
+misleading parcel totals that exclude shipping, hidden staleness, mixed
+digit systems, no savings justification, invisible lock state, missing
+Plus/hints/shipped-by indicators.
+
+**Decision.** Adopt the brief ("the settled bill") wholesale:
+- Presentation changes only; the optimizer's math and output contract are
+  untouched (brief rule 1).
+- Token palette, type scale, radii and the Lalezar/Vazirmatn split per
+  brief section 3; fonts bundled (extension CSP, privacy — Vazirmatn is
+  already in src/results/fonts/, Lalezar added for the wordmark/H1).
+- All figures via Intl.NumberFormat('fa-IR'); dates via
+  RelativeTimeFormat('fa') + fa-IR-u-ca-persian in tooltips
+  (Asia/Tehran); no ISO strings, no Latin digits, currency unit after the
+  number in --muted.
+- Section-10 defaults adopted: locked items stay in every total with their
+  seller's shipping; hint tolerance 2% of the plan total (code constant);
+  stale threshold 30 minutes (code constant); baseline split shown as
+  totals only when unknown; cart-mutation transport hidden behind
+  CartApplier (D-26).
+- Where the optimizer does not yet return brief-section-8 data (e.g.
+  shipSource per parcel, optimalityGap, per-item original offer), the
+  section is hidden gracefully until the data exists.
+
+**Alternatives.** Keep the current card UI — rejected: it carries the P0
+defects above (parcel totals that exclude shipping are the worst: they
+understate the real price by the shipping fee).
+
+**Consequences.** The results page is rewritten around parcels (مرسوله),
+the one place Digikala actually charges. The invariant
+ledger-payable = Σ parcel totals = hero plan = action-bar total is
+asserted in tests.
+
+**Evidence.** Result-Page-Redesign.md (user-supplied brief, 2026-10-10).
