@@ -36,16 +36,10 @@ describe('results format (D-27)', () => {
   it('renders relative times in Persian words, never ISO', () => {
     const now = Date.parse('2026-10-10T12:00:00Z');
     // 15 hours earlier — the staleness case from the brief.
-    expect(
-      relativeTime('2026-10-09T21:00:00Z', 'fa', now),
-    ).toBe('۱۵ ساعت پیش');
-    expect(
-      relativeTime('2026-10-09T21:00:00Z', 'en', now),
-    ).toBe('15 hours ago');
+    expect(relativeTime('2026-10-09T21:00:00Z', 'fa', now)).toBe('۱۵ ساعت پیش');
+    expect(relativeTime('2026-10-09T21:00:00Z', 'en', now)).toBe('15 hours ago');
     // Future timestamps read as "… after" (بعد).
-    expect(
-      relativeTime('2026-10-10T12:05:00Z', 'fa', now),
-    ).toBe('۵ دقیقه بعد');
+    expect(relativeTime('2026-10-10T12:05:00Z', 'fa', now)).toBe('۵ دقیقه بعد');
     // Sub-minute and multi-day buckets (always the exact count).
     expect(relativeTime('2026-10-10T11:59:30Z', 'fa', now)).toBe('۳۰ ثانیه پیش');
     expect(relativeTime('2026-10-08T12:00:00Z', 'fa', now)).toBe('۲ روز پیش');

@@ -19,6 +19,11 @@ export interface MergeEntry {
   variantId: string;
   title: string;
   quantity: number;
+  /** The seller the cart line actually belongs to (D-27 change line). */
+  sellerId?: string;
+  sellerName?: string;
+  /** The product page URL (D-27 title link). */
+  productUrl?: string;
 }
 
 export interface CartMergeResult {
@@ -37,6 +42,9 @@ export function cartViewsToEntries(views: CartItemView[]): MergeEntry[] {
       variantId: v.variantId as string,
       title: v.title,
       quantity: v.quantity,
+      sellerId: v.sellerId,
+      sellerName: v.sellerName,
+      productUrl: v.sourceUrl ?? undefined,
     }));
 }
 
@@ -69,6 +77,10 @@ export function mergeCartIntoItems(
         ...prior,
         quantity: e.quantity,
         product: { ...prior.product, title: e.title || prior.product.title },
+        // The cart's seller is the freshest truth for the change line.
+        ...(e.sellerId ? { sellerId: e.sellerId } : {}),
+        ...(e.sellerName ? { sellerName: e.sellerName } : {}),
+        ...(e.productUrl ? { productUrl: e.productUrl } : {}),
       });
     } else {
       const itemId: ItemId = { productId: e.productId, variantId: e.variantId };
@@ -79,6 +91,9 @@ export function mergeCartIntoItems(
         quantity: e.quantity,
         lock: { mode: 'none', vendorIds: [] },
         addedAt: now().toISOString(),
+        ...(e.sellerId ? { sellerId: e.sellerId } : {}),
+        ...(e.sellerName ? { sellerName: e.sellerName } : {}),
+        ...(e.productUrl ? { productUrl: e.productUrl } : {}),
       });
     }
   }

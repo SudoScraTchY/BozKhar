@@ -11,7 +11,7 @@
  * arithmetic (FR-12).
  */
 import type { ComparisonItem, Offer, ShipmentRecord, Snapshot } from '../shared/types';
-import type { SolverInput, SolverItem, SolverOffer } from '../shared/solver';
+import type { SolverInput, SolverItem, SolverOffer, SolverPromo } from '../shared/solver';
 
 export const ITEM_KEY_SEP = '::';
 
@@ -156,6 +156,28 @@ export function buildSolverInput(
     byProduct.set(snap.itemId.productId, list);
   }
   const feeByVariant = shipmentFeeByVariant(shipment);
+  // Promos ride along from the captures (D-08). The
+  // solver knows two shapes; amount-threshold is
+  // unverified (OQ-01) and is dropped here.
+  const solverPromos: SolverPromo[] = [];
+  for (const snap of snapshots) {
+    for (const promo of snap.promos) {
+      if (promo.type !== 'same-item-count' && promo.type !== 'vendor-count') {
+        continue;
+      }
+      solverPromos.push({
+        promoId: promo.promoId,
+        vendorId: promo.vendorId,
+        type: promo.type,
+        thresholdValue: promo.thresholdValue,
+        effect: promo.effect,
+        ...(promo.type === 'same-item-count'
+          ? { itemKey: itemKeyOf(snap.itemId.productId, snap.itemId.variantId as string) }
+          : {}),
+        ...(promo.rawText ? { rawText: promo.rawText } : {}),
+      });
+    }
+  }
   const solverItems: SolverItem[] = items.map((item) => {
     const productSnaps = byProduct.get(item.itemId.productId) ?? [];
     const isCurrentVariant = (snap: Snapshot): boolean =>
@@ -188,7 +210,7 @@ export function buildSolverInput(
   });
   return {
     items: solverItems,
-    promos: [],
+    promos: solverPromos,
     settings: {
       hasPlus: settings.hasPlus,
       tolerancePercent: settings.tolerancePercent,

@@ -8,14 +8,22 @@ import type { ComparisonItem, ItemId, ShipmentRecord, Snapshot, Promo } from '..
 export type DbFactory = IDBFactory;
 
 export const DB_NAME = 'digikala-cart-optimizer';
-export const DB_VERSION = 2;
+export const DB_VERSION = 3;
 
 export const STORE_ITEMS = 'items';
 export const STORE_SNAPSHOTS = 'snapshots';
 export const STORE_PROMOS = 'promos';
 export const STORE_SHIPMENTS = 'shipments';
+/** D-26: the pre-apply cart snapshot (undo), one row. */
+export const STORE_CART_SNAPSHOTS = 'cartSnapshots';
 
-const ALL_STORES = [STORE_ITEMS, STORE_SNAPSHOTS, STORE_PROMOS, STORE_SHIPMENTS] as const;
+const ALL_STORES = [
+  STORE_ITEMS,
+  STORE_SNAPSHOTS,
+  STORE_PROMOS,
+  STORE_SHIPMENTS,
+  STORE_CART_SNAPSHOTS,
+] as const;
 export type StoreName = (typeof ALL_STORES)[number];
 
 /** Store key for an item: productId + variantId (D-05). */
@@ -45,6 +53,11 @@ function openDatabase(factory: DbFactory): Promise<IDBDatabase> {
         // D-19: the shipment quote is cart-level, one row
         // ('latest') re-quoted on every crawl.
         db.createObjectStore(STORE_SHIPMENTS, { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains(STORE_CART_SNAPSHOTS)) {
+        // D-26: the pre-apply cart snapshot for undo, one
+        // row ('latest') replaced on every apply.
+        db.createObjectStore(STORE_CART_SNAPSHOTS, { keyPath: 'key' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -233,6 +246,50 @@ export async function getShipment(factory: DbFactory): Promise<ShipmentRecord | 
   return rec ?? null;
 }
 
+// ---- cart snapshots (D-26 apply-flow undo) ----
+
+export interface CartSnapshotRecord {
+  key: 'latest';
+  /** The exact cart lines before the apply. */
+  lines: Array<{
+    cartItemId: string;
+    productId: string;
+    variantId: string;
+    sellerId: string;
+    sellerName: string;
+    quantity: number;
+  }>;
+  savedAt: string; // ISO timestamp
+}
+
+/** Stores (or replaces) the pre-apply cart snapshot. */
+export async function putCartSnapshot(
+  factory: DbFactory,
+  record: CartSnapshotRecord,
+): Promise<void> {
+  await withStore(factory, STORE_CART_SNAPSHOTS, 'readwrite', (s) => {
+    s.put(record);
+  });
+}
+
+/** The pre-apply cart snapshot, or null when none exists. */
+export async function getCartSnapshot(factory: DbFactory): Promise<CartSnapshotRecord | null> {
+  const rec = await withStore<CartSnapshotRecord | undefined>(
+    factory,
+    STORE_CART_SNAPSHOTS,
+    'readonly',
+    (s) => s.get('latest'),
+  );
+  return rec ?? null;
+}
+
+/** Drops the snapshot (after a successful restore-and-confirm). */
+export async function deleteCartSnapshot(factory: DbFactory): Promise<void> {
+  await withStore(factory, STORE_CART_SNAPSHOTS, 'readwrite', (s) => {
+    s.delete('latest');
+  });
+}
+
 // ---- danger zone ----
 
 /** FR-16 privacy gate: empties every store. Returns the count of deleted records. */
@@ -287,4 +344,5 @@ export async function runMigrations(factory: DbFactory, from: number, to: number
 async function applyMigration(_factory: DbFactory, _version: number): Promise<void> {
   // v1 = initial shape, nothing to transform. Future bumps add a guarded
   // step here (e.g. rewrite snapshot records) BEFORE the new code ships.
+  // v3 added the cartSnapshots store (D-26); no data to transform.
 }

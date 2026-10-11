@@ -29,6 +29,11 @@ export interface ComparisonItem {
     id: string;
     label: string;
   };
+  /** The seller this cart line belongs to (from the cart API). */
+  sellerId?: string;
+  sellerName?: string;
+  /** The product page URL (from the cart API). */
+  productUrl?: string;
   quantity: number;
   lock: Lock;
   addedAt: string; // ISO timestamp

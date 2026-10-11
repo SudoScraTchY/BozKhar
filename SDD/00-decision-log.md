@@ -444,3 +444,57 @@ ledger-payable = Σ parcel totals = hero plan = action-bar total is
 asserted in tests.
 
 **Evidence.** Result-Page-Redesign.md (user-supplied brief, 2026-10-10).
+
+## D-28 — Redesign implementation record (2026-10-11)
+
+**Facts discovered while implementing D-26/D-27 (all
+verified by tests in this commit):**
+
+1. **Promos never reached the solver in the real flow.**
+   `buildSolverInput` hard-coded `promos: []`, so the
+   extra-unit hints (SDD 07 step 7) and promo fee
+   waivers only ever fired in unit tests that built the
+   input by hand. Fixed: the snapshots' captured promos
+   ride along (amount-threshold still dropped — unverified,
+   OQ-01). The optimizer's math is untouched; the input
+   now carries data the captures already hold.
+2. **The cart payload's seller and product URL were
+   dropped by the merge.** `ComparisonItem` gains
+   `sellerId`/`sellerName`/`productUrl` (the reader
+   already kept them) — the "قبلاً" change line and the
+   item title link need them.
+3. **The change line's "current offer" rule.** The
+   cart seller's offer on the cart variant, from the
+   LATEST capture that still shows it (snapshots are
+   stored oldest-first, so a naive `find` picks the
+   oldest capture and misses the cart's seller).
+4. **The discovered cart-mutation contract** (read-only
+   from the logged-in site, 2026-10-10): `POST
+   /checkout/v1/carts/items` body `{variant_ids:[…]}`
+   adds; `DELETE /checkout/v1/carts/items` body
+   `{cartItemIds:[…]}` removes. The add takes NO
+   seller: the gateway adds the variant's default
+   offer. A pinned non-default seller therefore cannot
+   be applied through the API transport — disclosed in
+   the apply sheet; UI automation is the follow-up
+   (open decision 10.3). A seller-only saving leaves
+   Apply disabled (nothing applyable).
+5. **DB v3** adds the `cartSnapshots` store (key
+   `latest`) for the undo snapshot (D-26).
+6. **Progress contract.** The applier announces the
+   changed lines (`adding` → `added`/`failed`); the
+   UI seeds the `pending` rows. Tests assert the
+   add → verify → remove ordering and that a failed
+   line keeps its old row.
+
+**Consequences.** The invariant (ledger = Σ parcels =
+hero = action bar) is asserted in
+`tests/results-page.test.ts`; the pipeline is covered
+in `tests/results-apply.test.ts` with a mock transport
+(no live writes in tests). Live E2E still gated on the
+smoke profile's anti-bot cooldown.
+
+**Evidence.** `src/results/apply.ts`,
+`src/results/cart-transport.ts`,
+`src/results/assemble.ts`, this commit's test runs
+(232/232).

@@ -108,6 +108,7 @@ export type MessageKey =
   | 'colLine'
   | 'itemChange'
   | 'changeLess'
+  | 'changeMore'
   | 'changeNone'
   | 'whyBtn'
   | 'openProduct'
@@ -132,6 +133,13 @@ export type MessageKey =
   | 'actionShipments'
   | 'applyBtn'
   | 'applyingBtn'
+  | 'priceChangedTitle'
+  | 'outOfStockTitle'
+  | 'partialBody'
+  | 'heroRange'
+  | 'recomputeLine'
+  | 'variantFallback'
+  | 'parcelsTitle'
   | 'preflightProgress'
   | 'priceChanged'
   | 'continueNewPrice'
@@ -156,7 +164,7 @@ export type MessageKey =
   | 'errLogin'
   | 'errEmpty'
   | 'errCalc'
-  | 'loadingCalc'
+  | 'loadingCalc';
 
 type Catalog = Record<MessageKey, string>;
 
@@ -238,7 +246,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     wordmark: 'بز خر',
     headerLabel: 'برنامهٔ پیشنهادی',
     menuSavePdf: 'ذخیره به‌صورت PDF',
-    heroTitle: 'با این برنامه {saved} تومان کمتر می‌پردازید',
+    heroTitle: 'با این برنامه {saved} کمتر می‌پردازید',
     heroLine: '{items} کالا در {shipments} مرسوله، با هزینهٔ ارسال',
     barCurrent: 'سبد فعلی',
     barPlan: 'با برنامهٔ بز خر',
@@ -247,12 +255,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     heroHintsLink: '{n} پیشنهاد برای صرفه‌جویی بیشتر',
     plusLabel: 'اشتراک دیجی‌کالا پلاس دارم.',
     plusNote: 'هزینهٔ ارسال با مزایای پلاس حساب شده است.',
-    plusDelta: 'با پلاس {x} تومان کمتر',
-    staleNotice:
-      'قیمت {n} کالا {ago} خوانده شده است. پیش از اعمال، قیمت‌ها دوباره بررسی می‌شوند.',
+    plusDelta: 'با پلاس {x} کمتر',
+    staleNotice: 'قیمت {n} کالا {ago} خوانده شده است. پیش از اعمال، قیمت‌ها دوباره بررسی می‌شوند.',
     staleAction: 'به‌روزرسانی قیمت‌ها',
-    approxNotice:
-      'سبد بزرگ است و این برنامه تقریبی است؛ ممکن است کمی گران‌تر از بهترین حالت باشد.',
+    approxNotice: 'سبد بزرگ است و این برنامه تقریبی است؛ ممکن است کمی گران‌تر از بهترین حالت باشد.',
     approxAction: 'محاسبهٔ دقیق‌تر',
     shipDigikala: 'ارسال از دیجی‌کالا',
     shipSeller: 'ارسال توسط فروشنده',
@@ -260,7 +266,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     freeLabel: 'رایگان',
     parcelTotal: 'جمع این مرسوله',
     reasonCount: 'خرید {n} عدد از این فروشنده',
-    reasonAmount: 'خرید بالای {x} تومان',
+    reasonAmount: 'خرید بالای {x}',
     reasonPlus: 'رایگان با پلاس',
     reasonDigikala: 'ارسال از دیجی‌کالا',
     reasonLarge: 'هزینهٔ ثابت کالای حجیم',
@@ -269,23 +275,23 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     colLine: 'جمع',
     itemChange: 'قبلاً: {seller}، {price}',
     changeLess: '{n} کمتر',
+    changeMore: '{n} بیشتر',
     changeNone: 'بدون تغییر',
     whyBtn: 'چرا این فروشنده؟',
     openProduct: 'باز کردن صفحهٔ کالا',
     sellerAuto: 'پیشنهاد بز خر',
     lockedChip: 'قفل‌شده',
     unlockBtn: 'باز کردن قفل',
-    lockHelper:
-      'کالای قفل‌شده تغییر نمی‌کند و در بهینه‌سازی بررسی نمی‌شود.',
+    lockHelper: 'کالای قفل‌شده تغییر نمی‌کند و در بهینه‌سازی بررسی نمی‌شود.',
     whySeller: 'فروشنده',
     whyPrice: 'قیمت',
     whyEffect: 'اثر بر جمع سبد',
     whySentence:
-      'قیمت این کالا در «{seller}» {x} تومان کمتر است، اما با احتساب یک ارسال جداگانه، جمع سبد {y} تومان بیشتر می‌شود.',
+      'قیمت این کالا در «{seller}» {x} کمتر است، اما با احتساب یک ارسال جداگانه، جمع سبد {y} بیشتر می‌شود.',
     hintsTitle: 'صرفه‌جویی بیشتر',
     hintSentence: '«{item}» را {n} عدد بیشتر بخرید تا ارسال «{vendor}» رایگان شود.',
-    hintSaving: 'جمع سبد {x} تومان کمتر می‌شود',
-    hintMore: 'فقط {x} تومان بیشتر',
+    hintSaving: 'جمع سبد {x} کمتر می‌شود',
+    hintMore: 'فقط {x} بیشتر',
     hintAdd: 'افزودن به برنامه',
     hintDismiss: 'رد کردن',
     ledgerItems: 'جمع کالاها',
@@ -295,14 +301,19 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     actionShipments: 'در {n} مرسوله',
     applyBtn: 'اعمال در سبد خرید',
     applyingBtn: 'در حال اعمال…',
+    priceChangedTitle: 'قیمت تغییر کرده',
+    outOfStockTitle: 'کالایی ناموجود شده',
+    partialBody: 'ردیف‌های قبلی این کالاها سر جایشان مانده‌اند.',
+    heroRange: 'تخمین: از {low} تا {high}',
+    recomputeLine: 'در حال محاسبهٔ دوباره…',
+    parcelsTitle: 'مرسوله‌ها',
+    variantFallback: 'گونهٔ {id}',
     preflightProgress: 'در حال بررسی قیمت‌ها، {i} از {n}',
-    priceChanged:
-      'قیمت {n} کالا تغییر کرده است. مبلغ جدید {total} تومان ({delta} تومان بیشتر).',
+    priceChanged: 'قیمت {n} کالا تغییر کرده است. مبلغ جدید {total} ({delta} بیشتر).',
     continueNewPrice: 'ادامه با قیمت جدید',
     recalcBtn: 'محاسبهٔ دوباره',
     cancelBtn: 'انصراف',
-    outOfStock:
-      '{item} دیگر در این فروشنده موجود نیست. برنامه باید دوباره محاسبه شود.',
+    outOfStock: '{item} دیگر در این فروشنده موجود نیست. برنامه باید دوباره محاسبه شود.',
     confirmTitle: 'اعمال برنامه در سبد خرید؟',
     confirmBody:
       '{n} کالا از {m} فروشنده به سبد شما اضافه و ردیف‌های قبلی حذف می‌شوند. سبد فعلی ذخیره می‌شود تا بتوانید آن را برگردانید. پرداختی انجام نمی‌شود.',
@@ -314,12 +325,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     goToCart: 'رفتن به سبد خرید',
     undoCart: 'برگرداندن سبد قبلی',
     undoDone: 'سبد قبلی برگردانده شد',
-    partialTitle:
-      '{k} از {n} کالا اعمال نشد. ردیف‌های قبلی این کالاها سر جایشان مانده‌اند.',
+    partialTitle: '{k} از {n} کالا اعمال نشد. ردیف‌های قبلی این کالاها سر جایشان مانده‌اند.',
     retryItem: 'تلاش دوباره',
     undoAll: 'برگرداندن همه',
-    optimalMsg:
-      'سبد شما از قبل بهینه است. با قیمت‌های فعلی، ترکیب ارزان‌تری پیدا نشد.',
+    optimalMsg: 'سبد شما از قبل بهینه است. با قیمت‌های فعلی، ترکیب ارزان‌تری پیدا نشد.',
     allLockedMsg: 'همهٔ کالاها قفل‌شده‌اند؛ چیزی برای بهینه‌سازی نیست.',
     errLogin: 'برای خواندن سبد باید وارد حساب دیجی‌کالا شوید.',
     errEmpty: 'سبد خرید شما خالی است.',
@@ -400,7 +409,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     wordmark: 'Boz Khar',
     headerLabel: 'Suggested plan',
     menuSavePdf: 'Save as PDF',
-    heroTitle: 'You pay {saved} toman less with this plan',
+    heroTitle: 'You pay {saved} less with this plan',
     heroLine: '{items} items in {shipments} shipments, shipping included',
     barCurrent: 'Current cart',
     barPlan: 'With the Boz Khar plan',
@@ -409,9 +418,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     heroHintsLink: '{n} more saving suggestions',
     plusLabel: 'I have a Digikala Plus subscription.',
     plusNote: 'Shipping is calculated with Plus benefits.',
-    plusDelta: '{x} toman less with Plus',
-    staleNotice:
-      'The price of {n} item(s) was read {ago}. Prices are re-checked before applying.',
+    plusDelta: '{x} less with Plus',
+    staleNotice: 'The price of {n} item(s) was read {ago}. Prices are re-checked before applying.',
     staleAction: 'Refresh prices',
     approxNotice:
       'This cart is large, so this plan is approximate; it may be slightly costlier than the optimum.',
@@ -422,7 +430,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     freeLabel: 'Free',
     parcelTotal: 'Shipment total',
     reasonCount: 'Buying {n} from this seller',
-    reasonAmount: 'Spending over {x} toman',
+    reasonAmount: 'Spending over {x}',
     reasonPlus: 'Free with Plus',
     reasonDigikala: 'Shipped by Digikala',
     reasonLarge: 'Fixed large-item fee',
@@ -431,24 +439,23 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     colLine: 'Total',
     itemChange: 'Was: {seller}, {price}',
     changeLess: '{n} less',
+    changeMore: '{n} more',
     changeNone: 'No change',
     whyBtn: 'Why this seller?',
     openProduct: 'Open product page',
     sellerAuto: 'Boz Khar suggestion',
     lockedChip: 'Locked',
     unlockBtn: 'Unlock',
-    lockHelper:
-      'A locked item never changes and is skipped by the optimizer.',
+    lockHelper: 'A locked item never changes and is skipped by the optimizer.',
     whySeller: 'Seller',
     whyPrice: 'Price',
     whyEffect: 'Effect on cart total',
     whySentence:
-      'This item costs {x} toman less at “{seller}”, but with a separate shipment the cart total becomes {y} toman more.',
+      'This item costs {x} less at “{seller}”, but with a separate shipment the cart total becomes {y} more.',
     hintsTitle: 'More savings',
-    hintSentence:
-      'Buy {n} more of “{item}” so “{vendor}” ships free.',
-    hintSaving: 'Cart total becomes {x} toman less',
-    hintMore: 'Only {x} toman more',
+    hintSentence: 'Buy {n} more of “{item}” so “{vendor}” ships free.',
+    hintSaving: 'Cart total becomes {x} less',
+    hintMore: 'Only {x} more',
     hintAdd: 'Add to plan',
     hintDismiss: 'Dismiss',
     ledgerItems: 'Items',
@@ -458,14 +465,19 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     actionShipments: 'in {n} shipments',
     applyBtn: 'Apply to cart',
     applyingBtn: 'Applying…',
+    priceChangedTitle: 'Price changed',
+    outOfStockTitle: 'An item is out of stock',
+    partialBody: 'The old rows for these items are still in your cart.',
+    heroRange: 'Estimate: {low} to {high}',
+    recomputeLine: 'Recalculating…',
+    parcelsTitle: 'Shipments',
+    variantFallback: 'Variant {id}',
     preflightProgress: 'Checking prices, {i} of {n}',
-    priceChanged:
-      'The price of {n} item(s) changed. New total {total} toman ({delta} toman more).',
+    priceChanged: 'The price of {n} item(s) changed. New total {total} ({delta} more).',
     continueNewPrice: 'Continue with new prices',
     recalcBtn: 'Recalculate',
     cancelBtn: 'Cancel',
-    outOfStock:
-      '{item} is no longer available from this seller. The plan must be recalculated.',
+    outOfStock: '{item} is no longer available from this seller. The plan must be recalculated.',
     confirmTitle: 'Apply the plan to your cart?',
     confirmBody:
       '{n} items from {m} sellers are added to your cart and the old rows are removed. Your current cart is saved so you can restore it. No payment is made.',
@@ -477,8 +489,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     goToCart: 'Go to cart',
     undoCart: 'Restore previous cart',
     undoDone: 'Previous cart restored',
-    partialTitle:
-      '{k} of {n} items were not applied. Their old rows are still in your cart.',
+    partialTitle: '{k} of {n} items were not applied. Their old rows are still in your cart.',
     retryItem: 'Try again',
     undoAll: 'Restore all',
     optimalMsg:

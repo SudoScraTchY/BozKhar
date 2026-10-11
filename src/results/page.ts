@@ -1,48 +1,54 @@
 /**
- * Results page (T05.1/T05.2/T05.3) - 09-ui-spec Surface 3.
+ * Results page — "the settled bill" (D-27, brief
+ * Result-Page-Redesign.md).
  *
- * Reads the comparison list and the append-only
- * snapshot store directly (an extension page has both
- * storages), assembles the solver input, solves, and
- * renders the verdict cards and the vendor-grouped
- * plan. Advise-only throughout (D-01): no apply
- * buttons, no urgency.
+ * One honest bill: what you would pay today,
+ * what you will pay, and where every toman
+ * goes, grouped by مرسوله (shipment)
+ * because that is how Digikala charges.
  *
- * T05.3: each item row carries the D-06 lock control
- * (Any vendor / Pin to … / Ban …, multi-ban) and a
- * quantity editor (FR-05). Changes persist to the
- * comparison list and re-solve debounced (NFR-03:
- * the re-solve itself is milliseconds; the debounce
- * window is 250ms, under the 300ms target).
+ * Every figure goes through src/results/format.ts
+ * (Persian digits, '٬' separator, currency
+ * unit, relative times) — no Latin digits, no
+ * ISO strings, no bare numbers reach the UI.
  *
- * Bilingual fa-primary RTL (NFR-08); numerals via Intl so
- * fa shows Persian digits.
+ * The Apply-to-cart flow (D-26) runs behind
+ * CartApplier (src/results/apply.ts); the
+ * sheet below drives it and nothing else
+ * mutates the cart.
+ *
+ * Controls (lock, quantity, Plus, hints)
+ * persist and re-solve debounced (NFR-03:
+ * the solve is milliseconds; the window is
+ * 250ms, under the 300ms target).
  */
-import { t } from '../shared/i18n/messages';
+import { formatMessage, t } from '../shared/i18n/messages';
 import type { MessageKey } from '../shared/i18n/messages';
-import type { Settings } from '../shared/types';
 import { solve } from '../shared/solver';
-import type { FeeFlag, Plan, PlanLine, UnsolvedReason } from '../shared/solver';
+import type { Hint, Plan, PlanGroup, PlanLine, UnsolvedReason } from '../shared/solver';
 import type {
   ComparisonItem,
-  Lock,
-  LockMode,
+  Offer,
+  Settings,
   ShipmentRecord,
   Snapshot,
   UiLanguage,
 } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/types';
-import { buildSolverInput, itemKeyOf, snapshotsForProduct } from './assemble';
+import { buildSolverInput, itemKeyOf } from './assemble';
+import type { ApplyProgress, ApplyResult, PreflightResult } from './apply';
+import { createCartApplier } from './apply';
+import { cartTransport } from './cart-transport';
+import { absoluteDateTime, formatMoney, relativeTime } from './format';
+import { getCartSnapshot, putCartSnapshot } from '../shared/storage/db';
 
 type Lang = UiLanguage;
 
-const FEE_FLAG_KEYS: Record<FeeFlag, MessageKey> = {
-  regular: 'feeRegular',
-  'plus-covered': 'feePlusCovered',
-  'promo-waived': 'feePromoWaived',
-  'large-item': 'feeLargeItem',
-  'already-paid-by-lock': 'feeAlreadyPaidByLock',
-};
+/** Staleness threshold (open decision 10.4): 30 minutes. */
+const STALE_THRESHOLD_MIN = 30;
+
+/** The model's currency is Toman (SDD 08). */
+const CURRENCY_UNIT = 'toman' as const;
 
 const REASON_KEYS: Record<UnsolvedReason, MessageKey> = {
   'no-available-vendor': 'reasonNoVendor',
@@ -50,370 +56,65 @@ const REASON_KEYS: Record<UnsolvedReason, MessageKey> = {
   'pinned-vendor-unavailable': 'reasonPinnedUnavailable',
 };
 
-/** NFR-03: coalesce rapid lock/qty edits; re-solve lands < 300ms. */
-const RESOLVE_DEBOUNCE_MS = 250;
+// ---------------------------------------------------------------------------
+// DOM helpers
+// ---------------------------------------------------------------------------
 
-const $ = (id: string): HTMLElement => {
-  const el = document.getElementById(id);
-  if (!el) throw new Error(`Missing element: ${id}`);
-  return el;
-};
-
-function fmt(lang: Lang, n: number): string {
-  return new Intl.NumberFormat(lang === 'fa' ? 'fa-IR' : 'en-US').format(n);
-}
-
-function fill(lang: Lang, key: MessageKey, vars: Record<string, string>): string {
-  let s = t(lang, key);
-  for (const [k, v] of Object.entries(vars)) {
-    s = s.replaceAll(`{${k}}`, v);
-  }
-  return s;
-}
-
-function el(tag: string, className?: string, text?: string): HTMLElement {
+function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
+  if (cls) node.className = cls;
   return node;
 }
 
-/** The item's own variant id, from the item key (productId::variantId). */
-function currentVariantId(itemKey: string): string | undefined {
-  const sep = itemKey.lastIndexOf('::');
-  return sep === -1 ? undefined : itemKey.slice(sep + 2);
+function text(value: string): Text {
+  return document.createTextNode(value);
 }
 
-function renderVerdict(lang: Lang, plan: Plan): HTMLElement {
-  const cards = el('div', 'cards');
-
-  const current = el('div', 'verdict');
-  current.append(
-    el('span', 'card-label', t(lang, 'currentTotal')),
-    el(
-      'span',
-      'card-value',
-      plan.comparison?.currentCartTotal === null || plan.comparison?.currentCartTotal === undefined
-        ? '—'
-        : fmt(lang, plan.comparison.currentCartTotal),
-    ),
-  );
-
-  const optimized = el('div', 'verdict');
-  optimized.append(
-    el('span', 'card-label', t(lang, 'optimizedTotal')),
-    el(
-      'span',
-      'card-value',
-      plan.totalIsEstimate && plan.estimateRange
-        ? `${fmt(lang, plan.estimateRange.low)} … ${fmt(lang, plan.estimateRange.high)}`
-        : fmt(lang, plan.grandTotal),
-    ),
-  );
-
-  const savings = plan.comparison?.savings ?? null;
-  const savingCard = el(
-    'div',
-    savings !== null && savings > 0
-      ? 'verdict savings'
-      : savings === null
-        ? 'verdict savings unknown'
-        : 'verdict savings none',
-  );
-  savingCard.append(
-    el('span', 'card-label', t(lang, 'savings')),
-    el(
-      'span',
-      'card-value',
-      savings !== null && savings > 0
-        ? fmt(lang, savings)
-        : savings === null
-          ? t(lang, 'savingsUnknown')
-          : t(lang, 'savingsNone'),
-    ),
-  );
-
-  cards.append(current, optimized, savingCard);
-  return cards;
+/** A number span: Persian digits, bidi-isolated. */
+function num(value: number, lang: Lang): HTMLSpanElement {
+  const node = el('span', 'bk-num');
+  node.dir = 'ltr';
+  node.textContent = numText(lang, value);
+  return node;
 }
 
-/** A vendor a product's snapshots saw, for the lock chips. */
-interface VendorRef {
-  id: string;
-  name?: string;
+function numText(lang: Lang, value: number): string {
+  return new Intl.NumberFormat(lang === 'fa' ? 'fa-IR' : 'en-US').format(value);
 }
 
-/**
- * The D-06 lock control, made visible (09-ui-spec Surface 3 §2):
- * a mode dropdown (Any vendor / Pin to … / Ban …) plus vendor
- * chips. Pin selects exactly one vendor; Ban accumulates
- * (multi-ban). Chips are hidden in Any mode.
- */
-function renderLockControl(
-  lang: Lang,
-  item: ComparisonItem,
-  vendors: VendorRef[],
-  onCommit: (lock: Lock) => void,
-): HTMLElement {
-  const wrap = el('span', 'lock-control');
-
-  const mode = el('select', 'lock-mode') as HTMLSelectElement;
-  for (const [value, label] of [
-    ['none', t(lang, 'lockAny')],
-    ['pin', t(lang, 'lockPin')],
-    ['ban', t(lang, 'lockBan')],
-  ] as const) {
-    const opt = el('option', undefined, label) as HTMLOptionElement;
-    opt.value = value;
-    mode.append(opt);
-  }
-  mode.value = item.lock.mode;
-  mode.addEventListener('change', () => {
-    const m = mode.value as LockMode;
-    if (m === 'none') {
-      onCommit({ mode: 'none', vendorIds: [] });
-    } else if (m === 'pin') {
-      // Keep the current pin if one is set, else the first vendor.
-      const keep =
-        item.lock.mode === 'pin' && item.lock.vendorIds.length > 0
-          ? item.lock.vendorIds
-          : vendors[0]
-            ? [vendors[0].id]
-            : [];
-      onCommit({ mode: 'pin', vendorIds: keep });
-    } else {
-      // Keep the current ban set when switching into ban mode.
-      const keep = item.lock.mode === 'ban' ? item.lock.vendorIds : [];
-      onCommit({ mode: 'ban', vendorIds: keep });
-    }
-  });
-
-  const chips = el('span', 'vendor-chips');
-  for (const v of vendors) {
-    const chip = el('button', 'vendor-chip', v.name ?? v.id) as HTMLButtonElement;
-    chip.type = 'button';
-    const active =
-      item.lock.mode === 'pin'
-        ? item.lock.vendorIds[0] === v.id
-        : item.lock.mode === 'ban' && item.lock.vendorIds.includes(v.id);
-    chip.setAttribute('aria-pressed', String(active));
-    if (active) chip.classList.add('active');
-    chip.title =
-      item.lock.mode === 'pin'
-        ? fill(lang, 'lockPin', { vendor: v.name ?? v.id })
-        : t(lang, 'lockBan');
-    chip.addEventListener('click', () => {
-      if (item.lock.mode === 'pin') {
-        onCommit({ mode: 'pin', vendorIds: [v.id] });
-      } else if (item.lock.mode === 'ban') {
-        const banned = new Set(item.lock.vendorIds);
-        if (banned.has(v.id)) banned.delete(v.id);
-        else banned.add(v.id);
-        onCommit({ mode: 'ban', vendorIds: [...banned] });
-      }
-    });
-    chips.append(chip);
-  }
-  if (item.lock.mode === 'none') chips.classList.add('hidden');
-
-  wrap.append(mode, chips);
-  return wrap;
+function money(value: number, lang: Lang): string {
+  return formatMoney(value, lang, CURRENCY_UNIT);
 }
 
-/** Quantity editor (FR-05); commits on change, clamped to >= 1. */
-function renderQtyInput(
-  lang: Lang,
-  line: PlanLine,
-  onCommit: (quantity: number) => void,
-): HTMLElement {
-  const input = el('input', 'qty-input') as HTMLInputElement;
-  input.type = 'number';
-  input.min = '1';
-  input.value = String(line.quantity);
-  input.setAttribute('aria-label', t(lang, 'quantity'));
-  input.addEventListener('change', () => {
-    const n = Number.parseInt(input.value, 10);
-    const qty = Number.isFinite(n) && n >= 1 ? n : 1;
-    input.value = String(qty);
-    onCommit(qty);
-  });
-  return input;
+function fill(lang: Lang, key: MessageKey, vars: Record<string, string | number> = {}): string {
+  return formatMessage(lang, key, vars);
 }
 
-/** Row controls injected by the page so renderPlan stays render-only. */
-interface RowControls {
-  lockFor: (itemKey: string) => HTMLElement;
-  /** Quantity editor with its commit already bound to the item. */
-  qtyFor: (line: PlanLine) => HTMLElement;
+const ICON_PATHS = {
+  external: 'M14 4h6v6M20 4L10 14M18 13v6a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h6',
+  lock: 'M7 11V8a5 5 0 0 1 10 0v3M6 11h12v10H6zM12 15v3',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 3',
+  alert: 'M12 4L2 20h20L12 4zM12 10v5M12 18v.5',
+  check: 'M4 12l5 5L20 6',
+  x: 'M6 6l12 12M18 6L6 18',
+  chevron: 'M6 9l6 6 6-6',
+} as const;
+
+type IconName = keyof typeof ICON_PATHS;
+
+function iconSvg(name: IconName): string {
+  return `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${ICON_PATHS[name]}"/></svg>`;
 }
 
-function renderPlan(
-  lang: Lang,
-  plan: Plan,
-  unknownFeeFallback: number,
-  controls: RowControls,
-  pictures: Map<string, string> = new Map(),
-): HTMLElement {
-  const wrap = el('div');
-
-  for (const group of plan.groups) {
-    const card = el('section', 'card');
-    card.append(
-      el(
-        'h2',
-        'card-title',
-        group.vendorName
-          ? `${group.vendorName}${
-              group.shipmentClass === 'large-item' ? ' — کالای بزرگ و سنگین' : ''
-            }`
-          : group.vendorId,
-      ),
-    );
-
-    const table = el('table', 'plan');
-    const thead = el('thead');
-    const headRow = el('tr');
-    for (const [label, num] of [
-      [t(lang, 'unitPrice'), true],
-      [t(lang, 'quantity'), true],
-      [t(lang, 'lineTotal'), true],
-    ] as const) {
-      headRow.append(el('th', num ? 'num' : undefined, label));
-    }
-    thead.append(headRow);
-    table.append(thead);
-
-    const tbody = el('tbody');
-    for (const line of group.lines) {
-      const row = el('tr');
-      const nameCell = el('td');
-      const picture = pictures.get(line.itemKey);
-      if (picture) {
-        const img = document.createElement('img');
-        img.src = picture;
-        img.alt = line.title ?? line.itemKey;
-        img.className = 'plan-picture';
-        img.loading = 'lazy';
-        nameCell.append(img);
-      }
-      nameCell.append(el('span', undefined, line.title ?? line.itemKey));
-      const chosenVariant = line.variantId;
-      const ownVariant = currentVariantId(line.itemKey);
-      if (chosenVariant !== undefined && chosenVariant !== ownVariant) {
-        nameCell.append(
-          el('span', 'variant-note', fill(lang, 'switchToVariant', { variant: chosenVariant })),
-        );
-      }
-      if (line.capturedAt) {
-        nameCell.append(el('span', 'captured-at', line.capturedAt));
-      }
-      // T05.3: the row carries its lock control (D-06 model).
-      nameCell.append(controls.lockFor(line.itemKey));
-      const qtyCell = el('td', 'num');
-      qtyCell.append(controls.qtyFor(line));
-      row.append(
-        nameCell,
-        el('td', 'num', fmt(lang, line.unitPrice)),
-        qtyCell,
-        el('td', 'num', fmt(lang, line.lineTotal)),
-      );
-      tbody.append(row);
-    }
-
-    // Exactly one fee line per group, carrying its flag (FR-12).
-    const feeRow = el('tr', 'fee-line');
-    feeRow.append(
-      el('td', undefined, `${t(lang, 'deliveryFee')} — ${t(lang, FEE_FLAG_KEYS[group.feeFlag])}`),
-    );
-    feeRow.append(el('td'));
-    feeRow.append(el('td'));
-    const feeCell = el(
-      'td',
-      'num',
-      group.fee === null ? fmt(lang, unknownFeeFallback) : fmt(lang, group.fee),
-    );
-    if (group.fee === null) {
-      // Unknown fees are scored at the fallback (SDD 08) -
-      // say so on the row itself, not only in the page-level
-      // caveat, so the user sees exactly which seller is
-      // unpriced (live report 2026-10-09).
-      feeCell.append(el('span', 'fee-unknown', t(lang, 'feeUnknown')));
-    }
-    feeRow.append(feeCell);
-    tbody.append(feeRow);
-
-    const subtotalRow = el('tr', 'subtotal-row');
-    subtotalRow.append(el('td'));
-    subtotalRow.append(el('td'));
-    subtotalRow.append(el('td'));
-    subtotalRow.append(el('td', 'num', fmt(lang, group.subtotal)));
-    tbody.append(subtotalRow);
-
-    table.append(tbody);
-    card.append(table);
-    wrap.append(card);
-  }
-
-  const totals = el('dl', 'totals');
-  for (const [key, value, grand] of [
-    [t(lang, 'itemsSubtotal'), fmt(lang, plan.itemSubtotal), false],
-    [t(lang, 'deliverySubtotal'), fmt(lang, plan.deliverySubtotal), false],
-    [t(lang, 'grandTotal'), fmt(lang, plan.grandTotal), true],
-  ] as const) {
-    const row = el('div', grand ? 'grand' : undefined);
-    row.append(el('dt', undefined, key), el('dd', undefined, value));
-    totals.append(row);
-  }
-  wrap.append(totals);
-
-  const latest = plan.assignments
-    .map((a) => a.capturedAt)
-    .filter((x): x is string => x !== undefined)
-    .sort()
-    .at(-1);
-  if (latest) {
-    wrap.append(el('p', 'note', fill(lang, 'pricesAsOf', { time: latest })));
-  }
-
-  return wrap;
+function iconSpan(name: IconName, cls: string): HTMLElement {
+  const node = el('span', cls);
+  node.innerHTML = iconSvg(name);
+  return node;
 }
 
-function renderUnsolved(lang: Lang, plan: Plan): HTMLElement | null {
-  if (plan.unsolved.length === 0) return null;
-  const card = el('section', 'card');
-  card.append(el('h2', 'card-title', t(lang, 'unsolvedTitle')));
-  const list = el('ul', 'unsolved');
-  for (const item of plan.unsolved) {
-    list.append(
-      el('li', undefined, `${item.title ?? item.itemKey} — ${t(lang, REASON_KEYS[item.reason])}`),
-    );
-  }
-  card.append(list);
-  return card;
-}
-
-function renderEmpty(lang: Lang): void {
-  const empty = el('div', 'empty');
-  empty.append(
-    el('h2', 'card-title', t(lang, 'emptyTitle')),
-    el('p', undefined, t(lang, 'emptyBody')),
-  );
-  $('content').append(empty);
-}
-
-/**
- * The page as a factory so the render + re-solve loop is
- * testable with injected storage (the module entry below
- * wires the real IndexedDB + settings).
- */
-export interface ReportPageDeps {
-  getItems(): Promise<ComparisonItem[]>;
-  getSnapshots(): Promise<Snapshot[]>;
-  /** D-19: the shipment quote captured with the crawl (optional). */
-  getShipment?(): Promise<ShipmentRecord | null>;
-  putItem(item: ComparisonItem): Promise<void>;
-  loadSettings(): Promise<Settings>;
-}
+// ---------------------------------------------------------------------------
+// Page state
+// ---------------------------------------------------------------------------
 
 interface PageState {
   lang: Lang;
@@ -421,134 +122,1611 @@ interface PageState {
   items: ComparisonItem[];
   snapshots: Snapshot[];
   shipment: ShipmentRecord | null;
+  /** Plus switch override (persisted; null = follow detection). */
+  plusOverride: boolean | null;
+  /** Dismissed extra-unit hints (this session). */
+  dismissedHints: Set<string>;
+  /** True while a re-solve is pending after a control change. */
+  recomputing: boolean;
+  /** The last rendered plan, kept for the recompute overlay. */
+  last: {
+    input: ReturnType<typeof buildSolverInput>;
+    plan: Plan;
+    hints: Hint[];
+  } | null;
 }
 
-export function createReportPage(deps: ReportPageDeps) {
+// ---------------------------------------------------------------------------
+// Sheet (modal) plumbing — focus trap, Esc, backdrop close
+// ---------------------------------------------------------------------------
+
+interface SheetHandle {
+  close: () => void;
+}
+
+function openSheet(build: (sheet: HTMLElement, close: () => void) => void): SheetHandle {
+  const overlay = el('div', 'bk-sheet-overlay');
+  const sheet = el('section', 'bk-sheet');
+  sheet.setAttribute('role', 'dialog');
+  sheet.setAttribute('aria-modal', 'true');
+  overlay.append(sheet);
+  document.body.append(overlay);
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener('keydown', onKey);
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      close();
+    }
+    if (e.key === 'Tab') {
+      // Minimal focus trap: cycle the sheet's focusables.
+      const focusables = Array.from(
+        sheet.querySelectorAll<HTMLElement>(
+          'button, a[href], input, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((n) => !n.hasAttribute('disabled'));
+      if (!focusables.length) return;
+      const first = focusables[0] as HTMLElement;
+      const last = focusables[focusables.length - 1] as HTMLElement;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  };
+  document.addEventListener('keydown', onKey);
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) close();
+  });
+  build(sheet, close);
+  sheet.querySelector<HTMLElement>('button')?.focus();
+  return { close };
+}
+
+// ---------------------------------------------------------------------------
+// Report page
+// ---------------------------------------------------------------------------
+
+export interface ReportPageDeps {
+  getItems(): Promise<ComparisonItem[]>;
+  getSnapshots(): Promise<Snapshot[]>;
+  /** D-19: the shipment quote captured with the crawl (optional). */
+  getShipment?(): Promise<ShipmentRecord | null>;
+  putItem(item: ComparisonItem): Promise<void>;
+  loadSettings(): Promise<Settings>;
+  saveSettings?(settings: Settings): Promise<void>;
+}
+
+export function createReportPage(deps: ReportPageDeps): {
+  run(): Promise<void>;
+} {
   const state: PageState = {
     lang: 'fa',
     settings: DEFAULT_SETTINGS,
     items: [],
     snapshots: [],
     shipment: null,
+    plusOverride: null,
+    dismissedHints: new Set(),
+    recomputing: false,
+    last: null,
   };
-  let resolveTimer: ReturnType<typeof setTimeout> | undefined;
 
-  function scheduleResolve(): void {
-    clearTimeout(resolveTimer);
-    resolveTimer = setTimeout(() => {
-      void renderAll();
-    }, RESOLVE_DEBOUNCE_MS);
+  const root = el('div');
+  const content = el('div');
+  content.id = 'content';
+  root.append(content);
+  const rerender = () => {
+    void renderAll();
+  };
+
+  // The polite live region for apply-progress announcements.
+  const live = el('div', 'bk-visually-hidden');
+  live.setAttribute('aria-live', 'polite');
+  const announce = (msg: string) => {
+    live.textContent = msg;
+  };
+
+  // -----------------------------------------------------------------------
+  // Mutations (controls) — persist, then re-solve (D-06, D-09, NFR-03)
+  // -----------------------------------------------------------------------
+
+  async function mutateItem(itemKey: string, patch: Partial<ComparisonItem>): Promise<void> {
+    const item = state.items.find(
+      (i) => itemKeyOf(i.itemId.productId, i.itemId.variantId as string) === itemKey,
+    );
+    if (!item) return;
+    Object.assign(item, patch);
+    await deps.putItem(item);
+    scheduleResolve();
   }
 
-  /** Candidate vendors for a product, from its captured snapshots. */
-  function candidateVendors(productId: string): VendorRef[] {
-    const seen = new Map<string, VendorRef>();
-    for (const snap of snapshotsForProduct(state.snapshots, productId)) {
-      for (const offer of snap.offers) {
-        if (!seen.has(offer.vendor.id)) {
-          seen.set(offer.vendor.id, {
-            id: offer.vendor.id,
-            name: offer.vendor.name,
+  let resolveTimer: number | undefined;
+  function scheduleResolve(): void {
+    state.recomputing = true;
+    // Keep the previous bill visible at reduced opacity while
+    // the re-solve is pending (brief §4).
+    if (state.last) {
+      const { input, plan, hints } = state.last;
+      renderContent(input, plan, hints, { stale: true });
+    }
+    window.clearTimeout(resolveTimer);
+    resolveTimer = window.setTimeout(() => {
+      resolveTimer = undefined;
+      void renderAll();
+    }, 250);
+  }
+
+  async function togglePlus(): Promise<void> {
+    const next = !(state.plusOverride ?? state.settings.hasPlus);
+    state.plusOverride = next;
+    if (deps.saveSettings) {
+      await deps.saveSettings({ ...state.settings, hasPlus: next });
+    }
+    state.settings.hasPlus = next;
+    scheduleResolve();
+  }
+
+  function dismissHint(hintId: string): void {
+    state.dismissedHints.add(hintId);
+    rerender();
+  }
+
+  /** Re-crawl: ask the service worker to crawl again, then re-render. */
+  function refreshPrices(): void {
+    // The crawl is owned by the service worker (D-21); the
+    // results page only asks and re-renders what appears.
+    void globalThis.chrome?.runtime?.sendMessage({
+      kind: 'capture/crawl-start',
+    });
+    state.recomputing = true;
+    rerender();
+    window.setTimeout(() => {
+      void renderAll();
+    }, 3_000);
+  }
+
+  // -----------------------------------------------------------------------
+  // Solve + render
+  // -----------------------------------------------------------------------
+
+  async function renderAll(): Promise<void> {
+    state.items = await deps.getItems();
+    state.snapshots = await deps.getSnapshots();
+    state.shipment = (await deps.getShipment?.()) ?? null;
+    state.settings = await deps.loadSettings();
+    state.lang = state.settings.uiLanguage === 'en' ? 'en' : 'fa';
+    state.recomputing = false;
+
+    const hasPlus = state.plusOverride ?? state.settings.hasPlus;
+    const input = buildSolverInput(
+      state.items,
+      state.snapshots,
+      { hasPlus, tolerancePercent: state.settings.tolerancePercent },
+      state.shipment,
+    );
+    const { plan, hints } = solve(input);
+    state.last = { input, plan, hints };
+    renderContent(input, plan, hints, { stale: false });
+  }
+
+  function renderContent(
+    input: ReturnType<typeof buildSolverInput>,
+    plan: Plan,
+    rawHints: Hint[],
+    opts: { stale: boolean },
+  ): void {
+    const lang = state.lang;
+    content.replaceChildren();
+    const page = el('div', 'bk-page');
+    content.append(page);
+
+    // ---- empty state (brief §9 copy) ----
+    if (state.items.length === 0) {
+      page.append(stateBlock(lang, 'errEmpty'));
+      page.append(live);
+      return;
+    }
+
+    // ---- header ----
+    page.append(renderHeader(lang));
+
+    const savings = plan.comparison?.savings ?? 0;
+    const currentTotal = plan.comparison?.currentCartTotal ?? 0;
+    const hasSavings = savings > 0 && currentTotal > 0;
+
+    // ---- hero (only when the plan saves) ----
+    if (hasSavings) {
+      page.append(renderHero(lang, plan, savings, currentTotal, rawHints));
+      page.append(renderPlusRow(lang, plan));
+    } else {
+      // Already optimal: no bar, no Apply (brief §4).
+      page.append(renderOptimal(lang, plan));
+    }
+
+    // ---- notices ----
+    const notices = renderNotices(lang, plan);
+    if (notices) page.append(notices);
+
+    // ---- recompute line ----
+    if (state.recomputing) {
+      const line = el('div', 'bk-recompute');
+      line.setAttribute('role', 'status');
+      line.append(text(fill(lang, 'recomputeLine')));
+      page.append(line);
+    }
+
+    // ---- parcels ----
+    page.append(renderParcels(lang, plan, opts));
+
+    // ---- hints (max 3, brief §4) ----
+    const hints = rawHints
+      .filter((h) => !state.dismissedHints.has(h.promoId + h.itemKey))
+      .slice(0, 3);
+    if (hints.length && hasSavings) {
+      page.append(renderHints(lang, hints));
+    }
+
+    // ---- ledger ----
+    page.append(renderLedger(lang, plan));
+
+    // ---- unsolved items ----
+    const unsolved = renderUnsolved(lang, plan);
+    if (unsolved) page.append(unsolved);
+
+    // ---- sticky action bar ----
+    if (hasSavings) {
+      page.append(renderActionBar(lang, plan));
+    }
+
+    // ---- print date (§6) ----
+    const printDate = el('div', 'bk-print-date');
+    printDate.textContent = absoluteDateTime(new Date().toISOString(), lang);
+    page.append(printDate);
+    page.append(live);
+  }
+
+  // -----------------------------------------------------------------------
+  // Blocks
+  // -----------------------------------------------------------------------
+
+  function stateBlock(lang: Lang, msgKey: MessageKey): HTMLElement {
+    const block = el('div', 'bk-state');
+    block.append(text(t(lang, msgKey)));
+    return block;
+  }
+
+  function renderHeader(lang: Lang): HTMLElement {
+    const header = el('header', 'bk-header');
+    const brand = el('span', 'bk-wordmark');
+    brand.textContent = t(lang, 'wordmark');
+    const label = el('span', 'bk-header-label');
+    label.textContent = t(lang, 'headerLabel');
+    header.append(brand, label);
+
+    const menuBtn = el('button', 'bk-menu');
+    menuBtn.type = 'button';
+    menuBtn.setAttribute('aria-haspopup', 'menu');
+    menuBtn.setAttribute('aria-expanded', 'false');
+    menuBtn.setAttribute('aria-label', t(lang, 'headerLabel'));
+    menuBtn.innerHTML = iconSvg('chevron');
+    const popover = el('div', 'bk-menu-popover');
+    popover.setAttribute('role', 'menu');
+    const pdfItem = el('button', 'bk-menu-item');
+    pdfItem.type = 'button';
+    pdfItem.setAttribute('role', 'menuitem');
+    pdfItem.textContent = t(lang, 'menuSavePdf');
+    pdfItem.addEventListener('click', () => {
+      // "Save as PDF": the print dialog's Save-as-PDF is the
+      // no-dependency path, and the print stylesheet (§6)
+      // makes it clean.
+      window.print();
+    });
+    popover.append(pdfItem);
+    menuBtn.addEventListener('click', () => {
+      const open = popover.classList.toggle('is-open');
+      menuBtn.setAttribute('aria-expanded', String(open));
+    });
+    header.append(menuBtn, popover);
+    return header;
+  }
+
+  function renderHero(
+    lang: Lang,
+    plan: Plan,
+    savings: number,
+    currentTotal: number,
+    hints: Hint[],
+  ): HTMLElement {
+    const hero = el('section', 'bk-hero');
+    const h1 = el('h1', 'bk-hero-title');
+    h1.textContent = fill(lang, 'heroTitle', {
+      saved: money(savings, lang),
+    });
+    hero.append(h1);
+
+    // Price bar: the full length is today's bill; the plan
+    // segment is solid ink, the rest turquoise.
+    const planTotal = plan.grandTotal;
+    const planPct = Math.max(0, Math.min(100, (planTotal / currentTotal) * 100));
+    const bar = el('div', 'bk-pricebar');
+    bar.setAttribute('role', 'img');
+    bar.setAttribute(
+      'aria-label',
+      `${t(lang, 'barCurrent')}: ${money(currentTotal, lang)} — ${t(lang, 'barPlan')}: ${money(planTotal, lang)}`,
+    );
+    const planSeg = el('div', 'bk-pricebar-plan');
+    planSeg.style.width = `${planPct}%`;
+    const savedSeg = el('div', 'bk-pricebar-saved');
+    savedSeg.style.insetInlineStart = `${planPct}%`;
+    savedSeg.style.width = `${100 - planPct}%`;
+    bar.append(planSeg, savedSeg);
+    hero.append(bar);
+
+    const meta = el('div', 'bk-hero-meta');
+    const planTotalNode = el('strong', 'bk-hero-total bk-num');
+    planTotalNode.dir = 'ltr';
+    if (plan.totalIsEstimate && plan.estimateRange) {
+      // Unknown fees: quote the honest range (SDD 08).
+      planTotalNode.textContent = fill(lang, 'heroRange', {
+        low: money(plan.estimateRange.low, lang),
+        high: money(plan.estimateRange.high, lang),
+      });
+    } else {
+      planTotalNode.textContent = money(planTotal, lang);
+    }
+    const currentNode = el('span', 'bk-hero-total-current bk-num');
+    currentNode.dir = 'ltr';
+    currentNode.textContent = money(currentTotal, lang);
+    const pct = Math.round((savings / currentTotal) * 100);
+    const chip = el('span', 'bk-chip bk-chip-saving');
+    chip.append(text(fill(lang, 'pctLess', { pct: numText(lang, pct) })));
+    const counts = el('div', 'bk-hero-counts');
+    counts.textContent = fill(lang, 'heroLine', {
+      items: numText(lang, plan.assignments.length),
+      shipments: numText(lang, plan.groups.length),
+    });
+    meta.append(planTotalNode, currentNode, chip, counts);
+    hero.append(meta);
+
+    if (hints.length) {
+      const hintsLink = el('a', 'bk-hero-hints-link');
+      hintsLink.href = '#bk-hints';
+      hintsLink.textContent = fill(lang, 'heroHintsLink', {
+        n: numText(lang, hints.length),
+      });
+      hero.append(hintsLink);
+    }
+    return hero;
+  }
+
+  function renderPlusRow(lang: Lang, plan: Plan): HTMLElement {
+    const row = el('div', 'bk-plus-row');
+    const id = 'bk-plus-switch';
+    const wrap = el('div', 'bk-switch');
+    const input = el('input') as HTMLInputElement;
+    input.type = 'checkbox';
+    input.id = id;
+    input.className = 'bk-switch-input';
+    input.checked = state.plusOverride ?? state.settings.hasPlus;
+    const track = el('span', 'bk-switch-track');
+    const thumb = el('span', 'bk-switch-thumb');
+    track.append(thumb);
+    wrap.append(input, track);
+    input.addEventListener('change', () => {
+      void togglePlus();
+    });
+
+    const label = el('label', 'bk-plus-label');
+    label.htmlFor = id;
+    label.textContent = t(lang, 'plusLabel');
+    row.append(wrap, label);
+
+    const hasPlus = state.plusOverride ?? state.settings.hasPlus;
+    if (hasPlus) {
+      const note = el('div', 'bk-plus-note');
+      note.textContent = t(lang, 'plusNote');
+      row.append(note);
+      // The delta vs solving without Plus.
+      const without = solve(
+        buildSolverInput(
+          state.items,
+          state.snapshots,
+          {
+            hasPlus: false,
+            tolerancePercent: state.settings.tolerancePercent,
+          },
+          state.shipment,
+        ),
+      );
+      const delta = without.plan.grandTotal - plan.grandTotal;
+      if (delta > 0) {
+        const deltaNode = el('div', 'bk-plus-delta');
+        deltaNode.textContent = fill(lang, 'plusDelta', {
+          x: money(delta, lang),
+        });
+        row.append(deltaNode);
+      }
+    }
+    return row;
+  }
+
+  function renderNotices(lang: Lang, plan: Plan): HTMLElement | null {
+    const wrap = el('div', 'bk-notices');
+    let any = false;
+
+    // Staleness (D-27; threshold constant above, decision 10.4).
+    let staleCount = 0;
+    let oldest: string | null = null;
+    for (const a of plan.assignments) {
+      if (!a.capturedAt) continue;
+      const ageMs = Date.now() - Date.parse(a.capturedAt);
+      if (ageMs > STALE_THRESHOLD_MIN * 60_000) {
+        staleCount++;
+        if (!oldest || a.capturedAt < oldest) oldest = a.capturedAt;
+      }
+    }
+    if (staleCount > 0 && oldest) {
+      any = true;
+      const notice = el('div', 'bk-notice bk-notice-caution');
+      notice.append(iconSpan('clock', 'bk-notice-icon'));
+      const body = el('div', 'bk-notice-body');
+      const p = el('p');
+      p.textContent = fill(lang, 'staleNotice', {
+        n: numText(lang, staleCount),
+        ago: relativeTime(oldest, lang),
+      });
+      const action = el('button', 'bk-btn bk-btn-quiet');
+      action.type = 'button';
+      action.textContent = t(lang, 'staleAction');
+      action.addEventListener('click', refreshPrices);
+      body.append(p, action);
+      notice.append(body);
+      wrap.append(notice);
+    }
+
+    if (plan.mode === 'approximate') {
+      any = true;
+      const notice = el('div', 'bk-notice bk-notice-caution');
+      notice.append(iconSpan('alert', 'bk-notice-icon'));
+      const body = el('div', 'bk-notice-body');
+      const p = el('p');
+      p.textContent = t(lang, 'approxNotice');
+      const action = el('button', 'bk-btn bk-btn-quiet');
+      action.type = 'button';
+      action.textContent = t(lang, 'approxAction');
+      action.addEventListener('click', rerender);
+      body.append(p, action);
+      notice.append(body);
+      wrap.append(notice);
+    }
+
+    return any ? wrap : null;
+  }
+
+  function renderOptimal(lang: Lang, plan: Plan): HTMLElement {
+    const block = el('div', 'bk-optimal');
+    const p = el('p');
+    p.textContent = t(lang, 'optimalMsg');
+    const total = el('div', 'bk-optimal-total bk-num');
+    total.dir = 'ltr';
+    total.textContent = money(plan.grandTotal, lang);
+    block.append(p, total);
+    return block;
+  }
+
+  // ---- parcels ----
+
+  function renderParcels(lang: Lang, plan: Plan, opts: { stale: boolean }): HTMLElement {
+    const wrap = el('section', 'bk-parcels');
+    const h2 = el('h2', 'bk-parcels-title');
+    h2.textContent = t(lang, 'parcelsTitle');
+    wrap.append(h2);
+
+    const itemByKey = new Map(
+      state.items.map((i) => [itemKeyOf(i.itemId.productId, i.itemId.variantId as string), i]),
+    );
+
+    for (const group of plan.groups) {
+      wrap.append(renderParcel(lang, plan, group, itemByKey, opts));
+    }
+    return wrap;
+  }
+
+  function renderParcel(
+    lang: Lang,
+    plan: Plan,
+    group: PlanGroup,
+    itemByKey: Map<string, ComparisonItem>,
+    opts: { stale: boolean },
+  ): HTMLElement {
+    const card = el('article', 'bk-parcel');
+    if (opts.stale) card.classList.add('bk-stale-content');
+
+    // Head: seller name. The ship-source badge (shipped by
+    // Digikala vs by the seller) lights up when the offer
+    // model carries shipSource (brief §8 — hidden until
+    // the data exists).
+    const head = el('div', 'bk-parcel-head');
+    const seller = el('span', 'bk-seller-name');
+    seller.textContent = group.vendorName ?? group.vendorId;
+    head.append(seller);
+    card.append(head);
+
+    // Items table (column headers visible ≥560px via the
+    // CSS container query; on small screens the values sit
+    // on the row itself).
+    const table = el('div', 'bk-items');
+    const thead = el('div', 'bk-items-head');
+    for (const key of ['colQty', 'colUnit', 'colLine'] as const) {
+      const h = el('span', 'bk-items-th');
+      h.textContent = t(lang, key);
+      thead.append(h);
+    }
+    table.append(thead);
+
+    for (const line of group.lines) {
+      table.append(renderItemRow(lang, plan, group, line, itemByKey));
+    }
+    card.append(table);
+
+    // Foot: shipping + the parcel total. Shipping lives
+    // INSIDE the parcel total (brief §2 P0.2) — the hero,
+    // the ledger and the action bar all sum to the same
+    // grand total (brief §11).
+    const foot = el('div', 'bk-parcel-foot');
+    const shipRow = el('div', 'bk-ship-row');
+    const shipLabel = el('span', 'bk-ship-label');
+    shipLabel.textContent = t(lang, 'shippingFee');
+    const shipValue = el('span', 'bk-ship-value');
+    if (group.fee === null) {
+      // Unknown fee: the total is an estimate (SDD 08).
+      shipValue.append(text(t(lang, 'feeUnknown')));
+      shipValue.classList.add('bk-fee-unknown');
+    } else if (group.fee === 0) {
+      shipValue.append(text(t(lang, 'freeLabel')));
+      const reason = shippingReasonChip(lang, plan, group);
+      if (reason) shipValue.append(reason);
+    } else {
+      const feeNode = el('span', 'bk-num');
+      feeNode.dir = 'ltr';
+      feeNode.textContent = money(group.fee, lang);
+      shipValue.append(feeNode);
+      const reason = shippingReasonChip(lang, plan, group);
+      if (reason) shipValue.append(reason);
+    }
+    shipRow.append(shipLabel, shipValue);
+    foot.append(shipRow);
+
+    const totalRow = el('div', 'bk-parcel-total');
+    const label = el('span');
+    label.textContent = t(lang, 'parcelTotal');
+    const value = el('strong', 'bk-num');
+    value.dir = 'ltr';
+    value.textContent = money(group.subtotal + (group.fee ?? 0), lang);
+    totalRow.append(label, value);
+    foot.append(totalRow);
+    card.append(foot);
+
+    return card;
+  }
+
+  /** The reason chip for a waived shipping fee (brief §8). */
+  function shippingReasonChip(lang: Lang, plan: Plan, group: PlanGroup): HTMLElement | null {
+    if (group.feeFlag === 'plus-covered') {
+      return chip(lang, 'reasonPlus');
+    }
+    if (group.feeFlag === 'large-item') {
+      return chip(lang, 'reasonLarge');
+    }
+    if (group.feeFlag === 'promo-waived') {
+      // The promos live on the solver input; the page
+      // looks them up from the last render.
+      const input = state.last?.input;
+      const found = input?.promos.find((p) => group.promoIds.includes(p.promoId));
+      if (found && (found.type === 'same-item-count' || found.type === 'vendor-count')) {
+        return chip(lang, 'reasonCount', {
+          n: numText(lang, found.thresholdValue),
+        });
+      }
+      // amount-threshold promos are not in the model yet —
+      // the chip stays hidden until they are (brief §8).
+    }
+    return null;
+  }
+
+  function chip(
+    lang: Lang,
+    key: MessageKey,
+    vars: Record<string, string | number> = {},
+  ): HTMLElement {
+    const node = el('span', 'bk-chip bk-chip-reason');
+    node.textContent = fill(lang, key, vars);
+    return node;
+  }
+
+  function renderItemRow(
+    lang: Lang,
+    plan: Plan,
+    group: PlanGroup,
+    line: PlanLine,
+    itemByKey: Map<string, ComparisonItem>,
+  ): HTMLElement {
+    void plan;
+    void group;
+    const item = itemByKey.get(line.itemKey);
+    const locked = item?.lock.mode === 'pin';
+    const row = el('div', 'bk-item');
+    if (locked) row.classList.add('bk-item-locked');
+
+    // Main picture (display-only passthrough, issue #10).
+    const picture =
+      item?.product.image ??
+      state.last?.input.items.find((i) => i.itemKey === line.itemKey)?.imageUrl;
+    if (picture) {
+      const img = el('img', 'bk-picture');
+      img.src = picture;
+      img.alt = '';
+      img.loading = 'lazy';
+      row.append(img);
+    }
+
+    const cell = el('div', 'bk-item-cell');
+
+    // Title: the product page, with the external glyph
+    // (brief §2 P1.9 — a machine id is never the link).
+    const titleLink = el('a', 'bk-item-title');
+    if (item?.productUrl) {
+      titleLink.href = item.productUrl;
+      titleLink.target = '_blank';
+      titleLink.rel = 'noopener';
+      titleLink.append(text(line.title ?? ''));
+      titleLink.append(iconSpan('external', 'bk-ext-icon'));
+      titleLink.setAttribute('aria-label', `${line.title ?? ''} — ${t(lang, 'openProduct')}`);
+    } else {
+      titleLink.textContent = line.title ?? '';
+    }
+    cell.append(titleLink);
+
+    // Variant label: human text only (D-17). When the
+    // plan switched variants, the cart item's label
+    // names the OLD variant — the chosen variant's id
+    // is shown instead.
+    const switched =
+      line.variantId !== undefined && item && line.variantId !== item.itemId.variantId;
+    if (line.variantLabel && !switched) {
+      const variant = el('div', 'bk-item-variant');
+      variant.textContent = line.variantLabel;
+      cell.append(variant);
+    } else if (switched && line.variantId) {
+      const variant = el('div', 'bk-item-variant');
+      variant.textContent = fill(lang, 'variantFallback', {
+        id: line.variantId,
+      });
+      cell.append(variant);
+    }
+
+    // Change line: what the cart holds today (the "قبل"
+    // disclosure, brief §2 P1.5).
+    const change = changeLine(lang, item, group.vendorId, line);
+    if (change) cell.append(change);
+
+    row.append(cell);
+
+    // Qty / unit / line total.
+    const qty = el('span', 'bk-item-qty');
+    qty.append(num(line.quantity, lang));
+    row.append(qty);
+
+    const unit = el('span', 'bk-item-unit bk-num');
+    unit.dir = 'ltr';
+    unit.textContent = money(line.unitPrice, lang);
+    row.append(unit);
+
+    const total = el('strong', 'bk-item-total bk-num');
+    total.dir = 'ltr';
+    total.textContent = money(line.lineTotal, lang);
+    row.append(total);
+
+    // Actions: why-disclosure + the seller control.
+    const actions = el('div', 'bk-item-actions');
+    if (item) {
+      actions.append(whyButton(lang, item, group.vendorId, line));
+      actions.append(sellerControl(lang, item));
+    }
+    row.append(actions);
+
+    // Locked chip + helper (brief §2 P1.6/P1.7).
+    if (locked) {
+      const lockChip = el('span', 'bk-chip bk-chip-locked');
+      lockChip.innerHTML = `${iconSvg('lock')} ${t(lang, 'lockedChip')}`;
+      const helper = el('div', 'bk-lock-helper');
+      helper.textContent = t(lang, 'lockHelper');
+      actions.append(lockChip, helper);
+    }
+
+    return row;
+  }
+
+  /** "قبلاً: seller، price" + the difference chip. */
+  function changeLine(
+    lang: Lang,
+    item: ComparisonItem | undefined,
+    chosenVendorId: string,
+    line: PlanLine,
+  ): HTMLElement | null {
+    if (!item?.sellerId || !item?.sellerName) return null;
+    // The cart's current offer for this item: the
+    // cart seller's offer on the cart's variant,
+    // from the latest capture that still shows it
+    // (snapshots are stored oldest-first).
+    const cartVariant = item.itemId.variantId as string;
+    const snaps = state.snapshots
+      .filter(
+        (s) => s.itemId.productId === item.itemId.productId && s.itemId.variantId === cartVariant,
+      )
+      .reverse();
+    let currentOffer: Offer | undefined;
+    for (const snap of snaps) {
+      currentOffer = snap.offers.find((o) => o.vendor.id === item.sellerId);
+      if (currentOffer) break;
+    }
+    if (!currentOffer) return null;
+
+    const changedSeller = currentOffer.vendor.id !== chosenVendorId;
+    const priceDiff = line.unitPrice - currentOffer.price;
+    if (!changedSeller && priceDiff === 0) {
+      return null; // identical: no change line
+    }
+
+    const wrap = el('div', 'bk-item-change');
+    const was = el('span', 'bk-item-was');
+    was.textContent = fill(lang, 'itemChange', {
+      seller: item.sellerName,
+      price: money(currentOffer.price, lang),
+    });
+    wrap.append(was);
+    if (priceDiff < 0) {
+      const less = el('span', 'bk-chip bk-chip-saving');
+      less.textContent = fill(lang, 'changeLess', {
+        n: money(-priceDiff, lang),
+      });
+      wrap.append(less);
+    } else if (priceDiff === 0) {
+      const none = el('span', 'bk-chip');
+      none.textContent = t(lang, 'changeNone');
+      wrap.append(none);
+    }
+    return wrap;
+  }
+
+  // ---- why-disclosure (brief §2 P1.5, §4) ----
+
+  function whyButton(
+    lang: Lang,
+    item: ComparisonItem,
+    chosenVendorId: string,
+    line: PlanLine,
+  ): HTMLElement {
+    const btn = el('button', 'bk-btn bk-btn-quiet bk-why-btn');
+    btn.type = 'button';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = t(lang, 'whyBtn');
+
+    let expanded = false;
+    let panel: HTMLElement | null = null;
+
+    btn.addEventListener('click', () => {
+      expanded = !expanded;
+      btn.setAttribute('aria-expanded', String(expanded));
+      if (!expanded) {
+        panel?.remove();
+        panel = null;
+        return;
+      }
+      panel = el('div', 'bk-why');
+      const loading = el('p', 'bk-why-loading');
+      loading.textContent = t(lang, 'loadingCalc');
+      panel.append(loading);
+      btn.after(panel);
+      // Compute the alternatives lazily (the solves are
+      // fast, but they run on demand).
+      void (async () => {
+        const alts = whyAlternatives(item, chosenVendorId, line);
+        if (!panel) return;
+        panel.replaceChildren();
+        if (!alts.length) {
+          panel.remove();
+          panel = null;
+          return;
+        }
+        const table = el('div', 'bk-why-table');
+        for (const head of ['whySeller', 'whyPrice', 'whyEffect'] as const) {
+          const h = el('span', 'bk-why-th');
+          h.textContent = t(lang, head);
+          table.append(h);
+        }
+        for (const alt of alts) {
+          const sellerCell = el('span', 'bk-why-seller');
+          sellerCell.textContent = alt.sellerName;
+          const priceCell = el('span', 'bk-why-price bk-num');
+          priceCell.dir = 'ltr';
+          priceCell.textContent = money(alt.price, lang);
+          const effectCell = el('span', 'bk-why-effect');
+          const effectChip = el('span', alt.effect < 0 ? 'bk-chip bk-chip-saving' : 'bk-chip');
+          effectChip.textContent =
+            alt.effect < 0
+              ? fill(lang, 'changeLess', { n: money(-alt.effect, lang) })
+              : fill(lang, 'changeMore', { n: money(alt.effect, lang) });
+          effectCell.append(effectChip);
+          table.append(sellerCell, priceCell, effectCell);
+        }
+        panel.append(table);
+        // The trade-off sentence: cheaper unit, costlier total.
+        const tradeOff = alts.find((a) => a.price < line.unitPrice && a.effect > 0);
+        if (tradeOff) {
+          const p = el('p', 'bk-why-sentence');
+          p.textContent = fill(lang, 'whySentence', {
+            seller: tradeOff.sellerName,
+            x: money(tradeOff.price, lang),
+            y: money(tradeOff.effect, lang),
+          });
+          panel.append(p);
+        }
+      })();
+    });
+    return btn;
+  }
+
+  interface WhyAlternative {
+    sellerName: string;
+    vendorId: string;
+    price: number;
+    /** grandTotal with this vendor pinned, minus the plan total. */
+    effect: number;
+  }
+
+  /**
+   * Up to three alternative sellers for the item's product
+   * (in-stock offers on any variant), with the exact
+   * effect on the cart total when the vendor is pinned.
+   */
+  function whyAlternatives(
+    item: ComparisonItem,
+    chosenVendorId: string,
+    line: PlanLine,
+  ): WhyAlternative[] {
+    const input = state.last?.input;
+    const plan = state.last?.plan;
+    if (!input || !plan) return [];
+    const productId = item.itemId.productId;
+
+    // Cheapest in-stock offer per alternative vendor.
+    const seen = new Map<string, { sellerName: string; price: number }>();
+    for (const solverItem of input.items) {
+      if (!solverItem.itemKey.startsWith(`${productId}::`)) continue;
+      for (const offer of solverItem.offers) {
+        if (offer.stock !== 'in-stock') continue;
+        if (offer.vendorId === chosenVendorId) continue;
+        if (offer.unitPrice <= 0) continue;
+        const known = seen.get(offer.vendorId);
+        if (!known || offer.unitPrice < known.price) {
+          seen.set(offer.vendorId, {
+            sellerName: offer.vendorName ?? offer.vendorId,
+            price: offer.unitPrice,
           });
         }
       }
     }
-    return [...seen.values()];
+    const candidates = [...seen.entries()].sort((a, b) => a[1].price - b[1].price).slice(0, 3);
+
+    const out: WhyAlternative[] = [];
+    for (const [vendorId, data] of candidates) {
+      const pinned = buildSolverInput(
+        state.items.map((i) =>
+          itemKeyOf(i.itemId.productId, i.itemId.variantId as string) === line.itemKey
+            ? { ...i, lock: { mode: 'pin', vendorIds: [vendorId] } }
+            : i,
+        ),
+        state.snapshots,
+        {
+          hasPlus: state.plusOverride ?? state.settings.hasPlus,
+          tolerancePercent: state.settings.tolerancePercent,
+        },
+        state.shipment,
+      );
+      const pinnedSolve = solve(pinned);
+      out.push({
+        sellerName: data.sellerName,
+        vendorId,
+        price: data.price,
+        effect: pinnedSolve.plan.grandTotal - plan.grandTotal,
+      });
+    }
+    return out;
   }
 
-  function findItem(itemKey: string): ComparisonItem | undefined {
-    return state.items.find((i) => itemKeyOf(i.itemId.productId, i.itemId.variantId) === itemKey);
-  }
+  // ---- the seller control (replaces 'هر فروشنده‌ای', brief §2 P1.6) ----
 
-  /** Persist a mutation to the comparison list, then re-solve. */
-  async function mutateItem(
-    itemKey: string,
-    mutate: (item: ComparisonItem) => void,
-  ): Promise<void> {
-    const item = findItem(itemKey);
-    if (!item) return;
-    mutate(item);
-    await deps.putItem(item);
-    // Re-read so what renders is the persisted state.
-    state.items = await deps.getItems();
-    scheduleResolve();
-  }
+  function sellerControl(lang: Lang, item: ComparisonItem): HTMLElement {
+    const locked = item.lock.mode === 'pin';
+    const pinnedVendor = locked ? item.lock.vendorIds[0] : undefined;
 
-  function onQtyCommit(itemKey: string, quantity: number): void {
-    void mutateItem(itemKey, (item) => {
-      item.quantity = quantity;
+    const wrap = el('div', 'bk-seller-control');
+    const btn = el('button', 'bk-seller-btn');
+    btn.type = 'button';
+    btn.setAttribute('aria-haspopup', 'listbox');
+    btn.setAttribute('aria-expanded', 'false');
+    if (locked && pinnedVendor) {
+      const name = state.last?.input.items
+        .flatMap((i) => i.offers)
+        .find((o) => o.vendorId === pinnedVendor)?.vendorName;
+      btn.innerHTML = `${iconSvg('lock')} ${name ?? pinnedVendor}`;
+    } else {
+      btn.textContent = t(lang, 'sellerAuto');
+    }
+
+    btn.addEventListener('click', () => {
+      const open = wrap.querySelector('.bk-popover');
+      if (open) {
+        open.remove();
+        btn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+      const popover = el('div', 'bk-popover');
+      popover.setAttribute('role', 'listbox');
+      popover.setAttribute('aria-label', `${t(lang, 'sellerAuto')} — ${item.product.title}`);
+      // Automatic first.
+      popover.append(
+        sellerOption(lang, t(lang, 'sellerAuto'), null, !locked, () => {
+          void mutateItem(itemKeyOf(item.itemId.productId, item.itemId.variantId as string), {
+            lock: { mode: 'none', vendorIds: [] },
+          });
+        }),
+      );
+      // Then every seller with an in-stock offer on this
+      // product, cheapest first.
+      for (const offer of offersForProduct(item.itemId.productId)) {
+        popover.append(
+          sellerOption(
+            lang,
+            offer.sellerName,
+            offer.price,
+            locked && pinnedVendor === offer.vendorId,
+            () => {
+              void mutateItem(itemKeyOf(item.itemId.productId, item.itemId.variantId as string), {
+                lock: { mode: 'pin', vendorIds: [offer.vendorId] },
+              });
+            },
+          ),
+        );
+      }
+      wrap.append(popover);
+      btn.setAttribute('aria-expanded', 'true');
+      // Close on outside click.
+      const onDoc = (e: MouseEvent) => {
+        if (!wrap.contains(e.target as Node)) {
+          popover.remove();
+          btn.setAttribute('aria-expanded', 'false');
+          document.removeEventListener('click', onDoc);
+        }
+      };
+      document.addEventListener('click', onDoc);
     });
+
+    wrap.append(btn);
+    return wrap;
   }
 
-  function onLockCommit(itemKey: string, lock: Lock): void {
-    void mutateItem(itemKey, (item) => {
-      item.lock = lock;
+  /** In-stock offers for a product, one per vendor, cheapest first. */
+  function offersForProduct(productId: string) {
+    const input = state.last?.input;
+    if (!input) return [];
+    const seen = new Map<string, { vendorId: string; sellerName: string; price: number }>();
+    for (const solverItem of input.items) {
+      if (!solverItem.itemKey.startsWith(`${productId}::`)) continue;
+      for (const offer of solverItem.offers) {
+        if (offer.stock !== 'in-stock') continue;
+        const known = seen.get(offer.vendorId);
+        if (!known || offer.unitPrice < known.price) {
+          seen.set(offer.vendorId, {
+            vendorId: offer.vendorId,
+            sellerName: offer.vendorName ?? offer.vendorId,
+            price: offer.unitPrice,
+          });
+        }
+      }
+    }
+    return [...seen.values()].sort((a, b) => a.price - b.price);
+  }
+
+  function sellerOption(
+    lang: Lang,
+    label: string,
+    price: number | null,
+    checked: boolean,
+    onPick: () => void,
+  ): HTMLElement {
+    const option = el('button', 'bk-popover-option');
+    option.type = 'button';
+    option.setAttribute('role', 'option');
+    option.setAttribute('aria-selected', String(checked));
+    if (checked) option.classList.add('is-selected');
+    const name = el('span', 'bk-popover-name');
+    name.textContent = label;
+    option.append(name);
+    if (price !== null) {
+      const priceNode = el('span', 'bk-popover-price bk-num');
+      priceNode.dir = 'ltr';
+      priceNode.textContent = money(price, lang);
+      option.append(priceNode);
+    }
+    if (checked) {
+      const check = el('span', 'bk-popover-check');
+      check.innerHTML = iconSvg('check');
+      option.append(check);
+    }
+    option.addEventListener('click', onPick);
+    return option;
+  }
+
+  // ---- hints (D-09) ----
+
+  function renderHints(lang: Lang, hints: Hint[]): HTMLElement {
+    const section = el('section', 'bk-hints');
+    section.id = 'bk-hints';
+    const h2 = el('h2', 'bk-hints-title');
+    h2.textContent = t(lang, 'hintsTitle');
+    section.append(h2);
+
+    const list = el('div', 'bk-hint-list');
+    for (const hint of hints) {
+      list.append(renderHint(lang, hint));
+    }
+    section.append(list);
+    return section;
+  }
+
+  function renderHint(lang: Lang, hint: Hint): HTMLElement {
+    const card = el('div', 'bk-hint');
+    const p = el('p', 'bk-hint-sentence');
+    const itemTitle = state.items.find(
+      (i) => itemKeyOf(i.itemId.productId, i.itemId.variantId as string) === hint.itemKey,
+    )?.product.title;
+    const vendorName = state.last?.input.items
+      .find((i) => i.itemKey === hint.itemKey)
+      ?.offers.find((o) => o.vendorId === hint.vendorId)?.vendorName;
+    p.textContent = fill(lang, 'hintSentence', {
+      item: itemTitle ?? '',
+      n: numText(lang, 1),
+      vendor: vendorName ?? '',
     });
+    card.append(p);
+
+    const outcome = el('div', 'bk-hint-outcome');
+    if (hint.verdict === 'saving') {
+      outcome.classList.add('bk-hint-saving');
+      outcome.textContent = fill(lang, 'hintSaving', {
+        x: money(hint.netEffect, lang),
+      });
+    } else {
+      outcome.classList.add('bk-hint-more');
+      outcome.textContent = fill(lang, 'hintMore', {
+        x: money(hint.netEffect, lang),
+      });
+    }
+    card.append(outcome);
+
+    const actions = el('div', 'bk-hint-actions');
+    const add = el('button', 'bk-btn bk-btn-primary');
+    add.type = 'button';
+    add.textContent = t(lang, 'hintAdd');
+    add.addEventListener('click', () => {
+      const item = state.items.find(
+        (i) => itemKeyOf(i.itemId.productId, i.itemId.variantId as string) === hint.itemKey,
+      );
+      if (!item) return;
+      void mutateItem(hint.itemKey, { quantity: item.quantity + 1 });
+    });
+    const dismiss = el('button', 'bk-btn bk-btn-quiet');
+    dismiss.type = 'button';
+    dismiss.textContent = t(lang, 'hintDismiss');
+    dismiss.addEventListener('click', () => {
+      dismissHint(hint.promoId + hint.itemKey);
+    });
+    actions.append(add, dismiss);
+    card.append(actions);
+    return card;
   }
 
-  function rowControls(): RowControls {
-    return {
-      lockFor: (itemKey: string): HTMLElement => {
-        const item = findItem(itemKey);
-        if (!item) return el('span', 'lock-control');
-        const vendors = candidateVendors(item.itemId.productId);
-        return renderLockControl(state.lang, item, vendors, (lock) => onLockCommit(itemKey, lock));
-      },
-      qtyFor: (line: PlanLine) =>
-        renderQtyInput(state.lang, line, (qty) => onQtyCommit(line.itemKey, qty)),
+  // ---- ledger (the bill footer) ----
+
+  function renderLedger(lang: Lang, plan: Plan): HTMLElement {
+    const ledger = el('section', 'bk-ledger');
+
+    const rows: Array<{ key: MessageKey; value: number }> = [
+      { key: 'ledgerItems', value: plan.itemSubtotal },
+      { key: 'ledgerShipping', value: plan.deliverySubtotal },
+    ];
+    for (const row of rows) {
+      const line = el('div', 'bk-ledger-row');
+      const label = el('span');
+      label.textContent = t(lang, row.key);
+      const value = el('span', 'bk-num');
+      value.dir = 'ltr';
+      value.textContent = money(row.value, lang);
+      line.append(label, value);
+      ledger.append(line);
+    }
+
+    const payable = el('div', 'bk-ledger-row bk-ledger-payable');
+    const label = el('span');
+    label.textContent = t(lang, 'ledgerPayable');
+    const value = el('strong', 'bk-num');
+    value.dir = 'ltr';
+    if (plan.totalIsEstimate && plan.estimateRange) {
+      value.textContent = fill(lang, 'heroRange', {
+        low: money(plan.estimateRange.low, lang),
+        high: money(plan.estimateRange.high, lang),
+      });
+    } else {
+      value.textContent = money(plan.grandTotal, lang);
+    }
+    payable.append(label, value);
+    ledger.append(payable);
+
+    // Oldest price across the plan (the honesty footnote).
+    let oldest: string | null = null;
+    for (const a of plan.assignments) {
+      if (a.capturedAt && (!oldest || a.capturedAt < oldest)) {
+        oldest = a.capturedAt;
+      }
+    }
+    if (oldest) {
+      const foot = el('div', 'bk-ledger-oldest');
+      const ago = el('span');
+      ago.textContent = fill(lang, 'ledgerOldest', {
+        ago: relativeTime(oldest, lang),
+      });
+      ago.title = absoluteDateTime(oldest, lang);
+      const refresh = el('button', 'bk-btn bk-btn-quiet');
+      refresh.type = 'button';
+      refresh.textContent = t(lang, 'staleAction');
+      refresh.addEventListener('click', refreshPrices);
+      foot.append(ago, refresh);
+      ledger.append(foot);
+    }
+
+    return ledger;
+  }
+
+  function renderUnsolved(lang: Lang, plan: Plan): HTMLElement | null {
+    if (!plan.unsolved.length) return null;
+    const wrap = el('div', 'bk-unsolved');
+    const h2 = el('h2');
+    h2.textContent = t(lang, 'unsolvedTitle');
+    wrap.append(h2);
+    for (const u of plan.unsolved) {
+      const row = el('div', 'bk-unsolved-row');
+      const name = el('span', 'bk-unsolved-name');
+      name.textContent = u.title ?? u.itemKey;
+      const reason = el('span', 'bk-unsolved-reason');
+      reason.textContent = t(lang, REASON_KEYS[u.reason]);
+      row.append(name, reason);
+      wrap.append(row);
+    }
+    return wrap;
+  }
+
+  // ---- sticky action bar ----
+
+  function renderActionBar(lang: Lang, plan: Plan): HTMLElement {
+    const bar = el('div', 'bk-actionbar');
+    const info = el('div', 'bk-actionbar-info');
+    const label = el('span', 'bk-actionbar-label');
+    label.textContent = t(lang, 'ledgerPayable');
+    const total = el('strong', 'bk-actionbar-total bk-num');
+    total.dir = 'ltr';
+    total.textContent = money(plan.grandTotal, lang);
+    const shipments = el('span', 'bk-actionbar-shipments');
+    shipments.textContent = fill(lang, 'actionShipments', {
+      n: numText(lang, plan.groups.length),
+    });
+    info.append(label, total, shipments);
+    bar.append(info);
+
+    const flow = applyFlowFor(plan);
+    const btn = el('button', 'bk-btn bk-btn-primary bk-apply-btn');
+    btn.type = 'button';
+    btn.textContent = state.recomputing ? t(lang, 'applyingBtn') : t(lang, 'applyBtn');
+    btn.disabled = state.recomputing || flow.ui.changedLines === 0;
+    if (flow.ui.changedLines === 0) {
+      btn.title = t(lang, 'optimalMsg');
+    }
+    btn.addEventListener('click', flow.openSheet);
+    bar.append(btn);
+    return bar;
+  }
+
+  /**
+   * Per-plan apply flow (D-26). The sheet machine:
+   * preflight → price-change sheet / out-of-stock sheet /
+   * confirm sheet → running progress → success or
+   * partial-failure sheet with per-item retry and undo.
+   */
+  function applyFlowFor(plan: Plan) {
+    const lang = state.lang;
+
+    // Changed lines: the plan's chosen variant differs from
+    // the cart item's variant (the item key's variant part).
+    let changedLines = 0;
+    const vendorByItem = new Map<string, string>();
+    for (const group of plan.groups) {
+      for (const line of group.lines) {
+        vendorByItem.set(line.itemKey, group.vendorId);
+      }
+    }
+    const changedVendors = new Set<string>();
+    for (const a of plan.assignments) {
+      if (!a.variantId) continue;
+      const cartVariant = a.itemKey.slice(a.itemKey.lastIndexOf('::') + 2);
+      if (a.variantId !== cartVariant) {
+        changedLines++;
+        const vendor = vendorByItem.get(a.itemKey);
+        if (vendor) changedVendors.add(vendor);
+      }
+    }
+
+    const ui = {
+      phase: 'idle' as string,
+      progress: [] as ApplyProgress[],
+      result: null as ApplyResult | null,
+      preflight: null as PreflightResult | null,
+      changedLines,
     };
+
+    const applier = createCartApplier(cartTransport, {
+      loadSnapshot: () => getCartSnapshot(indexedDB),
+      saveSnapshot: (record) => putCartSnapshot(indexedDB, record),
+    });
+
+    let sheet: SheetHandle | null = null;
+    let progressList: HTMLElement | null = null;
+
+    const openSheetForUi = () => {
+      sheet?.close();
+      progressList = null;
+      sheet = openSheet((sheetEl, close) => buildApplySheet(sheetEl, close));
+    };
+
+    async function runPreflight(): Promise<void> {
+      ui.phase = 'preflight';
+      ui.preflight = null;
+      openSheetForUi();
+      const result = await applier.preflight(plan);
+      ui.preflight = result;
+      ui.phase =
+        result.status === 'price-changed'
+          ? 'price-change'
+          : result.status === 'out-of-stock'
+            ? 'out-of-stock'
+            : 'confirm';
+      openSheetForUi();
+    }
+
+    async function runApply(): Promise<void> {
+      ui.phase = 'running';
+      ui.progress = plan.assignments
+        .filter((a) => a.variantId)
+        .map((a) => ({
+          itemKey: a.itemKey,
+          title: a.title,
+          status: 'pending' as const,
+        }));
+      openSheetForUi();
+      const result = await applier.apply(plan, (p) => {
+        const row = ui.progress.find((r) => r.itemKey === p.itemKey);
+        if (row) {
+          row.status = p.status;
+          row.title = p.title ?? row.title;
+        }
+        updateProgressRow(p);
+        if (p.status === 'adding' || p.status === 'failed') {
+          announce(
+            `${p.title ?? p.itemKey} — ${t(
+              lang,
+              p.status === 'adding' ? 'statusAdding' : 'statusFailed',
+            )}`,
+          );
+        }
+      });
+      ui.result = result;
+      ui.phase = 'done';
+      openSheetForUi();
+    }
+
+    async function runUndo(): Promise<void> {
+      ui.phase = 'running';
+      ui.progress = [];
+      openSheetForUi();
+      const result = await applier.undo((p) => {
+        const row = ui.progress.find((r) => r.itemKey === p.itemKey);
+        if (row) {
+          row.status = p.status;
+          row.title = p.title ?? row.title;
+        } else {
+          ui.progress.push({
+            itemKey: p.itemKey,
+            title: p.title,
+            status: p.status,
+          });
+        }
+        updateProgressRow(p);
+      });
+      ui.result = result;
+      ui.phase = 'done';
+      openSheetForUi();
+    }
+
+    /** Update one progress row in place (no focus steal). */
+    function updateProgressRow(p: ApplyProgress): void {
+      if (!progressList) return;
+      for (const child of Array.from(progressList.children)) {
+        if (!(child instanceof HTMLElement)) continue;
+        if (child.dataset.itemKey !== p.itemKey) continue;
+        const status = child.querySelector<HTMLElement>('.bk-progress-status');
+        if (status) {
+          status.className = `bk-progress-status bk-status-${p.status}`;
+          status.textContent = t(lang, statusKey(p.status));
+        }
+        return;
+      }
+    }
+
+    function buildApplySheet(sheetEl: HTMLElement, close: () => void) {
+      if (ui.phase === 'preflight') {
+        sheetEl.setAttribute('aria-label', t(lang, 'applyingBtn'));
+        const p = el('p');
+        p.textContent = fill(lang, 'preflightProgress', {
+          i: numText(lang, 0),
+          n: numText(lang, plan.assignments.length),
+        });
+        sheetEl.append(p);
+        return;
+      }
+
+      if (ui.phase === 'price-change') {
+        const pf = ui.preflight;
+        if (pf?.status !== 'price-changed') return;
+        sheetEl.setAttribute('aria-label', t(lang, 'priceChangedTitle'));
+        const h = el('h2');
+        h.textContent = t(lang, 'priceChangedTitle');
+        const p = el('p');
+        p.textContent = fill(lang, 'priceChanged', {
+          n: numText(lang, pf.changedCount),
+          total: money(pf.newTotal, lang),
+          delta: money(Math.abs(pf.delta), lang),
+        });
+        const actions = el('div', 'bk-sheet-actions');
+        const keep = el('button', 'bk-btn bk-btn-primary');
+        keep.type = 'button';
+        keep.textContent = t(lang, 'continueNewPrice');
+        keep.addEventListener('click', () => {
+          close();
+          ui.phase = 'confirm';
+          openSheetForUi();
+        });
+        const recalc = el('button', 'bk-btn bk-btn-quiet');
+        recalc.type = 'button';
+        recalc.textContent = t(lang, 'recalcBtn');
+        recalc.addEventListener('click', () => {
+          close();
+          void renderAll();
+        });
+        const cancel = el('button', 'bk-btn bk-btn-quiet');
+        cancel.type = 'button';
+        cancel.textContent = t(lang, 'cancelBtn');
+        cancel.addEventListener('click', close);
+        actions.append(keep, recalc, cancel);
+        sheetEl.append(h, p, actions);
+        return;
+      }
+
+      if (ui.phase === 'out-of-stock') {
+        const pf = ui.preflight;
+        if (pf?.status !== 'out-of-stock') return;
+        sheetEl.setAttribute('aria-label', t(lang, 'outOfStockTitle'));
+        const h = el('h2');
+        h.textContent = t(lang, 'outOfStockTitle');
+        const p = el('p');
+        p.textContent = fill(lang, 'outOfStock', {
+          items: pf.titles.join('، '),
+        });
+        const actions = el('div', 'bk-sheet-actions');
+        const recalc = el('button', 'bk-btn bk-btn-primary');
+        recalc.type = 'button';
+        recalc.textContent = t(lang, 'recalcBtn');
+        recalc.addEventListener('click', () => {
+          close();
+          void renderAll();
+        });
+        const cancel = el('button', 'bk-btn bk-btn-quiet');
+        cancel.type = 'button';
+        cancel.textContent = t(lang, 'cancelBtn');
+        cancel.addEventListener('click', close);
+        actions.append(recalc, cancel);
+        sheetEl.append(h, p, actions);
+        return;
+      }
+
+      if (ui.phase === 'confirm') {
+        sheetEl.setAttribute('aria-label', t(lang, 'confirmTitle'));
+        const h = el('h2');
+        h.textContent = t(lang, 'confirmTitle');
+        const p = el('p');
+        p.textContent = fill(lang, 'confirmBody', {
+          n: numText(lang, ui.changedLines),
+          m: numText(lang, changedVendors.size),
+        });
+        const actions = el('div', 'bk-sheet-actions');
+        const confirm = el('button', 'bk-btn bk-btn-primary');
+        confirm.type = 'button';
+        confirm.textContent = t(lang, 'applyBtn');
+        confirm.addEventListener('click', () => {
+          close();
+          void runApply();
+        });
+        const cancel = el('button', 'bk-btn bk-btn-quiet');
+        cancel.type = 'button';
+        cancel.textContent = t(lang, 'cancelBtn');
+        cancel.addEventListener('click', close);
+        actions.append(confirm, cancel);
+        sheetEl.append(h, p, actions);
+        return;
+      }
+
+      // running / done
+      const h = el('h2');
+      if (ui.phase === 'running') {
+        h.textContent = t(lang, 'applyingBtn');
+      } else if (ui.result?.ok) {
+        h.textContent = t(lang, 'successTitle');
+      } else if (ui.result && ui.result.failed.length > 0) {
+        h.textContent = fill(lang, 'partialTitle', {
+          k: numText(lang, ui.result.failed.length),
+          n: numText(lang, ui.result.failed.length + ui.result.applied.length),
+        });
+      } else {
+        h.textContent = t(lang, 'errCalc');
+      }
+      sheetEl.append(h);
+
+      if (ui.phase === 'running') {
+        const list = el('div', 'bk-progress-list');
+        for (const row of ui.progress) {
+          list.append(progressRow(lang, row));
+        }
+        sheetEl.append(list);
+        progressList = list;
+        return;
+      }
+
+      // Result states.
+      const result = ui.result;
+      if (result?.ok) {
+        const p = el('p');
+        p.textContent = t(lang, 'successTitle');
+        sheetEl.append(p);
+      } else if (result && result.failed.length > 0) {
+        const p = el('p');
+        p.textContent = fill(lang, 'partialBody', {
+          k: numText(lang, result.failed.length),
+        });
+        sheetEl.append(p);
+      }
+
+      const list = el('div', 'bk-progress-list');
+      for (const row of ui.progress) {
+        const node = progressRow(lang, row);
+        if (result && row.status === 'failed') {
+          const retry = el('button', 'bk-btn bk-btn-quiet');
+          retry.type = 'button';
+          retry.textContent = t(lang, 'retryItem');
+          retry.addEventListener('click', () => {
+            void runApply();
+          });
+          node.append(retry);
+        }
+        list.append(node);
+      }
+      if (list.children.length) {
+        sheetEl.append(list);
+        progressList = list;
+      }
+
+      const actions = el('div', 'bk-sheet-actions');
+      const goCart = el('a', 'bk-btn bk-btn-primary');
+      goCart.href = 'https://www.digikala.com/cart/';
+      goCart.target = '_blank';
+      goCart.rel = 'noopener';
+      goCart.textContent = t(lang, 'goToCart');
+      actions.append(goCart);
+      if (result && result.applied.length > 0) {
+        const undo = el('button', 'bk-btn bk-btn-quiet');
+        undo.type = 'button';
+        undo.textContent = t(lang, 'undoCart');
+        undo.addEventListener('click', () => {
+          void runUndo();
+        });
+        actions.append(undo);
+      }
+      if (result && result.failed.length > 0) {
+        const undoAll = el('button', 'bk-btn bk-btn-quiet');
+        undoAll.type = 'button';
+        undoAll.textContent = t(lang, 'undoAll');
+        undoAll.addEventListener('click', () => {
+          void runUndo();
+        });
+        actions.append(undoAll);
+      }
+      const done = el('button', 'bk-btn bk-btn-quiet');
+      done.type = 'button';
+      done.textContent = t(lang, 'cancelBtn');
+      done.addEventListener('click', () => {
+        close();
+        rerender();
+      });
+      actions.append(done);
+      sheetEl.append(actions);
+    }
+
+    return { ui, openSheet: runPreflight };
   }
 
-  async function renderAll(): Promise<void> {
-    const input = buildSolverInput(state.items, state.snapshots, state.settings, state.shipment);
-    const { plan } = solve(input);
-    // itemKey -> product picture (display-only passthrough).
-    const pictures = new Map<string, string>(
-      input.items
-        .filter((it) => it.imageUrl !== undefined)
-        .map((it) => [it.itemKey, it.imageUrl as string]),
-    );
-
-    const content = $('content');
-    content.replaceChildren();
-    content.append(renderVerdict(state.lang, plan));
-
-    if (plan.totalIsEstimate) {
-      content.append(el('p', 'note warn', t(state.lang, 'estimateCaveat')));
-    }
-    if (plan.mode === 'approximate') {
-      content.append(el('p', 'note warn', t(state.lang, 'approximateNotice')));
-    }
-
-    content.append(el('h2', 'card-title', t(state.lang, 'planTitle')));
-    content.append(
-      renderPlan(state.lang, plan, input.unknownFeeFallback ?? 0, rowControls(), pictures),
-    );
-    const unsolved = renderUnsolved(state.lang, plan);
-    if (unsolved) content.append(unsolved);
+  function progressRow(lang: Lang, row: ApplyProgress): HTMLElement {
+    const node = el('div', 'bk-progress-row');
+    node.dataset.itemKey = row.itemKey;
+    const status = el('span', `bk-progress-status bk-status-${row.status}`);
+    status.textContent = t(lang, statusKey(row.status));
+    const title = el('span', 'bk-progress-title');
+    title.textContent = row.title ?? row.itemKey;
+    node.append(status, title);
+    return node;
   }
 
-  async function run(): Promise<void> {
-    const settings = await deps.loadSettings();
-    const lang: Lang = settings.uiLanguage ?? 'fa';
-    document.documentElement.lang = lang;
-    document.documentElement.dir = lang === 'fa' ? 'rtl' : 'ltr';
-    $('h-title').textContent = t(lang, 'resultsTitle');
-    state.lang = lang;
-    state.settings = settings;
-
-    state.items = await deps.getItems();
-    if (state.items.length === 0) {
-      renderEmpty(lang);
-      return;
+  function statusKey(status: ApplyProgress['status']): MessageKey {
+    switch (status) {
+      case 'pending':
+        return 'statusPending';
+      case 'adding':
+        return 'statusAdding';
+      case 'added':
+        return 'statusAdded';
+      case 'failed':
+        return 'statusFailed';
     }
-    state.snapshots = await deps.getSnapshots();
-    // D-19: the shipment quote prices the current
-    // arrangement with the real package fees (when
-    // the crawl captured one).
-    state.shipment = deps.getShipment ? await deps.getShipment() : null;
-    await renderAll();
   }
 
-  return { run };
+  // -----------------------------------------------------------------------
+  // Boot
+  // -----------------------------------------------------------------------
+
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.append(root);
+    void renderAll();
+  });
+  if (document.readyState !== 'loading') {
+    document.body.append(root);
+    void renderAll();
+  }
+
+  return {
+    run: renderAll,
+  };
 }

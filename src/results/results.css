@@ -79,7 +79,10 @@ body {
 }
 
 body {
-  font: 15px/1.75 'Vazirmatn', system-ui, sans-serif;
+  font:
+    15px/1.75 'Vazirmatn',
+    system-ui,
+    sans-serif;
   color: var(--ink);
   background: var(--paper);
 }
@@ -911,12 +914,7 @@ article.bk-parcel {
 .bk-skeleton-bar {
   height: 14px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    var(--line) 25%,
-    var(--paper) 50%,
-    var(--line) 75%
-  );
+  background: linear-gradient(90deg, var(--line) 25%, var(--paper) 50%, var(--line) 75%);
   background-size: 200% 100%;
   animation: bk-shimmer 1.2s linear infinite;
   margin-block-end: 12px;
@@ -925,12 +923,7 @@ article.bk-parcel {
 .bk-skeleton-parcel {
   height: 140px;
   border-radius: var(--radius-parcel);
-  background: linear-gradient(
-    90deg,
-    var(--line) 25%,
-    var(--paper) 50%,
-    var(--line) 75%
-  );
+  background: linear-gradient(90deg, var(--line) 25%, var(--paper) 50%, var(--line) 75%);
   background-size: 200% 100%;
   animation: bk-shimmer 1.2s linear infinite;
   margin-block-end: 16px;

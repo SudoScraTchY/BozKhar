@@ -39,11 +39,7 @@ export function formatNumber(value: number, lang: FormatLang): string {
  * convention). The unit follows the site's setting, supplied by
  * the caller — the formatter never hard-codes it.
  */
-export function formatMoney(
-  value: number,
-  lang: FormatLang,
-  unit: CurrencyUnit,
-): string {
+export function formatMoney(value: number, lang: FormatLang, unit: CurrencyUnit): string {
   return `${formatNumber(value, lang)} ${UNIT_LABEL[lang][unit]}`;
 }
 
@@ -88,11 +84,7 @@ function relativeTimeFormat(lang: FormatLang): Intl.RelativeTimeFormat {
  * `iso` is a capturedAt timestamp; the raw string never reaches
  * the UI.
  */
-export function relativeTime(
-  iso: string,
-  lang: FormatLang,
-  nowMs = Date.now(),
-): string {
+export function relativeTime(iso: string, lang: FormatLang, nowMs = Date.now()): string {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return '';
   const deltaSeconds = Math.round((then - nowMs) / 1000);
@@ -106,8 +98,7 @@ const dtfCache = new Map<string, Intl.DateTimeFormat>();
 function dateTimeFormat(lang: FormatLang): Intl.DateTimeFormat {
   // fa: Jalali calendar, Tehran time zone. en: Gregorian, same
   // zone, so the tooltip always means the same instant.
-  const tag =
-    lang === 'fa' ? 'fa-IR-u-ca-persian' : 'en-GB';
+  const tag = lang === 'fa' ? 'fa-IR-u-ca-persian' : 'en-GB';
   let fmt = dtfCache.get(tag);
   if (!fmt) {
     fmt = new Intl.DateTimeFormat(tag, {
@@ -124,10 +115,7 @@ function dateTimeFormat(lang: FormatLang): Intl.DateTimeFormat {
  * Absolute date for tooltips: Jalali in fa
  * ("۱۴۰۵ مهر ۱۸, شنبه ساعت ۱۳:۳۰"), never ISO.
  */
-export function absoluteDateTime(
-  iso: string,
-  lang: FormatLang,
-): string {
+export function absoluteDateTime(iso: string, lang: FormatLang): string {
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return '';
   return dateTimeFormat(lang).format(new Date(then));
