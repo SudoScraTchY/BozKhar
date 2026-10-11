@@ -498,3 +498,74 @@ smoke profile's anti-bot cooldown.
 `src/results/cart-transport.ts`,
 `src/results/assemble.ts`, this commit's test runs
 (232/232).
+
+## D-29 — Live E2E investigation + offline redesign E2E (2026-10-11)
+
+**Goal.** Close the brief's section-11 E2E
+gaps on the live site.
+
+**Findings (all verified by direct probes):**
+
+1. **The storefront tarpits browsers.** From
+   this host, any browser (the old pw
+   chromium-1181, the user's real Chrome 155,
+   Tor-routed Chrome, h2-disabled Chrome)
+   stalls on `www.digikala.com` while `curl`
+   (HTTP/1.1) gets 200 in ~60 ms. `api.digikala.com`
+   answers browsers fine (a navigation returns
+   the JSON 401 in seconds) — the tarpit is
+   www-only, at the TLS/transport layer.
+2. **DNS is partly dead.** `www.digikala.com`
+   returns four A-records; three
+   (185.38.109.202/203/204) refuse connections
+   from this host, one (185.188.105.10) serves.
+   Browsers pick the dead ones; `--host-resolver-rules`
+   pinning works but does not lift the tarpit.
+3. **The smoke profile's session expired**
+   (401 body: «لطفا وارد حساب کاربری‌تان شوید»).
+   The tokens are still in the cookie jar but
+   no longer authenticate; refresh needs a www
+   page load (tarpitted) or a login (user
+   credentials).
+4. **The shared smoke profile was upgraded**
+   by Chrome 155 and the old pw chromium can
+   no longer launch with it — the E2E now uses
+   a fresh profile (`e2e-profile`) seeded
+   directly into the extension's IndexedDB.
+5. **Chrome 155 ignores `--load-extension`**
+   even with `--disable-extensions-except`
+   and the developer-mode pref set (the old
+   chromium still loads unpacked extensions —
+   that is what the E2E uses).
+
+**Decision.** The redesign's E2E runs offline:
+`e2e/e2e-settled-bill.py` renders the unpacked
+dist in real Chromium with the real capture
+(12 items / 1336 snapshots from the last live
+crawl, `idb-dump.json`) seeded into the
+extension's own IDB, and asserts the section-11
+invariants: Persian digits in all UI figures,
+no ISO strings, currency unit, staleness
+disclosed, parcels carrying shipping. All six
+checks pass (screenshot:
+`.openclaw/tmp/e2e-settled-bill.png`). The
+capture is estimate-mode (one current-offer
+fee is genuinely unknown), so the honest
+range shows and the hero/Apply correctly stay
+hidden (SDD 08) — the hero/ledger/action-bar
+agreement is covered by the unit tests on
+known-fee fixtures.
+
+**Consequences.** The live apply E2E (a real
+cart write) is blocked on two environment
+facts, not code: a fresh login (user action)
+and a network path where the storefront does
+not tarpit the browser. The mutation contract
+itself was discovered read-only from the
+site's own bundles (D-28) and the pipeline is
+covered by 7 mock-transport tests.
+
+**Evidence.** `e2e/e2e-settled-bill.py`
+(6/6 PASS), the probe scripts in
+`.openclaw/tmp/probe_*.py`, the 401 body
+quote above.
