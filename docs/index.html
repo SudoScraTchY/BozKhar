@@ -79,17 +79,17 @@
 
       <!-- Quick Trust Indicators -->
       <div class="trust-grid">
-        <div class="trust-card">
+        <div class="trust-card reveal">
           <div class="trust-icon">🛡️</div>
           <div class="trust-title">فقط مشاوره (Advise-Only)</div>
           <div class="trust-detail">هیچ تغییری در سبد اعمال نمی‌شود؛ شما فرمانده خریدید.</div>
         </div>
-        <div class="trust-card">
+        <div class="trust-card reveal">
           <div class="trust-icon">🔒</div>
           <div class="trust-title">۱۰۰٪ آفلاین و محلی</div>
           <div class="trust-detail">بدون ارسال داده، بدون ساخت اکانت و ذخیره امن در مرورگر.</div>
         </div>
-        <div class="trust-card">
+        <div class="trust-card reveal">
           <div class="trust-icon">💰</div>
           <div class="trust-title">کاملاً رایگان</div>
           <div class="trust-detail">بدون پلن اشتراکی، بدون پرداخت و بدون محدودیت استفاده.</div>
@@ -162,10 +162,15 @@
           <!-- Mid Action Button -->
           <div class="sim-action-center">
             <button id="optimizeBtn" class="btn btn-magic" aria-label="اجرای الگوریتم بهینه‌سازی">
-              <span class="btn-sparkle">✨</span>
+              <span class="btn-spinner" id="btnSpinner" aria-hidden="true"></span>
+              <span class="btn-sparkle" id="btnSparkle">✨</span>
               <span class="btn-text">بزخری کن!</span>
               <span class="btn-subtext">اجرای الگوریتم تجمیع</span>
             </button>
+            <div class="sim-status" id="simStatus">
+              <span class="sim-status-dot"></span>
+              <span class="sim-status-text" id="simStatusText">آماده برای بهینه‌سازی</span>
+            </div>
             <div class="action-arrow">⬇️</div>
           </div>
 
@@ -228,7 +233,7 @@
       </div>
 
       <div class="features-grid">
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">🧮</div>
           <h3 class="feature-title">حل دقیق چندفروشندگی (Exact Solver)</h3>
           <p class="feature-desc">
@@ -236,7 +241,7 @@
           </p>
         </div>
 
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">🎁</div>
           <h3 class="feature-title">کشف پروموشن‌های مخفی و آستانه‌ها</h3>
           <p class="feature-desc">
@@ -244,7 +249,7 @@
           </p>
         </div>
 
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">🎯</div>
           <h3 class="feature-title">پیشنهاد هوشمند «یک قلم تا ارسال رایگان»</h3>
           <p class="feature-desc">
@@ -252,7 +257,7 @@
           </p>
         </div>
 
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">📦</div>
           <h3 class="feature-title">پشتیبانی از کالاهای سنگین و حجیم</h3>
           <p class="feature-desc">
@@ -260,7 +265,7 @@
           </p>
         </div>
 
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">📌</div>
           <h3 class="feature-title">قفل یا تحریم فروشنده (Pin / Ban)</h3>
           <p class="feature-desc">
@@ -268,7 +273,7 @@
           </p>
         </div>
 
-        <div class="feature-item">
+        <div class="feature-item reveal">
           <div class="feature-icon">⏱️</div>
           <h3 class="feature-title">شفافیت سن قیمت‌ها</h3>
           <p class="feature-desc">
@@ -292,25 +297,25 @@
         </div>
 
         <div class="privacy-grid">
-          <div class="privacy-card">
+          <div class="privacy-card reveal">
             <div class="p-icon">🚫</div>
             <h4>هیچ سروری وجود ندارد</h4>
             <p>تمام اطلاعات کالاها، قیمت‌ها و سبد خرید صرفاً درون پایگاه داده محلی مرورگر شما (IndexedDB) نگهداری می‌شود و به هیچ سرور خارجی ارسال نمی‌گردد.</p>
           </div>
 
-          <div class="privacy-card">
+          <div class="privacy-card reveal">
             <div class="p-icon">✋</div>
             <h4>هرگز سبد شما را لمس نمی‌کند</h4>
             <p>معماری افزونه به صورت Advise-Only است؛ هیچ دکمه خریدی خودکار زده نمی‌شود و هیچ تغییری بدون تأیید و کلیک مستقیم خود شما روی دیجی‌کالا اعمال نخواهد شد.</p>
           </div>
 
-          <div class="privacy-card">
+          <div class="privacy-card reveal">
             <div class="p-icon">🐢</div>
             <h4>خزش مؤدبانه (Polite Crawling)</h4>
             <p>ارتباط با دیجی‌کالا منحصراً با درخواست‌های ترتیبی و با وقفه انسانی (حداقل ۱.۵ ثانیه) انجام می‌شود تا بار ترافیکی نامتعارف به سایت تحمیل نشود.</p>
           </div>
 
-          <div class="privacy-card">
+          <div class="privacy-card reveal">
             <div class="p-icon">🔓</div>
             <h4>کد منبع کاملاً باز و بازرسی‌پذیر</h4>
             <p>سورس کد کامل با تست‌های خودکار در گیت‌هاب عمومی است. هر کسی می‌تواند خط به خط رفتار امنیتی و محاسباتی کد را ارزیابی کند.</p>
@@ -341,7 +346,7 @@
         <!-- User Tab -->
         <div id="tab-user" class="tab-content active" role="tabpanel">
           <div class="steps-grid">
-            <div class="step-card">
+            <div class="step-card reveal">
               <div class="step-num">۱</div>
               <h4 class="step-title">دانلود فایل افزونه</h4>
               <p class="step-desc">
@@ -352,7 +357,7 @@
               </a>
             </div>
 
-            <div class="step-card">
+            <div class="step-card reveal">
               <div class="step-num">۲</div>
               <h4 class="step-title">ورود به مدیریت افزونه‌ها</h4>
               <p class="step-desc">
@@ -364,7 +369,7 @@
               </div>
             </div>
 
-            <div class="step-card">
+            <div class="step-card reveal">
               <div class="step-num">۳</div>
               <h4 class="step-title">فعال‌سازی Developer Mode</h4>
               <p class="step-desc">
@@ -372,7 +377,7 @@
               </p>
             </div>
 
-            <div class="step-card">
+            <div class="step-card reveal">
               <div class="step-num">۴</div>
               <h4 class="step-title">بارگذاری افزونه</h4>
               <p class="step-desc">
@@ -506,7 +511,7 @@ npm run build">کپی همه</button>
       </div>
     </div>
     <div class="container footer-copy">
-      <span>توسعه‌داده‌شده برای جامعه متن‌باز فارسی زبان • پاییز ۱۴۰۳</span>
+      <span>توسعه‌داده‌شده برای جامعه متن‌باز فارسی زبان • پاییز ۱۴۰۵</span>
     </div>
   </footer>
 

@@ -1,10 +1,13 @@
 /**
  * BozKhar (بزخر) Landing Page Logic
  * Features:
- * - Interactive Cart Solver Simulation
+ * - Interactive Cart Solver Simulation with multi-step realistic solving motion
+ * - Number ticker / count-up animation
  * - Digikala Plus toggle reactive re-calculation
+ * - Staggered card entry animations
  * - Tab switching for installation guides
  * - Copy to clipboard with toast notification
+ * - IntersectionObserver scroll reveal
  */
 
 (function () {
@@ -12,11 +15,38 @@
 
   // Helper to convert English digits to Persian digits with thousands separator
   function formatToman(num) {
-    var str = num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
+    var str = Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '٬');
     var persianDigits = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
     return str.replace(/\d/g, function (d) {
       return persianDigits[d];
     }) + ' تومان';
+  }
+
+  // Number Ticker / Counter Animation
+  function animateValue(element, start, end, duration) {
+    if (!element) return;
+    var startTime = null;
+    element.classList.add('updating');
+
+    function step(timestamp) {
+      if (!startTime) startTime = timestamp;
+      var progress = Math.min((timestamp - startTime) / duration, 1);
+      // Ease out cubic
+      var easeProgress = 1 - Math.pow(1 - progress, 3);
+      var currentVal = Math.floor(start + (end - start) * easeProgress);
+      element.textContent = formatToman(currentVal);
+
+      if (progress < 1) {
+        window.requestAnimationFrame(step);
+      } else {
+        element.textContent = formatToman(end);
+        setTimeout(function () {
+          element.classList.remove('updating');
+        }, 300);
+      }
+    }
+
+    window.requestAnimationFrame(step);
   }
 
   // Cart Data Sets
@@ -69,15 +99,20 @@
   var optGrandTotalEl = document.getElementById('optGrandTotal');
   var optShipBadge = document.getElementById('optShipBadge');
   var savingAmountEl = document.getElementById('savingAmount');
+  var savingBanner = document.getElementById('savingBanner');
   var simHintText = document.querySelector('.sim-hint-card .hint-text');
 
-  var isOptimizedState = false;
+  var simStatus = document.getElementById('simStatus');
+  var simStatusText = document.getElementById('simStatusText');
+  var optCol = document.getElementById('optimizedCol');
 
-  function renderList(container, items, isOptimized) {
+  var isSolving = false;
+
+  function renderList(container, items, isOptimized, withAnimation) {
     container.innerHTML = '';
-    items.forEach(function (item) {
+    items.forEach(function (item, index) {
       var card = document.createElement('div');
-      card.className = 'cart-item-card' + (isOptimized ? ' card-opt' : '');
+      card.className = 'cart-item-card' + (isOptimized ? ' card-opt' : '') + (withAnimation ? ' animate-in' : '');
 
       var mainCol = document.createElement('div');
       mainCol.className = 'item-main';
@@ -119,7 +154,7 @@
     });
   }
 
-  function updateSimulator() {
+  function updateSimulator(withSolveAnimation) {
     var data = plusToggle.checked ? plusCart : standardCart;
 
     // Calculate Unoptimized
@@ -129,55 +164,107 @@
 
     // Calculate Optimized
     var optItemsSum = data.optimized.reduce(function (sum, i) { return sum + i.price; }, 0);
-    // Unique vendor shipping in optimized:
     var optShipSum = data.optimized.reduce(function (sum, i) { return sum + (i.isFree ? 0 : i.shipFee); }, 0);
     var optGrand = optItemsSum + optShipSum;
     var netSavings = rawGrand - optGrand;
 
-    renderList(unoptimizedItemsContainer, data.unoptimized, false);
-    renderList(optimizedItemsContainer, data.optimized, true);
+    renderList(unoptimizedItemsContainer, data.unoptimized, false, false);
+
+    if (withSolveAnimation) {
+      renderList(optimizedItemsContainer, data.optimized, true, true);
+      animateValue(optItemsTotalEl, rawItemsSum, optItemsSum, 700);
+      animateValue(optShipTotalEl, rawShipSum, optShipSum, 700);
+      animateValue(optGrandTotalEl, rawGrand, optGrand, 800);
+      animateValue(savingAmountEl, 0, netSavings, 900);
+
+      if (savingBanner) {
+        savingBanner.classList.remove('pop');
+        void savingBanner.offsetWidth; // trigger reflow
+        savingBanner.classList.add('pop');
+      }
+    } else {
+      renderList(optimizedItemsContainer, data.optimized, true, false);
+      optItemsTotalEl.textContent = formatToman(optItemsSum);
+      optShipTotalEl.textContent = formatToman(optShipSum);
+      optGrandTotalEl.textContent = formatToman(optGrand);
+      savingAmountEl.textContent = formatToman(netSavings);
+    }
 
     rawItemsTotalEl.textContent = formatToman(rawItemsSum);
     rawShipTotalEl.textContent = formatToman(rawShipSum);
     rawGrandTotalEl.textContent = formatToman(rawGrand);
 
-    optItemsTotalEl.textContent = formatToman(optItemsSum);
-    optShipTotalEl.textContent = formatToman(optShipSum);
-    optGrandTotalEl.textContent = formatToman(optGrand);
     optShipBadge.textContent = data.badgeOpt;
-    savingAmountEl.textContent = formatToman(netSavings);
 
     if (simHintText) {
       simHintText.innerHTML = '<strong>نکته هوشمند:</strong> ' + data.hintText;
     }
   }
 
-  // Handle Optimize Button Click
+  // Handle Optimize Button Click with realistic multi-step solver motion
   if (optimizeBtn) {
     optimizeBtn.addEventListener('click', function () {
-      var optCol = document.getElementById('optimizedCol');
-      optimizeBtn.style.transform = 'scale(0.95)';
-      optimizeBtn.querySelector('.btn-text').textContent = 'در حال حل دقیق...';
+      if (isSolving) return;
+      isSolving = true;
 
+      optimizeBtn.classList.add('is-loading');
+      if (simStatus) {
+        simStatus.className = 'sim-status solving';
+      }
+      if (optCol) {
+        optCol.classList.add('is-solving');
+      }
+
+      // Step 1: Extract vendor items
+      if (simStatusText) {
+        simStatusText.textContent = 'استخراج موجودی و بهای غرفه‌ها...';
+      }
+
+      // Step 2: Analyze promo thresholds
       setTimeout(function () {
-        optimizeBtn.style.transform = '';
-        optimizeBtn.querySelector('.btn-text').textContent = 'بزخری شد!';
-        
-        optCol.style.boxShadow = '0 0 25px rgba(6, 122, 107, 0.45)';
-        optCol.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        if (simStatusText) {
+          simStatusText.textContent = 'تحلیل سقف‌های ارسال رایگان و تخفیف‌ها...';
+        }
+      }, 420);
 
-        setTimeout(function () {
-          optCol.style.boxShadow = '';
-          optimizeBtn.querySelector('.btn-text').textContent = 'بزخری کن!';
-        }, 1500);
-      }, 400);
+      // Step 3: Exact solver computation
+      setTimeout(function () {
+        if (simStatusText) {
+          simStatusText.textContent = 'محاسبه ارزان‌ترین ترکیب با حل‌کننده دقیق...';
+        }
+      }, 840);
+
+      // Step 4: Solution found!
+      setTimeout(function () {
+        optimizeBtn.classList.remove('is-loading');
+        if (optCol) {
+          optCol.classList.remove('is-solving');
+        }
+
+        if (simStatus) {
+          simStatus.className = 'sim-status done';
+        }
+        if (simStatusText) {
+          simStatusText.textContent = '✓ بهترین ترکیب با کمترین هزینه کشف شد!';
+        }
+
+        updateSimulator(true);
+
+        isSolving = false;
+      }, 1250);
     });
   }
 
   // Handle Plus Toggle
   if (plusToggle) {
     plusToggle.addEventListener('change', function () {
-      updateSimulator();
+      if (simStatus) {
+        simStatus.className = 'sim-status';
+      }
+      if (simStatusText) {
+        simStatusText.textContent = plusToggle.checked ? 'مدل اختصاصی دیجی‌پلاس فعال شد' : 'مدل عادی دیجی‌کالا فعال شد';
+      }
+      updateSimulator(true);
     });
   }
 
@@ -222,8 +309,10 @@
         navigator.clipboard.writeText(textToCopy).then(function () {
           var originalText = btn.textContent;
           btn.textContent = '✓ کپی شد';
+          btn.style.transform = 'scale(0.95)';
           showToast('در حافظه کلیپ‌بورد کپی شد');
           setTimeout(function () {
+            btn.style.transform = '';
             btn.textContent = originalText;
           }, 2000);
         }).catch(function () {
@@ -233,7 +322,31 @@
     });
   });
 
+  // IntersectionObserver for Reveal on Scroll
+  if ('IntersectionObserver' in window) {
+    var revealObserver = new IntersectionObserver(function (entries, observer) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('revealed');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, {
+      rootMargin: '0px 0px -50px 0px',
+      threshold: 0.12
+    });
+
+    document.querySelectorAll('.reveal').forEach(function (el) {
+      revealObserver.observe(el);
+    });
+  } else {
+    // Fallback for older browsers
+    document.querySelectorAll('.reveal').forEach(function (el) {
+      el.classList.add('revealed');
+    });
+  }
+
   // Initial simulator render
-  updateSimulator();
+  updateSimulator(false);
 
 })();
