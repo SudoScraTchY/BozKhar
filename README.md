@@ -1,6 +1,6 @@
 # بز خر — Boz Khar
 
-**بزخر** (boz khar — literally "goat donkey") is Persian slang for someone who
+**بزخر** (boz khar — literally "goat buyer") is Persian slang for someone who
 hunts bargains relentlessly: a person who buys things **very cheap**. That is
 exactly what this tool does for you on [Digikala](https://www.digikala.com).
 
