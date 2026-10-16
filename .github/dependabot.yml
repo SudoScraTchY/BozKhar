@@ -29,7 +29,20 @@ updates:
         patterns: ['*']
         update-types: ['minor', 'patch']
     ignore:
+      # Peer-locked pairs cannot take a solo major. @vitest/coverage-v8 peers
+      # the EXACT vitest version and typescript-eslint peers
+      # `typescript <6.1.0`, so a solo bump installs nothing: on 2026-10-16
+      # coverage-v8 5.0.3 beside vitest 3.2.7 failed `npm ci` for the whole
+      # tree, and because a pull_request run tests the merge with its base,
+      # that one merge turned every later PR red too. These move together, by
+      # hand. Everything else (vite, eslint, @types/node, jsdom) keeps
+      # arriving as its own PR, where CI prices the migration: @crxjs/vite-plugin
+      # already declares vite ^8 and typescript-eslint already accepts eslint ^10.
       - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      - dependency-name: vitest
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@vitest/coverage-v8'
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
