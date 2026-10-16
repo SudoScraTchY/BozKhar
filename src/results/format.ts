@@ -40,7 +40,21 @@ export function formatNumber(value: number, lang: FormatLang): string {
  * the caller — the formatter never hard-codes it.
  */
 export function formatMoney(value: number, lang: FormatLang, unit: CurrencyUnit): string {
-  return `${formatNumber(value, lang)} ${UNIT_LABEL[lang][unit]}`;
+  const { amount, unit: label } = formatMoneyParts(value, lang, unit);
+  return `${amount} ${label}`;
+}
+
+/**
+ * Money as two parts so the UI can render the digits LTR-isolated and
+ * the unit as its own (muted) node. A single string inside a dir="ltr"
+ * span puts the unit on the wrong side of the number in RTL.
+ */
+export function formatMoneyParts(
+  value: number,
+  lang: FormatLang,
+  unit: CurrencyUnit,
+): { amount: string; unit: string } {
+  return { amount: formatNumber(value, lang), unit: UNIT_LABEL[lang][unit] };
 }
 
 /** Percent: Persian digits + '٪' (isolated from bidi reordering). */
@@ -88,8 +102,20 @@ export function relativeTime(iso: string, lang: FormatLang, nowMs = Date.now()):
   const then = Date.parse(iso);
   if (Number.isNaN(then)) return '';
   const deltaSeconds = Math.round((then - nowMs) / 1000);
-  const unit = relativeUnit(Math.abs(deltaSeconds));
-  const value = Math.round(deltaSeconds / UNIT_SECONDS[unit]);
+  let unit = relativeUnit(Math.abs(deltaSeconds));
+  let value = Math.round(deltaSeconds / UNIT_SECONDS[unit]);
+  // Rounding can land on the next unit's boundary ("60 minutes ago").
+  const next: Partial<Record<RtuUnit, [RtuUnit, number]>> = {
+    second: ['minute', 60],
+    minute: ['hour', 60],
+    hour: ['day', 24],
+    day: ['month', 30],
+  };
+  const bump = next[unit];
+  if (bump && Math.abs(value) >= bump[1]) {
+    unit = bump[0];
+    value = Math.round(deltaSeconds / UNIT_SECONDS[unit]);
+  }
   return relativeTimeFormat(lang).format(value, unit);
 }
 

@@ -36,16 +36,23 @@ import type {
 } from '../shared/types';
 import { DEFAULT_SETTINGS } from '../shared/types';
 import { buildSolverInput, itemKeyOf } from './assemble';
-import type { ApplyProgress, ApplyResult, PreflightResult } from './apply';
+import type { ApplyProgress, ApplyResult, CartTransport, PreflightResult } from './apply';
 import { createCartApplier } from './apply';
 import { cartTransport } from './cart-transport';
-import { absoluteDateTime, formatMoney, relativeTime } from './format';
+import { absoluteDateTime, formatMoney, formatPercent, relativeTime } from './format';
+import {
+  FORMAT_LABEL,
+  downloadFile,
+  lineIds,
+  lineUrl,
+  planCsv,
+  planRows,
+  planXlsx,
+  type ExportFormat,
+} from './export';
 import { getCartSnapshot, putCartSnapshot } from '../shared/storage/db';
 
 type Lang = UiLanguage;
-
-/** Staleness threshold (open decision 10.4): 30 minutes. */
-const STALE_THRESHOLD_MIN = 30;
 
 /** The model's currency is Toman (SDD 08). */
 const CURRENCY_UNIT = 'toman' as const;
@@ -55,6 +62,21 @@ const REASON_KEYS: Record<UnsolvedReason, MessageKey> = {
   'all-offers-out-of-stock': 'reasonOutOfStock',
   'pinned-vendor-unavailable': 'reasonPinnedUnavailable',
 };
+
+/** Why an apply step failed, in the sheet's terms (D-30). */
+type ApplyErrorKind = 'auth' | 'no-tab' | 'other';
+
+/**
+ * A failed apply step is never silent (D-30). 401/403 means the
+ * session is gone; NO_TAB means there is no digikala tab to run the
+ * cart call in; everything else is a generic failure.
+ */
+function classifyApplyError(err: unknown): ApplyErrorKind {
+  const shaped = err as { status?: unknown; code?: unknown } | null;
+  if (shaped?.status === 401 || shaped?.status === 403) return 'auth';
+  if (shaped?.code === 'NO_TAB') return 'no-tab';
+  return 'other';
+}
 
 // ---------------------------------------------------------------------------
 // DOM helpers
@@ -201,6 +223,12 @@ export interface ReportPageDeps {
   putItem(item: ComparisonItem): Promise<void>;
   loadSettings(): Promise<Settings>;
   saveSettings?(settings: Settings): Promise<void>;
+  /**
+   * The cart transport the apply flow runs on (D-30). Defaults to the
+   * live one, which proxies the cart calls through the service worker;
+   * tests inject a fake (jsdom has no chrome APIs).
+   */
+  transport?: CartTransport;
 }
 
 export function createReportPage(deps: ReportPageDeps): {
@@ -265,11 +293,15 @@ export function createReportPage(deps: ReportPageDeps): {
 
   async function togglePlus(): Promise<void> {
     const next = !(state.plusOverride ?? state.settings.hasPlus);
+    // In-memory state is updated before any await: a
+    // concurrent read-back of settings (IndexedDB/
+    // chrome.storage are async) can never win the race
+    // and revert the switch the user just flipped.
     state.plusOverride = next;
+    state.settings.hasPlus = next;
     if (deps.saveSettings) {
       await deps.saveSettings({ ...state.settings, hasPlus: next });
     }
-    state.settings.hasPlus = next;
     scheduleResolve();
   }
 
@@ -335,7 +367,7 @@ export function createReportPage(deps: ReportPageDeps): {
     }
 
     // ---- header ----
-    page.append(renderHeader(lang));
+    page.append(renderHeader(lang, plan));
 
     const savings = plan.comparison?.savings ?? 0;
     const currentTotal = plan.comparison?.currentCartTotal ?? 0;
@@ -344,11 +376,17 @@ export function createReportPage(deps: ReportPageDeps): {
     // ---- hero (only when the plan saves) ----
     if (hasSavings) {
       page.append(renderHero(lang, plan, savings, currentTotal, rawHints));
-      page.append(renderPlusRow(lang, plan));
     } else {
       // Already optimal: no bar, no Apply (brief §4).
       page.append(renderOptimal(lang, plan));
     }
+
+    // The Plus switch is a control, not a saving: it stays visible in
+    // every state, so a Plus subscriber can always turn it on and see
+    // what it changes (the solve re-runs either way).
+    page.append(renderPlusRow(lang, plan));
+    // Tolerance next to it: the two settings the plan's shape depends on.
+    page.append(renderToleranceRow(lang));
 
     // ---- notices ----
     const notices = renderNotices(lang, plan);
@@ -380,7 +418,20 @@ export function createReportPage(deps: ReportPageDeps): {
     const unsolved = renderUnsolved(lang, plan);
     if (unsolved) page.append(unsolved);
 
-    // ---- sticky action bar ----
+    if (hasSavings) {
+      const copyRow = el('div', 'bk-copy-row');
+      const header = el('div', 'bk-copy-label');
+      header.textContent = t(lang, 'copyLabel');
+      copyRow.append(header);
+      const list = el('div', 'bk-copy-list');
+      for (const format of ['markdown', 'text', 'pretty'] as const) {
+        list.append(renderCopyButton(lang, plan, format));
+      }
+      copyRow.append(list);
+      page.append(copyRow);
+    }
+
+    // ---- sticky action bar ---
     if (hasSavings) {
       page.append(renderActionBar(lang, plan));
     }
@@ -402,39 +453,112 @@ export function createReportPage(deps: ReportPageDeps): {
     return block;
   }
 
-  function renderHeader(lang: Lang): HTMLElement {
+  function renderHeader(lang: Lang, plan: Plan): HTMLElement {
     const header = el('header', 'bk-header');
+    // The brand mark is the whole 3D badge at 96px (the 256px asset, so
+    // it stays crisp on a 2x display) - the top of the page is where the
+    // tool gets to look like itself.
+    const mark = el('img', 'bk-brand-icon');
+    mark.src = '/icons/logo-256.png';
+    mark.alt = '';
+    mark.width = 96;
+    mark.height = 96;
+    const text = el('div', 'bk-header-text');
     const brand = el('span', 'bk-wordmark');
     brand.textContent = t(lang, 'wordmark');
     const label = el('span', 'bk-header-label');
     label.textContent = t(lang, 'headerLabel');
-    header.append(brand, label);
+    text.append(brand, label);
+    header.append(mark, text, renderExportMenu(plan));
+    return header;
+  }
 
-    const menuBtn = el('button', 'bk-menu');
-    menuBtn.type = 'button';
-    menuBtn.setAttribute('aria-haspopup', 'menu');
-    menuBtn.setAttribute('aria-expanded', 'false');
-    menuBtn.setAttribute('aria-label', t(lang, 'headerLabel'));
-    menuBtn.innerHTML = iconSvg('chevron');
+  /**
+   * Everything that leaves the page: PDF, CSV, Excel, pretty text,
+   * Markdown, plain text.
+   *
+   * The menu is labelled in English in both UI languages (FORMAT_LABEL):
+   * these are file formats, not UI copy, and an exported file is read by
+   * whoever it is sent to.
+   */
+  function renderExportMenu(plan: Plan): HTMLElement {
+    const wrap = el('div', 'bk-export');
+    const btn = el('button', 'bk-menu');
+    btn.type = 'button';
+    btn.setAttribute('aria-haspopup', 'menu');
+    btn.setAttribute('aria-expanded', 'false');
+    const word = el('span', 'bk-menu-word');
+    word.textContent = 'Export';
+    btn.append(word);
+    btn.insertAdjacentHTML('beforeend', iconSvg('chevron'));
+
     const popover = el('div', 'bk-menu-popover');
     popover.setAttribute('role', 'menu');
-    const pdfItem = el('button', 'bk-menu-item');
-    pdfItem.type = 'button';
-    pdfItem.setAttribute('role', 'menuitem');
-    pdfItem.textContent = t(lang, 'menuSavePdf');
-    pdfItem.addEventListener('click', () => {
-      // "Save as PDF": the print dialog's Save-as-PDF is the
-      // no-dependency path, and the print stylesheet (§6)
-      // makes it clean.
-      window.print();
-    });
-    popover.append(pdfItem);
-    menuBtn.addEventListener('click', () => {
+
+    const close = (): void => {
+      popover.classList.remove('is-open');
+      btn.setAttribute('aria-expanded', 'false');
+      document.removeEventListener('click', onDocClick);
+    };
+    const onDocClick = (e: MouseEvent): void => {
+      if (!wrap.contains(e.target as Node)) close();
+    };
+
+    const actions: Array<[ExportFormat, () => void]> = [
+      // "Save as PDF" stays the print dialog's Save-as-PDF: the print
+      // stylesheet (§6) makes it clean, and it needs no dependency.
+      ['pdf', () => window.print()],
+      ['csv', () => runExport('csv', plan)],
+      ['xlsx', () => runExport('xlsx', plan)],
+      ['pretty', () => runExport('pretty', plan)],
+      ['markdown', () => runExport('markdown', plan)],
+      ['text', () => runExport('text', plan)],
+    ];
+    for (const [format, run] of actions) {
+      const item = el('button', 'bk-menu-item');
+      item.type = 'button';
+      item.setAttribute('role', 'menuitem');
+      item.textContent = FORMAT_LABEL[format];
+      item.addEventListener('click', () => {
+        close();
+        run();
+      });
+      popover.append(item);
+    }
+
+    btn.addEventListener('click', () => {
       const open = popover.classList.toggle('is-open');
-      menuBtn.setAttribute('aria-expanded', String(open));
+      btn.setAttribute('aria-expanded', String(open));
+      // The click-away listener only lives while the menu is open, so
+      // re-rendering the page never piles more listeners onto document.
+      if (open) document.addEventListener('click', onDocClick);
+      else document.removeEventListener('click', onDocClick);
     });
-    header.append(menuBtn, popover);
-    return header;
+    wrap.append(btn, popover);
+    return wrap;
+  }
+
+  /** Write the plan to a file. The text formats reuse the copy text. */
+  function runExport(format: Exclude<ExportFormat, 'pdf'>, plan: Plan): void {
+    const stamp = new Date().toISOString().slice(0, 10);
+    const name = `bozkhar-plan-${stamp}`;
+    if (format === 'csv') {
+      downloadFile(`${name}.csv`, 'text/csv;charset=utf-8', planCsv(planRows(plan)));
+      return;
+    }
+    if (format === 'xlsx') {
+      downloadFile(
+        `${name}.xlsx`,
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        planXlsx('BozKhar plan', planRows(plan)),
+      );
+      return;
+    }
+    downloadFile(
+      `${name}.${format === 'markdown' ? 'md' : 'txt'}`,
+      format === 'markdown' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8',
+      buildCopyText(state.lang, plan, format),
+    );
   }
 
   function renderHero(
@@ -509,7 +633,11 @@ export function createReportPage(deps: ReportPageDeps): {
   function renderPlusRow(lang: Lang, plan: Plan): HTMLElement {
     const row = el('div', 'bk-plus-row');
     const id = 'bk-plus-switch';
-    const wrap = el('div', 'bk-switch');
+    // The switch IS a label wrapping the input: the visible track paints
+    // over the (invisible) input, so a bare div here would swallow every
+    // click on the switch and nothing would ever toggle.
+    const wrap = el('label', 'bk-switch');
+    wrap.htmlFor = id;
     const input = el('input') as HTMLInputElement;
     input.type = 'checkbox';
     input.id = id;
@@ -552,8 +680,64 @@ export function createReportPage(deps: ReportPageDeps): {
           x: money(delta, lang),
         });
         row.append(deltaNode);
+      } else {
+        // Say so explicitly: a switch that visibly does nothing
+        // reads as broken.
+        const noChange = el('div', 'bk-plus-note');
+        noChange.textContent = t(lang, 'plusNoChange');
+        row.append(noChange);
       }
     }
+    return row;
+  }
+
+  /**
+   * The hint tolerance (FR-14): how much more the cart total may cost for
+   * a suggestion to still be offered. Same setting the options page
+   * edits, so the two stay in step; moving it re-solves, so the hint set
+   * changes live.
+   */
+  function renderToleranceRow(lang: Lang): HTMLElement {
+    const row = el('div', 'bk-tolerance-row');
+    const id = 'bk-tolerance';
+    const label = el('label', 'bk-tolerance-label');
+    label.htmlFor = id;
+    label.textContent = t(lang, 'tolerancePercent');
+    const input = el('input', 'bk-tolerance-input') as HTMLInputElement;
+    input.type = 'range';
+    input.id = id;
+    input.min = '0';
+    input.max = '10';
+    input.step = '0.5';
+    input.value = String(state.settings.tolerancePercent);
+    const out = el('output', 'bk-tolerance-out bk-num');
+    out.setAttribute('for', id);
+    out.dir = 'ltr';
+    const paint = (): void => {
+      out.textContent = formatPercent(state.settings.tolerancePercent, lang);
+    };
+    paint();
+
+    // Re-rendering mid-drag would rebuild this control under the
+    // pointer, so the solve waits for the drag to settle.
+    let solveTimer: number | undefined;
+    input.addEventListener('input', () => {
+      state.settings.tolerancePercent = Number(input.value);
+      paint();
+      window.clearTimeout(solveTimer);
+      solveTimer = window.setTimeout(() => {
+        const refocus = document.activeElement === input;
+        void (async () => {
+          if (deps.saveSettings) await deps.saveSettings({ ...state.settings });
+          await renderAll();
+          if (refocus) document.querySelector<HTMLInputElement>(`#${id}`)?.focus();
+        })();
+      }, 250);
+    });
+
+    const hint = el('p', 'bk-control-hint');
+    hint.textContent = t(lang, 'toleranceHint');
+    row.append(label, input, out, hint);
     return row;
   }
 
@@ -561,25 +745,26 @@ export function createReportPage(deps: ReportPageDeps): {
     const wrap = el('div', 'bk-notices');
     let any = false;
 
-    // Staleness (D-27; threshold constant above, decision 10.4).
-    let staleCount = 0;
+    // Staleness (FR-04): the threshold is the user's setting, not a
+    // constant, so the banner appears exactly when the options page says
+    // prices have gone old.
+    const thresholdMs = state.settings.stalenessWarnHours * 60 * 60_000;
+    const stale: PlanLine[] = [];
     let oldest: string | null = null;
     for (const a of plan.assignments) {
       if (!a.capturedAt) continue;
-      const ageMs = Date.now() - Date.parse(a.capturedAt);
-      if (ageMs > STALE_THRESHOLD_MIN * 60_000) {
-        staleCount++;
-        if (!oldest || a.capturedAt < oldest) oldest = a.capturedAt;
-      }
+      if (Date.now() - Date.parse(a.capturedAt) <= thresholdMs) continue;
+      stale.push(a);
+      if (!oldest || a.capturedAt < oldest) oldest = a.capturedAt;
     }
-    if (staleCount > 0 && oldest) {
+    if (stale.length > 0 && oldest) {
       any = true;
       const notice = el('div', 'bk-notice bk-notice-caution');
       notice.append(iconSpan('clock', 'bk-notice-icon'));
       const body = el('div', 'bk-notice-body');
       const p = el('p');
       p.textContent = fill(lang, 'staleNotice', {
-        n: numText(lang, staleCount),
+        n: numText(lang, stale.length),
         ago: relativeTime(oldest, lang),
       });
       const action = el('button', 'bk-btn bk-btn-quiet');
@@ -587,27 +772,53 @@ export function createReportPage(deps: ReportPageDeps): {
       action.textContent = t(lang, 'staleAction');
       action.addEventListener('click', refreshPrices);
       body.append(p, action);
-      notice.append(body);
-      wrap.append(notice);
-    }
 
-    if (plan.mode === 'approximate') {
-      any = true;
-      const notice = el('div', 'bk-notice bk-notice-caution');
-      notice.append(iconSpan('alert', 'bk-notice-icon'));
-      const body = el('div', 'bk-notice-body');
-      const p = el('p');
-      p.textContent = t(lang, 'approxNotice');
-      const action = el('button', 'bk-btn bk-btn-quiet');
-      action.type = 'button';
-      action.textContent = t(lang, 'approxAction');
-      action.addEventListener('click', rerender);
-      body.append(p, action);
+      // …or re-capture just the line you are looking at, which is the
+      // cheaper answer and needs no crawl.
+      const list = el('ul', 'bk-stale-list');
+      for (const line of stale) {
+        const item = el('li', 'bk-stale-row');
+        const name = el('span', 'bk-stale-name');
+        name.textContent = line.title ?? line.itemKey;
+        const ago = el('span', 'bk-stale-ago');
+        ago.textContent = relativeTime(line.capturedAt ?? '', lang);
+        const refresh = el('button', 'bk-btn bk-btn-quiet bk-stale-refresh');
+        refresh.type = 'button';
+        refresh.textContent = t(lang, 'staleItemAction');
+        refresh.setAttribute('aria-label', `${t(lang, 'staleItemAction')} — ${name.textContent}`);
+        refresh.addEventListener('click', () => refreshLine(line));
+        item.append(name, ago, refresh);
+        list.append(item);
+      }
+      body.append(list);
       notice.append(body);
       wrap.append(notice);
     }
 
     return any ? wrap : null;
+  }
+
+  /**
+   * Re-capture one stale line (FR-04). `capture/pdp` fetches the product
+   * API for the variant the plan BUYS — the offer this line's price rests
+   * on — and appends a snapshot to the store the crawl writes to, so the
+   * re-solve below picks it up. Unlike the crawl this needs no tab: the
+   * product API answers any origin.
+   */
+  function refreshLine(line: PlanLine): void {
+    const { productId, variantId } = lineIds(line);
+    if (!variantId) return;
+    const done = globalThis.chrome?.runtime?.sendMessage({
+      kind: 'capture/pdp',
+      productId,
+      variantId,
+    }) as Promise<unknown> | undefined;
+    state.recomputing = true;
+    rerender();
+    void Promise.resolve(done).then(
+      () => renderAll(),
+      () => renderAll(),
+    );
   }
 
   function renderOptimal(lang: Lang, plan: Plan): HTMLElement {
@@ -1209,6 +1420,25 @@ export function createReportPage(deps: ReportPageDeps): {
     });
     card.append(p);
 
+    // The arithmetic, figure by figure (09-ui-spec Surface 3 §4): what
+    // one more unit costs, what it removes from delivery, and the net.
+    // A card that shows only the net asks to be taken on faith.
+    const math = el('dl', 'bk-hint-math');
+    const mathRow = (labelKey: MessageKey, amount: number): void => {
+      const item = el('div', 'bk-hint-math-row');
+      const term = el('dt', 'bk-hint-math-term');
+      term.textContent = t(lang, labelKey);
+      const value = el('dd', 'bk-hint-math-value bk-num');
+      value.dir = 'ltr';
+      value.textContent = money(amount, lang);
+      item.append(term, value);
+      math.append(item);
+    };
+    mathRow('hintMathFee', hint.feeRemoved);
+    mathRow('hintMathUnit', -hint.extraUnitCost);
+    mathRow('hintMathNet', hint.netEffect);
+    card.append(math);
+
     const outcome = el('div', 'bk-hint-outcome');
     if (hint.verdict === 'saving') {
       outcome.classList.add('bk-hint-saving');
@@ -1217,9 +1447,18 @@ export function createReportPage(deps: ReportPageDeps): {
       });
     } else {
       outcome.classList.add('bk-hint-more');
+      // "more" already carries the direction: a negative net would read
+      // as "only -1 toman more".
       outcome.textContent = fill(lang, 'hintMore', {
-        x: money(hint.netEffect, lang),
+        x: money(Math.abs(hint.netEffect), lang),
       });
+      // Why a suggestion that costs more is here at all: say so, with
+      // the tolerance it fits inside (D-10).
+      const tolerance = el('span', 'bk-hint-tolerance');
+      tolerance.textContent = fill(lang, 'hintTolerance', {
+        pct: numText(lang, state.settings.tolerancePercent),
+      });
+      outcome.append(' ', tolerance);
     }
     card.append(outcome);
 
@@ -1324,6 +1563,87 @@ export function createReportPage(deps: ReportPageDeps): {
     return wrap;
   }
 
+  /** Build the plan's text in the requested copy format. */
+  function buildCopyText(lang: Lang, plan: Plan, format: 'markdown' | 'text' | 'pretty'): string {
+    const summary = t(lang, 'copySummary');
+    const saving = t(lang, 'copySaving');
+    const payable = t(lang, 'ledgerPayable');
+    const fee = t(lang, 'copyShipment');
+    // Every line carries its product's Digikala page so a pasted
+    // plan is actionable. The link is always rebuilt from the
+    // product id and the CHOSEN variant, so a line the plan
+    // switched points at the variant it actually buys.
+    const blocks: string[] = [];
+    for (const group of plan.groups) {
+      const name = group.vendorName ?? group.vendorId;
+      const head = format === 'markdown' ? `## ${name}` : format === 'pretty' ? `▸ ${name}` : name;
+      const rows: string[] = [head];
+      for (const line of group.lines) {
+        const qty = numText(lang, line.quantity);
+        const label =
+          line.quantity > 1
+            ? `${line.title ?? line.itemKey} × ${qty}`
+            : (line.title ?? line.itemKey);
+        const price = format === 'text' ? '' : ` — ${money(line.lineTotal, lang)}`;
+        const url = lineUrl(line);
+        if (format === 'markdown') {
+          rows.push(`- ${url ? `[${label}](${url})` : label}${price}`);
+        } else if (format === 'pretty') {
+          rows.push(`  ✓ ${label}${price}`);
+          // The link sits on its own indented line so the
+          // title stays scannable.
+          if (url) rows.push(`      ${url}`);
+        } else {
+          rows.push(`  ${label}`);
+          if (url) rows.push(`    ${url}`);
+        }
+      }
+      const groupFee =
+        group.fee === null
+          ? t(lang, 'feeUnknown')
+          : group.fee === 0
+            ? t(lang, 'freeLabel')
+            : money(group.fee, lang);
+      const feeRow = format === 'markdown' ? `- ${fee}: ${groupFee}` : `${fee}: ${groupFee}`;
+      rows.push(feeRow);
+      rows.push(
+        format === 'markdown'
+          ? `- **${payable}**: ${money(group.subtotal + (group.fee ?? 0), lang)}`
+          : `${payable}: ${money(group.subtotal + (group.fee ?? 0), lang)}`,
+      );
+      blocks.push(rows.join('\n'));
+    }
+    const saved = plan.comparison?.savings ?? 0;
+    const header = saved > 0 ? `${summary}\n${saving}: ${money(saved, lang)}\n` : `${summary}\n`;
+    return `${header}${blocks.join('\n\n')}\n\n${payable}: ${money(plan.grandTotal, lang)}`;
+  }
+
+  function renderCopyButton(
+    lang: Lang,
+    plan: Plan,
+    format: 'markdown' | 'text' | 'pretty',
+  ): HTMLElement {
+    const btn = el('button', 'bk-btn bk-btn-quiet bk-copy-btn');
+    btn.type = 'button';
+    btn.textContent = FORMAT_LABEL[format];
+    btn.addEventListener('click', async () => {
+      const original = btn.textContent;
+      btn.disabled = true;
+      try {
+        await navigator.clipboard.writeText(buildCopyText(lang, plan, format));
+        btn.textContent = t(lang, 'copyDone');
+      } catch {
+        btn.textContent = t(lang, 'copyFailed');
+      } finally {
+        window.setTimeout(() => {
+          btn.textContent = original;
+          btn.disabled = false;
+        }, 1600);
+      }
+    });
+    return btn;
+  }
+
   // ---- sticky action bar ----
 
   function renderActionBar(lang: Lang, plan: Plan): HTMLElement {
@@ -1348,6 +1668,11 @@ export function createReportPage(deps: ReportPageDeps): {
     btn.disabled = state.recomputing || flow.ui.changedLines === 0;
     if (flow.ui.changedLines === 0) {
       btn.title = t(lang, 'optimalMsg');
+      // A disabled primary button whose reason lives only in a
+      // tooltip reads as broken: state it in the page (brief §4.9).
+      const note = el('p', 'bk-apply-note');
+      note.textContent = t(lang, 'sellerOnlyNote');
+      bar.append(note);
     }
     btn.addEventListener('click', flow.openSheet);
     bar.append(btn);
@@ -1388,10 +1713,11 @@ export function createReportPage(deps: ReportPageDeps): {
       progress: [] as ApplyProgress[],
       result: null as ApplyResult | null,
       preflight: null as PreflightResult | null,
+      errorKind: null as ApplyErrorKind | null,
       changedLines,
     };
 
-    const applier = createCartApplier(cartTransport, {
+    const applier = createCartApplier(deps.transport ?? cartTransport, {
       loadSnapshot: () => getCartSnapshot(indexedDB),
       saveSnapshot: (record) => putCartSnapshot(indexedDB, record),
     });
@@ -1405,23 +1731,37 @@ export function createReportPage(deps: ReportPageDeps): {
       sheet = openSheet((sheetEl, close) => buildApplySheet(sheetEl, close));
     };
 
+    /** A failed step becomes a sheet with the reason, never a stuck one. */
+    function failApply(err: unknown): void {
+      ui.errorKind = classifyApplyError(err);
+      ui.phase = 'error';
+    }
+
     async function runPreflight(): Promise<void> {
       ui.phase = 'preflight';
       ui.preflight = null;
+      ui.errorKind = null;
       openSheetForUi();
-      const result = await applier.preflight(plan);
-      ui.preflight = result;
-      ui.phase =
-        result.status === 'price-changed'
-          ? 'price-change'
-          : result.status === 'out-of-stock'
-            ? 'out-of-stock'
-            : 'confirm';
+      try {
+        const result = await applier.preflight(plan);
+        ui.preflight = result;
+        ui.phase =
+          result.status === 'price-changed'
+            ? 'price-change'
+            : result.status === 'out-of-stock'
+              ? 'out-of-stock'
+              : 'confirm';
+      } catch (err) {
+        // Every throw here happens before any mutation (preflight
+        // only reads), so retrying from the sheet is always safe.
+        failApply(err);
+      }
       openSheetForUi();
     }
 
     async function runApply(): Promise<void> {
       ui.phase = 'running';
+      ui.errorKind = null;
       ui.progress = plan.assignments
         .filter((a) => a.variantId)
         .map((a) => ({
@@ -1430,47 +1770,59 @@ export function createReportPage(deps: ReportPageDeps): {
           status: 'pending' as const,
         }));
       openSheetForUi();
-      const result = await applier.apply(plan, (p) => {
-        const row = ui.progress.find((r) => r.itemKey === p.itemKey);
-        if (row) {
-          row.status = p.status;
-          row.title = p.title ?? row.title;
-        }
-        updateProgressRow(p);
-        if (p.status === 'adding' || p.status === 'failed') {
-          announce(
-            `${p.title ?? p.itemKey} — ${t(
-              lang,
-              p.status === 'adding' ? 'statusAdding' : 'statusFailed',
-            )}`,
-          );
-        }
-      });
-      ui.result = result;
-      ui.phase = 'done';
+      try {
+        const result = await applier.apply(plan, (p) => {
+          const row = ui.progress.find((r) => r.itemKey === p.itemKey);
+          if (row) {
+            row.status = p.status;
+            row.title = p.title ?? row.title;
+          }
+          updateProgressRow(p);
+          if (p.status === 'adding' || p.status === 'failed') {
+            announce(
+              `${p.title ?? p.itemKey} — ${t(
+                lang,
+                p.status === 'adding' ? 'statusAdding' : 'statusFailed',
+              )}`,
+            );
+          }
+        });
+        ui.result = result;
+        ui.phase = 'done';
+      } catch (err) {
+        // apply() reads the cart (and snapshots it) before the first
+        // mutation, so a thrown transport failure left nothing half
+        // applied.
+        failApply(err);
+      }
       openSheetForUi();
     }
 
     async function runUndo(): Promise<void> {
       ui.phase = 'running';
+      ui.errorKind = null;
       ui.progress = [];
       openSheetForUi();
-      const result = await applier.undo((p) => {
-        const row = ui.progress.find((r) => r.itemKey === p.itemKey);
-        if (row) {
-          row.status = p.status;
-          row.title = p.title ?? row.title;
-        } else {
-          ui.progress.push({
-            itemKey: p.itemKey,
-            title: p.title,
-            status: p.status,
-          });
-        }
-        updateProgressRow(p);
-      });
-      ui.result = result;
-      ui.phase = 'done';
+      try {
+        const result = await applier.undo((p) => {
+          const row = ui.progress.find((r) => r.itemKey === p.itemKey);
+          if (row) {
+            row.status = p.status;
+            row.title = p.title ?? row.title;
+          } else {
+            ui.progress.push({
+              itemKey: p.itemKey,
+              title: p.title,
+              status: p.status,
+            });
+          }
+          updateProgressRow(p);
+        });
+        ui.result = result;
+        ui.phase = 'done';
+      } catch (err) {
+        failApply(err);
+      }
       openSheetForUi();
     }
 
@@ -1588,6 +1940,38 @@ export function createReportPage(deps: ReportPageDeps): {
         cancel.addEventListener('click', close);
         actions.append(confirm, cancel);
         sheetEl.append(h, p, actions);
+        return;
+      }
+
+      if (ui.phase === 'error') {
+        const kind = ui.errorKind ?? 'other';
+        const messageKey: MessageKey =
+          kind === 'auth' ? 'errLogin' : kind === 'no-tab' ? 'errApplyNoTab' : 'errApplyFailed';
+        sheetEl.setAttribute('aria-label', t(lang, 'applyBtn'));
+        const p = el('p', 'bk-sheet-error');
+        p.setAttribute('role', 'alert');
+        p.textContent = t(lang, messageKey);
+        const actions = el('div', 'bk-sheet-actions');
+        // The cart page is where the user fixes both causes (sign in,
+        // or keep a digikala tab open); never opened for them.
+        const goCart = el('a', 'bk-btn bk-btn-primary');
+        goCart.href = 'https://www.digikala.com/cart/';
+        goCart.target = '_blank';
+        goCart.rel = 'noopener';
+        goCart.textContent = t(lang, 'goToCart');
+        const retry = el('button', 'bk-btn bk-btn-quiet');
+        retry.type = 'button';
+        retry.textContent = t(lang, 'tryAgain');
+        retry.addEventListener('click', () => {
+          close();
+          void runPreflight();
+        });
+        const cancel = el('button', 'bk-btn bk-btn-quiet');
+        cancel.type = 'button';
+        cancel.textContent = t(lang, 'cancelBtn');
+        cancel.addEventListener('click', close);
+        actions.append(goCart, retry, cancel);
+        sheetEl.append(p, actions);
         return;
       }
 

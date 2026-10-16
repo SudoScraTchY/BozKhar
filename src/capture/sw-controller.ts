@@ -29,7 +29,7 @@ import { coerceSettings, type StorageAreaLike } from '../shared/settings/setting
 import { digikalaFetchJson, type RawFetch } from './fetch/digikala-fetch';
 import { readShipmentRecord } from './readers/shipment';
 import { readProductPayload, type ProductVariantView } from './readers/product';
-import { productApiUrl } from './readers/url';
+import { productApiUrl, CART_API_URL, isDigikalaUrl } from './readers/url';
 import { normalizeVariantToOffer, buildSnapshot } from './normalize';
 import { cartViewsToEntries, mergeCartIntoItems } from './cart-merge';
 import { runCrawl } from './crawl/orchestrator';
@@ -75,6 +75,19 @@ export interface ControllerDeps {
    * delegateShipmentQuote.
    */
   shipmentQuote?: (tabId: number) => Promise<unknown>;
+  /**
+   * The digikala tab a cart call runs in (D-30). The results page
+   * has no session of its own, so the worker runs the apply flow's
+   * cart calls in an OPEN digikala tab's main world - it never
+   * opens one (a silent tab would be a surprise, and a fresh page
+   * may still be hydrating). Production wires chrome.tabs.query;
+   * tests inject a stub. Absent => no tab.
+   */
+  findCartTab?: () => Promise<number | undefined>;
+  /** Delegated cart write: add one variant (D-30). */
+  cartAdd?: (tabId: number, variantId: string) => Promise<unknown>;
+  /** Delegated cart write: remove one row (D-30). */
+  cartRemove?: (tabId: number, cartItemId: string) => Promise<unknown>;
   now?: () => Date;
   /** Sleep between crawl steps; injectable so tests run instantly. */
   delay?: (ms: number) => Promise<void>;
@@ -86,7 +99,15 @@ export interface ControllerDeps {
 function errResponse(e: unknown): CaptureResponse {
   const code =
     e instanceof Error && 'code' in e ? String((e as { code: unknown }).code) : 'UNKNOWN';
-  return { ok: false, errorCode: code, message: e instanceof Error ? e.message : String(e) };
+  // A 401/403 must survive the message round trip: the results page
+  // tells "signed out" from "no tab reachable" by it (D-30).
+  const status = (e as { status?: unknown } | null)?.status;
+  return {
+    ok: false,
+    errorCode: code,
+    message: e instanceof Error ? e.message : String(e),
+    ...(typeof status === 'number' ? { status } : {}),
+  };
 }
 
 /**
@@ -408,4 +429,119 @@ export function handleCrawlAbort(): CaptureResponse {
 /** Resets the abort latch before a start (kept internal to the pair). */
 export function resetAbort(): void {
   abortRequested = false;
+}
+
+// ---------------------------------------------------------------------------
+// Cart calls for the apply flow (D-30)
+// ---------------------------------------------------------------------------
+
+/** The tab shape the picker needs (chrome.tabs.Tab compatible). */
+export interface TabLike {
+  id?: number;
+  url?: string;
+  discarded?: boolean;
+}
+
+/**
+ * The digikala tab a cart call should run in (D-30). The cart page
+ * wins (it is the page the user came from and its session is
+ * live), then any www page, then any digikala host; discarded
+ * tabs are skipped. Pure: the ordering is tested without chrome.
+ * Returns undefined when nothing is open - the caller says so
+ * instead of opening a tab.
+ */
+export function pickDigikalaTab(tabs: readonly TabLike[]): number | undefined {
+  const rank = (url: string): number => {
+    if (/^https:\/\/www\.digikala\.com\/cart(\/|$|\?)/.test(url)) return 0;
+    if (/^https:\/\/www\.digikala\.com\//.test(url)) return 1;
+    return 2;
+  };
+  let best: { id: number; rank: number } | null = null;
+  for (const tab of tabs) {
+    if (typeof tab.id !== 'number' || tab.discarded) continue;
+    if (!isDigikalaUrl(tab.url ?? '')) continue;
+    const r = rank(tab.url ?? '');
+    if (best === null || r < best.rank) best = { id: tab.id, rank: r };
+  }
+  return best?.id;
+}
+
+/** The tab to run a cart call in, or the response that says why not. */
+async function cartTabOr(deps: ControllerDeps): Promise<{ tabId: number } | CaptureResponse> {
+  let tabId: number | undefined;
+  try {
+    tabId = await deps.findCartTab?.();
+  } catch {
+    tabId = undefined;
+  }
+  if (tabId === undefined) {
+    return {
+      ok: false,
+      errorCode: 'NO_TAB',
+      message: 'applying the plan needs digikala.com open in a browser tab',
+    };
+  }
+  return { tabId };
+}
+
+/**
+ * Cart read for preflight/undo (D-30): the raw payload, fetched in
+ * a digikala tab's main world. No direct-fetch fallback - an
+ * extension-origin cart call is exactly the bug this replaces
+ * (D-16 evidence: that host 401s it).
+ */
+export async function handleCartRead(deps: ControllerDeps): Promise<CaptureResponse> {
+  try {
+    const target = await cartTabOr(deps);
+    if ('ok' in target) return target;
+    if (!deps.delegateFetch) {
+      return { ok: false, errorCode: 'NO_TRANSPORT', message: 'fetch delegation is unavailable' };
+    }
+    const data = await deps.delegateFetch(target.tabId, CART_API_URL);
+    return { ok: true, kind: 'cart-read', data };
+  } catch (e) {
+    return errResponse(e);
+  }
+}
+
+/** Cart write: add one variant, in a digikala tab (D-30). */
+export async function handleCartAdd(
+  deps: ControllerDeps,
+  variantId: string,
+): Promise<CaptureResponse> {
+  try {
+    if (typeof variantId !== 'string' || variantId === '') {
+      return { ok: false, errorCode: 'BAD_REQUEST', message: 'a variant id is required' };
+    }
+    const target = await cartTabOr(deps);
+    if ('ok' in target) return target;
+    if (!deps.cartAdd) {
+      return { ok: false, errorCode: 'NO_TRANSPORT', message: 'the cart add is not wired' };
+    }
+    await deps.cartAdd(target.tabId, variantId);
+    return { ok: true, kind: 'cart-add' };
+  } catch (e) {
+    return errResponse(e);
+  }
+}
+
+/** Cart write: remove one row, in a digikala tab (D-30). */
+export async function handleCartRemove(
+  deps: ControllerDeps,
+  cartItemId: string,
+): Promise<CaptureResponse> {
+  try {
+    if (typeof cartItemId !== 'string' || cartItemId === '') {
+      return { ok: false, errorCode: 'BAD_REQUEST', message: 'a cart item id is required' };
+    }
+    const target = await cartTabOr(deps);
+    if ('ok' in target) return target;
+    if (!deps.cartRemove) {
+      return { ok: false, errorCode: 'NO_TRANSPORT', message: 'the cart removal is not wired' };
+    }
+    await deps.cartRemove(target.tabId, cartItemId);
+    return { ok: true, kind: 'cart-remove' };
+  } catch (e) {
+    return errResponse(e);
+  }
 }

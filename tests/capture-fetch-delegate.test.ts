@@ -43,9 +43,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { SITE_API_HEADERS } from '../src/capture/fetch/site-headers';
 import {
+  delegateCartAdd,
+  delegateCartRemove,
   delegateFetchJson,
   delegateShipmentQuote,
   EXECUTE_TIMING,
+  mainWorldCartAdd,
+  mainWorldCartRemove,
   mainWorldFetch,
   mainWorldShipmentQuote,
   readDelegateResult,
@@ -113,7 +117,13 @@ describe('mainWorldFetch (page main-world executor)', () => {
     // result - finding 2026-10-08 (7)).
     // The injected funcs must therefore use
     // literals only.
-    for (const fn of [mainWorldFetch, mainWorldShipmentQuote, readDelegateResult]) {
+    for (const fn of [
+      mainWorldFetch,
+      mainWorldShipmentQuote,
+      mainWorldCartAdd,
+      mainWorldCartRemove,
+      readDelegateResult,
+    ]) {
       const src = fn.toString();
       expect(src).not.toContain('RESULT_ATTR');
       expect(src).not.toContain('DELEGATE_TIMEOUT_MS');
@@ -718,5 +728,191 @@ describe('executeScript callback loss (D-20)', () => {
     await expect(delegateFetchJson(42, CART_URL)).rejects.toMatchObject({
       code: 'NETWORK',
     });
+  });
+});
+
+/**
+ * D-30: the two cart writers the apply flow runs in the tab's main
+ * world. Structural guarantees first (the verb and the endpoint are
+ * baked in; no caller can aim a write elsewhere), then behaviour,
+ * then the at-most-once guard that keeps a retried injection from
+ * adding a second unit.
+ */
+describe('mainWorldCartAdd / mainWorldCartRemove (D-30 page executors)', () => {
+  const CART_ITEMS = 'https://api.digikala.com/checkout/v1/carts/items';
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
+
+  /** Waits past the IN_FLIGHT checkpoint for the settled outcome. */
+  async function settledOutcome(nonce: string): Promise<Record<string, unknown>> {
+    await vi.waitFor(() => {
+      const attr = document.documentElement.getAttribute(RESULT_ATTR);
+      expect(attr?.startsWith(`${nonce}:`)).toBe(true);
+      const parsed = JSON.parse((attr as string).slice(nonce.length + 1)) as Record<
+        string,
+        unknown
+      >;
+      expect(parsed['errorCode']).not.toBe('IN_FLIGHT');
+    });
+    const attr = document.documentElement.getAttribute(RESULT_ATTR);
+    return JSON.parse((attr as string).slice(nonce.length + 1)) as Record<string, unknown>;
+  }
+
+  it('D-30 audit: each writer bakes in its verb and the cart endpoint', () => {
+    const add = mainWorldCartAdd.toString();
+    expect(add).toMatch(/method:\s*['"]POST['"]/);
+    expect(add).toContain('checkout/v1/carts/items');
+    expect(add).toMatch(/credentials:\s*['"]include['"]/);
+
+    const remove = mainWorldCartRemove.toString();
+    expect(remove).toMatch(/method:\s*['"]DELETE['"]/);
+    expect(remove).toContain('checkout/v1/carts/items');
+    expect(remove).toMatch(/credentials:\s*['"]include['"]/);
+  });
+
+  it('adds via POST with the site header set and the variant body', async () => {
+    const fetchMock = vi.fn(async () => responseOf(200, { ok: 1 }));
+    vi.stubGlobal('fetch', fetchMock);
+    mainWorldCartAdd({ variantId: 'v2', headers: SITE_API_HEADERS, nonce: 'w1' });
+    expect(await settledOutcome('w1')).toEqual({ ok: true, json: { ok: 1 } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      CART_ITEMS,
+      expect.objectContaining({
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...SITE_API_HEADERS },
+        body: JSON.stringify({ variant_ids: ['v2'] }),
+      }),
+    );
+  });
+
+  it('removes via DELETE with the cart item body', async () => {
+    const fetchMock = vi.fn(async () => responseOf(200));
+    vi.stubGlobal('fetch', fetchMock);
+    mainWorldCartRemove({ cartItemId: 'c9', headers: SITE_API_HEADERS, nonce: 'w2' });
+    // An empty body is the normal DELETE success shape.
+    expect(await settledOutcome('w2')).toEqual({ ok: true, json: null });
+    expect(fetchMock).toHaveBeenCalledWith(
+      CART_ITEMS,
+      expect.objectContaining({
+        method: 'DELETE',
+        body: JSON.stringify({ cartItemIds: ['c9'] }),
+      }),
+    );
+  });
+
+  it('publishes an in-flight checkpoint before the request leaves', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    mainWorldCartAdd({ variantId: 'v3', headers: SITE_API_HEADERS, nonce: 'w3' });
+    const attr = document.documentElement.getAttribute(RESULT_ATTR);
+    expect(attr?.startsWith('w3:')).toBe(true);
+    expect(JSON.parse((attr as string).slice('w3:'.length))).toMatchObject({
+      errorCode: 'IN_FLIGHT',
+    });
+  });
+
+  it('at-most-once: a retried injection with the same nonce does not add twice', async () => {
+    const fetchMock = vi.fn(async () => responseOf(200, { ok: 1 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const args = { variantId: 'v4', headers: SITE_API_HEADERS, nonce: 'w4' };
+    mainWorldCartAdd(args);
+    // The worker retries when executeScript's callback is lost; the
+    // second run sees this call's nonce already published.
+    mainWorldCartAdd(args);
+    expect(await settledOutcome('w4')).toEqual({ ok: true, json: { ok: 1 } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('maps a 401 to HTTP_STATUS and carries the status', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => responseOf(401)),
+    );
+    mainWorldCartAdd({ variantId: 'v5', headers: SITE_API_HEADERS, nonce: 'w5' });
+    expect(await settledOutcome('w5')).toMatchObject({
+      ok: false,
+      errorCode: 'HTTP_STATUS',
+      status: 401,
+    });
+  });
+});
+
+describe('delegateCartAdd / delegateCartRemove (D-30 senders)', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    document.documentElement.removeAttribute(RESULT_ATTR);
+  });
+
+  /** Two-phase stub: the injection call, then the DOM reader. */
+  function stubWriteFlow(outcome: Record<string, unknown>): Mock {
+    let nonce = '';
+    let calls = 0;
+    const mock = vi.fn((options: { args: unknown[] }) => {
+      calls += 1;
+      if (calls === 1) {
+        nonce = (options.args[0] as { nonce: string }).nonce;
+        return [{ documentId: 'd1', frameId: 0, result: null }];
+      }
+      return [{ documentId: 'd1', frameId: 0, result: `${nonce}:${JSON.stringify(outcome)}` }];
+    });
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
+    });
+    return mock;
+  }
+
+  it('runs the add in the tab main world, carrying only the id', async () => {
+    const executeScript = stubWriteFlow({ ok: true, json: null });
+    await delegateCartAdd(42, 'v7');
+    const options = executeScript.mock.calls[0]?.[0] as {
+      target: { tabId: number };
+      world: string;
+      func: unknown;
+      args: unknown[];
+    };
+    expect(options.target.tabId).toBe(42);
+    expect(options.world).toBe('MAIN');
+    expect(options.func).toBe(mainWorldCartAdd);
+    // Only the id crosses the boundary: the endpoint and the verb are
+    // inside the func, so no caller can retarget the write.
+    expect(options.args).toHaveLength(1);
+    expect(options.args[0]).toMatchObject({ variantId: 'v7', headers: SITE_API_HEADERS });
+  });
+
+  it('runs the removal with the cart item id', async () => {
+    const executeScript = stubWriteFlow({ ok: true, json: null });
+    await delegateCartRemove(9, 'c7');
+    const options = executeScript.mock.calls[0]?.[0] as { func: unknown; args: unknown[] };
+    expect(options.func).toBe(mainWorldCartRemove);
+    expect(options.args[0]).toMatchObject({ cartItemId: 'c7' });
+  });
+
+  it('carries the HTTP status out of the tab (signed-out detection)', async () => {
+    stubWriteFlow({
+      ok: false,
+      errorCode: 'HTTP_STATUS',
+      message: 'HTTP 403',
+      status: 403,
+    });
+    await expect(delegateCartAdd(42, 'v8')).rejects.toMatchObject({
+      code: 'HTTP_STATUS',
+      status: 403,
+    });
+  });
+
+  it('maps an unreachable tab to NETWORK', async () => {
+    const mock = vi.fn(() => Promise.reject(new Error('no tab')));
+    vi.stubGlobal('chrome', {
+      scripting: { executeScript: mock },
+      storage: { local: { set: vi.fn() } },
+    });
+    await expect(delegateCartRemove(42, 'c1')).rejects.toMatchObject({ code: 'NETWORK' });
   });
 });

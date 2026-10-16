@@ -14,6 +14,12 @@ import { structureUnrecognized } from '../errors';
 import { extractVariantId } from './url';
 
 export interface RawCartItem {
+  /**
+   * The cart ROW id. Only the apply flow needs it: removing a line
+   * names this id (D-28's DELETE body), so it must not be lost
+   * (D-30).
+   */
+  id?: number | string;
   quantity?: number;
   product?: {
     id?: number | string;
@@ -70,8 +76,18 @@ export interface CartItemView {
   sourceUrl: string | null;
 }
 
-function firstArray(raw: RawCartPayload): RawCartItem[] {
-  const d = raw.data;
+/**
+ * The cart payload's item list, across every documented shape:
+ * data.packages[].cart_items[] (LIVE, verified 2026-10-07),
+ * data.cart_item[], data.items[], or data itself as an array.
+ *
+ * Exported so every consumer agrees on the shapes: the apply flow's
+ * transport reads the same payload and must find the same rows
+ * (D-30 - a shape-blind read there silently found no cart rows, so
+ * nothing was ever applyable).
+ */
+export function cartItemsOf(raw: unknown): RawCartItem[] {
+  const d = raw && typeof raw === 'object' ? (raw as RawCartPayload).data : undefined;
   if (Array.isArray(d)) return d;
   if (!d) return [];
   // LIVE shape first (verified against the real API 2026-10-07):
@@ -107,7 +123,7 @@ export function readCartPayload(raw: unknown): CartItemView[] {
   if (typeof raw !== 'object' || raw === null) {
     throw structureUnrecognized('cart payload is not an object');
   }
-  const items = firstArray(raw as RawCartPayload);
+  const items = cartItemsOf(raw);
   const out: CartItemView[] = [];
   for (let i = 0; i < items.length; i++) {
     const item = items[i];

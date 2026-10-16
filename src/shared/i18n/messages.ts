@@ -49,7 +49,12 @@ export type MessageKey =
   | 'savingsNone'
   | 'savingsUnknown'
   | 'estimateCaveat'
-  | 'approximateNotice'
+  | 'copyLabel'
+  | 'copyDone'
+  | 'copyFailed'
+  | 'copySummary'
+  | 'copySaving'
+  | 'copyShipment'
   | 'emptyTitle'
   | 'emptyBody'
   | 'planTitle'
@@ -78,7 +83,6 @@ export type MessageKey =
   // D-27 redesign — "the settled bill" copy deck (brief §9)
   | 'wordmark'
   | 'headerLabel'
-  | 'menuSavePdf'
   | 'heroTitle'
   | 'heroLine'
   | 'barCurrent'
@@ -89,10 +93,10 @@ export type MessageKey =
   | 'plusLabel'
   | 'plusNote'
   | 'plusDelta'
+  | 'plusNoChange'
   | 'staleNotice'
   | 'staleAction'
-  | 'approxNotice'
-  | 'approxAction'
+  | 'staleItemAction'
   | 'shipDigikala'
   | 'shipSeller'
   | 'shippingFee'
@@ -124,6 +128,10 @@ export type MessageKey =
   | 'hintSentence'
   | 'hintSaving'
   | 'hintMore'
+  | 'hintMathUnit'
+  | 'hintMathFee'
+  | 'hintMathNet'
+  | 'hintTolerance'
   | 'hintAdd'
   | 'hintDismiss'
   | 'ledgerItems'
@@ -164,6 +172,9 @@ export type MessageKey =
   | 'errLogin'
   | 'errEmpty'
   | 'errCalc'
+  | 'errApplyNoTab'
+  | 'errApplyFailed'
+  | 'sellerOnlyNote'
   | 'loadingCalc';
 
 type Catalog = Record<MessageKey, string>;
@@ -219,7 +230,12 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     lockBan: 'بدون',
     estimateCaveat:
       'هزینه‌ی ارسالِ برخی فروشنده‌ها ناشناخته است؛ مجموع‌ها تخمینی‌اند و کران پایین در کارت اول آمده است.',
-    approximateNotice: 'سبد بزرگ است؛ این برنامه تقریبی است (دقیق نیست).',
+    copyLabel: 'رونوشت برنامه',
+    copyDone: 'کپی شد',
+    copyFailed: 'کپی نشد',
+    copySummary: 'برنامه‌ی بهینه‌شده‌ی سبد دیجی‌کالا',
+    copySaving: 'صرفه‌جویی',
+    copyShipment: 'هزینه‌ی ارسال',
     emptyTitle: 'هنوز چیزی برای مقایسه جمع‌آوری نشده',
     emptyBody:
       'در صفحه‌ی کالا «افزودن به مقایسه» را بزنید، یا در صفحه‌ی سبد «بهینه‌سازی سبد خرید» را بزنید تا سبد کامل ثبت شود.',
@@ -245,7 +261,6 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     // D-27 redesign — "the settled bill" copy deck (brief §9)
     wordmark: 'بز خر',
     headerLabel: 'برنامهٔ پیشنهادی',
-    menuSavePdf: 'ذخیره به‌صورت PDF',
     heroTitle: 'با این برنامه {saved} کمتر می‌پردازید',
     heroLine: '{items} کالا در {shipments} مرسوله، با هزینهٔ ارسال',
     barCurrent: 'سبد فعلی',
@@ -256,10 +271,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     plusLabel: 'اشتراک دیجی‌کالا پلاس دارم.',
     plusNote: 'هزینهٔ ارسال با مزایای پلاس حساب شده است.',
     plusDelta: 'با پلاس {x} کمتر',
+    plusNoChange: 'برای این سبد، پلاس هزینهٔ ارسال را تغییر نمی‌دهد.',
     staleNotice: 'قیمت {n} کالا {ago} خوانده شده است. پیش از اعمال، قیمت‌ها دوباره بررسی می‌شوند.',
     staleAction: 'به‌روزرسانی قیمت‌ها',
-    approxNotice: 'سبد بزرگ است و این برنامه تقریبی است؛ ممکن است کمی گران‌تر از بهترین حالت باشد.',
-    approxAction: 'محاسبهٔ دقیق‌تر',
+    staleItemAction: 'به‌روزرسانی این کالا',
     shipDigikala: 'ارسال از دیجی‌کالا',
     shipSeller: 'ارسال توسط فروشنده',
     shippingFee: 'هزینهٔ ارسال',
@@ -292,6 +307,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     hintSentence: '«{item}» را {n} عدد بیشتر بخرید تا ارسال «{vendor}» رایگان شود.',
     hintSaving: 'جمع سبد {x} کمتر می‌شود',
     hintMore: 'فقط {x} بیشتر',
+    hintMathUnit: 'یک عدد بیشتر',
+    hintMathFee: 'ارسال حذف‌شده',
+    hintMathNet: 'خالص اثر',
+    hintTolerance: 'در تلورانس {pct}٪ شما',
     hintAdd: 'افزودن به برنامه',
     hintDismiss: 'رد کردن',
     ledgerItems: 'جمع کالاها',
@@ -333,6 +352,11 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     errLogin: 'برای خواندن سبد باید وارد حساب دیجی‌کالا شوید.',
     errEmpty: 'سبد خرید شما خالی است.',
     errCalc: 'محاسبه انجام نشد. دوباره تلاش کنید.',
+    errApplyNoTab:
+      'برای اعمال برنامه، دیجی‌کالا باید در یک زبانهٔ باز مرورگر باز باشد. سپس دوباره تلاش کنید.',
+    errApplyFailed: 'اعمال برنامه در سبد خرید انجام نشد. دوباره تلاش کنید.',
+    sellerOnlyNote:
+      'صرفه‌جویی این برنامه فقط با تغییر فروشنده به دست می‌آید؛ باید دستی در سبد اعمال شود.',
     loadingCalc: 'در حال محاسبه…',
   },
   en: {
@@ -382,7 +406,12 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     lockBan: 'Without',
     estimateCaveat:
       'Some sellers’ delivery fees are unknown; totals are estimates, with the honest lower bound shown first.',
-    approximateNotice: 'This cart is large; the plan is approximate (not exact).',
+    copyLabel: 'Copy plan',
+    copyDone: 'Copied',
+    copyFailed: 'Copy failed',
+    copySummary: 'Optimized Digikala cart plan',
+    copySaving: 'Savings',
+    copyShipment: 'Shipping',
     emptyTitle: 'Nothing captured for comparison yet',
     emptyBody:
       'Use “Add to comparison” on product pages, or “Optimize this cart” on the cart page to capture the whole cart.',
@@ -408,7 +437,6 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     // D-27 redesign — "the settled bill" copy deck (brief §9)
     wordmark: 'Boz Khar',
     headerLabel: 'Suggested plan',
-    menuSavePdf: 'Save as PDF',
     heroTitle: 'You pay {saved} less with this plan',
     heroLine: '{items} items in {shipments} shipments, shipping included',
     barCurrent: 'Current cart',
@@ -419,11 +447,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     plusLabel: 'I have a Digikala Plus subscription.',
     plusNote: 'Shipping is calculated with Plus benefits.',
     plusDelta: '{x} less with Plus',
+    plusNoChange: 'Plus does not change the shipping cost of this cart.',
     staleNotice: 'The price of {n} item(s) was read {ago}. Prices are re-checked before applying.',
     staleAction: 'Refresh prices',
-    approxNotice:
-      'This cart is large, so this plan is approximate; it may be slightly costlier than the optimum.',
-    approxAction: 'Calculate exactly',
+    staleItemAction: 'Refresh this item',
     shipDigikala: 'Shipped by Digikala',
     shipSeller: 'Shipped by the seller',
     shippingFee: 'Shipping fee',
@@ -456,6 +483,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     hintSentence: 'Buy {n} more of “{item}” so “{vendor}” ships free.',
     hintSaving: 'Cart total becomes {x} less',
     hintMore: 'Only {x} more',
+    hintMathUnit: 'One more unit',
+    hintMathFee: 'Delivery removed',
+    hintMathNet: 'Net effect',
+    hintTolerance: 'within your {pct}% tolerance',
     hintAdd: 'Add to plan',
     hintDismiss: 'Dismiss',
     ledgerItems: 'Items',
@@ -498,6 +529,10 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     errLogin: 'Sign in to your Digikala account to read the cart.',
     errEmpty: 'Your cart is empty.',
     errCalc: 'The calculation failed. Try again.',
+    errApplyNoTab: 'Applying needs Digikala open in a browser tab. Open it, then try again.',
+    errApplyFailed: 'Applying the plan to your cart did not work. Try again.',
+    sellerOnlyNote:
+      'This plan saves only by changing the seller, which must be applied by hand in your cart.',
     loadingCalc: 'Calculating…',
   },
 };

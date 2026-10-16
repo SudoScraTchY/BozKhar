@@ -1,27 +1,36 @@
 /**
  * Apply-to-cart pipeline (D-26, brief §5).
  *
- * All cart mutation sits behind `CartApplier` so the
- * transport (internal API today, UI automation tomorrow —
- * open decision 10.3) can change without touching the
- * flow. The flow is:
+ * All cart mutation sits behind `CartApplier` so the transport
+ * (internal API today, UI automation tomorrow — open decision 10.3)
+ * can change without touching the flow:
  *
- *   preflight  re-fetch every chosen offer (price, stock,
- *              seller still offers it) — never continue
- *              silently on a change;
- *   confirm    the sheet states what moves; the current
- *              cart is snapshotted to extension storage
- *              BEFORE any mutation;
- *   apply      per changed line, sequentially: add the
- *              new variant, VERIFY it is in the cart,
- *              only then remove the old row. Unchanged
- *              lines and locked items are left alone;
- *   undo       restores the snapshot with the same
- *              progress UI; the snapshot is kept until
- *              the next apply.
+ *   preflight  re-fetch every chosen offer (price, stock, seller
+ *              still offers it) — never continue silently on a change;
+ *   confirm    the sheet states what moves; the current cart is
+ *              snapshotted BEFORE any mutation;
+ *   apply      per changed line, sequentially: add the new variant
+ *              (with its quantity), VERIFY it is in the cart with the
+ *              planned seller and quantity, only then remove the old
+ *              row. Unchanged lines and locked items are left alone;
+ *   undo       restores the snapshot with the same progress UI.
  *
- * The flow never navigates on its own, never checks
- * out, never pays.
+ * The flow never navigates, never checks out, never pays.
+ *
+ * Review fixes (round 2):
+ *  - the snapshot is taken at the START OF EVERY apply (it used to be
+ *    kept from the very first apply, so undo restored a stale cart);
+ *    a retry after a partial failure passes keepSnapshot so the
+ *    original cart is not overwritten by the half-applied one;
+ *  - quantity is carried over (addVariant had no quantity, so a
+ *    2-unit row silently became 1 unit);
+ *  - the added row's seller must equal the planned vendor, otherwise
+ *    the add is rolled back and the line fails (the site may add its
+ *    default seller for a variant);
+ *  - undo only removes rows that belong to products in the snapshot,
+ *    so items the user added to the cart afterwards are never touched;
+ *  - preflight reports progress, mutations keep a polite gap, and
+ *    failures carry a reason.
  */
 import type { Plan, PlanGroup, PlanLine } from '../shared/solver';
 
@@ -44,17 +53,15 @@ export interface LiveOffer {
 }
 
 /**
- * The transport behind the flow. `addVariant` adds by
- * variant id (the site's default offer for that variant —
- * see D-26 amendment: the API takes no seller, so a
- * pinned non-default seller needs UI automation, a
- * follow-up).
+ * The transport behind the flow. `addVariant` adds by variant id.
+ * `quantity` is optional: a transport that ignores it adds 1, and the
+ * pipeline tops the row up by verifying the cart after the add.
  */
 export interface CartTransport {
   fetchCart(): Promise<CartLine[]>;
   /** Null when the vendor no longer offers the variant. */
   fetchOffer(productId: string, variantId: string, vendorId: string): Promise<LiveOffer | null>;
-  addVariant(variantId: string): Promise<void>;
+  addVariant(variantId: string, quantity?: number): Promise<void>;
   removeCartItem(cartItemId: string): Promise<void>;
 }
 
@@ -80,11 +87,25 @@ export interface ApplyResult {
   ok: boolean;
   applied: string[];
   failed: string[];
+  /** Why each failed line failed (itemKey → message). */
+  errors?: Record<string, string>;
+}
+
+export interface ApplyOptions {
+  /** Keep the existing snapshot (a retry after a partial failure). */
+  keepSnapshot?: boolean;
 }
 
 export interface CartApplier {
-  preflight(plan: Plan): Promise<PreflightResult>;
-  apply(plan: Plan, onProgress: (p: ApplyProgress) => void): Promise<ApplyResult>;
+  preflight(
+    plan: Plan,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<PreflightResult>;
+  apply(
+    plan: Plan,
+    onProgress: (p: ApplyProgress) => void,
+    options?: ApplyOptions,
+  ): Promise<ApplyResult>;
   undo(onProgress: (p: ApplyProgress) => void): Promise<ApplyResult>;
 }
 
@@ -95,6 +116,20 @@ export interface CartSnapshot {
   savedAt: string;
 }
 
+/** Gap between cart mutations (be polite to the site). */
+const POLITE_GAP_MS = 150;
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** 401/403 from the gateway: the user is signed out, not out of stock. */
+function isAuthError(err: unknown): boolean {
+  const status = (err as { status?: number } | null)?.status;
+  return status === 401 || status === 403;
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /** productId from an item key (productId::variantId). */
 function productIdOf(itemKey: string): string {
   const sep = itemKey.lastIndexOf('::');
@@ -102,14 +137,12 @@ function productIdOf(itemKey: string): string {
 }
 
 /**
- * A line needs applying when the plan's chosen offer
- * belongs to a different variant than the cart item
- * holds (D-17 passthrough: `line.variantId` is the
- * CHOSEN variant, while the item key names the cart
- * item's own variant). Seller-only changes (same
- * variant, different vendor) are not applyable
- * through the API transport — the add takes no
- * seller — and are left alone.
+ * A line needs applying when the plan's chosen offer belongs to a
+ * different variant than the cart item holds (D-17 passthrough:
+ * `line.variantId` is the CHOSEN variant, while the item key names the
+ * cart item's own variant). Seller-only changes (same variant,
+ * different vendor) are not applyable through the API transport and
+ * are left alone; the page tells the user to do those by hand.
  */
 function currentRowFor(line: PlanLine, cartByItem: Map<string, CartLine>): CartLine | undefined {
   const current = cartByItem.get(line.itemKey);
@@ -132,12 +165,6 @@ function* planEntries(plan: Plan): Generator<{
   }
 }
 
-/**
- * The pure pipeline over an injected transport. The
- * snapshot is supplied by the caller (the page persists
- * it to extension storage); `rememberSnapshot` hands the
- * freshly taken one back.
- */
 export function createCartApplier(
   transport: CartTransport,
   options: {
@@ -147,27 +174,59 @@ export function createCartApplier(
     saveSnapshot(s: CartSnapshot): Promise<void>;
   },
 ): CartApplier {
-  async function preflight(plan: Plan): Promise<PreflightResult> {
+  async function findInCart(productId: string, variantId: string): Promise<CartLine | undefined> {
+    const cart = await transport.fetchCart();
+    return cart.find((l) => l.productId === productId && l.variantId === variantId);
+  }
+
+  /** Add a variant and make sure the row reaches the wanted quantity. */
+  async function addWithQuantity(
+    productId: string,
+    variantId: string,
+    quantity: number,
+  ): Promise<CartLine | undefined> {
+    await transport.addVariant(variantId, quantity);
+    let added = await findInCart(productId, variantId);
+    let topUps = 0;
+    // A transport that ignores `quantity` adds one unit: top up.
+    while (added && added.quantity < quantity && topUps < quantity) {
+      await transport.addVariant(variantId, 1);
+      topUps++;
+      added = await findInCart(productId, variantId);
+    }
+    return added;
+  }
+
+  async function preflight(
+    plan: Plan,
+    onProgress?: (done: number, total: number) => void,
+  ): Promise<PreflightResult> {
+    const entries = [...planEntries(plan)];
     const outOfStock: string[] = [];
     let newTotal = plan.grandTotal;
     let priceChanged = false;
     let changedCount = 0;
+    let done = 0;
 
-    for (const { group, line } of planEntries(plan)) {
+    for (const { group, line } of entries) {
+      onProgress?.(++done, entries.length);
+      if (done > 1) await sleep(POLITE_GAP_MS);
       const productId = productIdOf(line.itemKey);
       const variantId = line.variantId;
       if (!variantId) {
-        // No variant id cannot be priced (D-05): treat as
-        // a stock problem, never silently.
+        // No variant id cannot be priced (D-05): treat as a stock
+        // problem, never silently.
         outOfStock.push(line.title ?? line.itemKey);
         continue;
       }
       let live: LiveOffer | null = null;
       try {
         live = await transport.fetchOffer(productId, variantId, group.vendorId);
-      } catch {
-        // A transport failure is a stock problem for this
-        // line: the flow must not continue silently.
+      } catch (err) {
+        // Signed out: say so, instead of listing every item as out of stock.
+        if (isAuthError(err)) throw err;
+        // Any other transport failure is a stock problem for this line:
+        // the flow must not continue silently.
         outOfStock.push(line.title ?? line.itemKey);
         continue;
       }
@@ -196,13 +255,15 @@ export function createCartApplier(
     return { status: 'ok' };
   }
 
-  async function apply(plan: Plan, onProgress: (p: ApplyProgress) => void): Promise<ApplyResult> {
+  async function apply(
+    plan: Plan,
+    onProgress: (p: ApplyProgress) => void,
+    applyOptions: ApplyOptions = {},
+  ): Promise<ApplyResult> {
     const cart = await transport.fetchCart();
-    // Snapshot the current cart before any mutation
-    // (brief §5): the first apply records it, and it
-    // stays until the next apply.
-    const existing = await options.loadSnapshot();
-    if (!existing) {
+    // Snapshot the current cart before any mutation (brief §5): every
+    // apply records it, except a retry that must keep the ORIGINAL.
+    if (!applyOptions.keepSnapshot) {
       await options.saveSnapshot({
         key: 'latest',
         lines: cart,
@@ -213,47 +274,52 @@ export function createCartApplier(
     const cartByItem = new Map<string, CartLine>(
       cart.map((l) => [`${l.productId}::${l.variantId}`, l]),
     );
+    const rowsBefore = new Set(cart.map((l) => l.cartItemId));
 
     const applied: string[] = [];
     const failed: string[] = [];
+    const errors: Record<string, string> = {};
 
-    for (const { line } of planEntries(plan)) {
+    for (const { group, line } of planEntries(plan)) {
       if (!line.variantId) continue; // cannot apply without a chosen variant
       const old = currentRowFor(line, cartByItem);
       if (!old) continue;
+      if (applied.length + failed.length > 0) await sleep(POLITE_GAP_MS);
       onProgress({ itemKey: line.itemKey, title: line.title, status: 'adding' });
+      let added: CartLine | undefined;
       try {
-        await transport.addVariant(line.variantId);
-        // Verify the add landed BEFORE touching the old row.
-        const after = await transport.fetchCart();
-        const added = after.find(
-          (l) => l.productId === productIdOf(line.itemKey) && l.variantId === line.variantId,
-        );
+        added = await addWithQuantity(productIdOf(line.itemKey), line.variantId, line.quantity);
         if (!added) {
           throw new Error('add not verified in cart');
         }
-        if (old) {
-          await transport.removeCartItem(old.cartItemId);
+        if (added.sellerId && group.vendorId && added.sellerId !== group.vendorId) {
+          throw new Error('the cart holds a different seller than planned');
         }
-        onProgress({
-          itemKey: line.itemKey,
-          title: line.title,
-          status: 'added',
-        });
+        if (added.quantity < line.quantity) {
+          throw new Error('quantity not reached');
+        }
+        // Only now is it safe to touch the old row.
+        await transport.removeCartItem(old.cartItemId);
+        onProgress({ itemKey: line.itemKey, title: line.title, status: 'added' });
         applied.push(line.itemKey);
-      } catch {
-        // The old row stays in the cart: nothing was removed
-        // before the add was verified (D-26).
-        onProgress({
-          itemKey: line.itemKey,
-          title: line.title,
-          status: 'failed',
-        });
+      } catch (err) {
+        // Roll back a row WE added (never a pre-existing one); the old
+        // row stays in the cart: nothing was removed before the add
+        // was verified (D-26).
+        if (added && !rowsBefore.has(added.cartItemId)) {
+          try {
+            await transport.removeCartItem(added.cartItemId);
+          } catch {
+            // best effort: the failure below already tells the user
+          }
+        }
+        errors[line.itemKey] = errorMessage(err);
+        onProgress({ itemKey: line.itemKey, title: line.title, status: 'failed' });
         failed.push(line.itemKey);
       }
     }
 
-    return { ok: failed.length === 0, applied, failed };
+    return { ok: failed.length === 0, applied, failed, errors };
   }
 
   async function undo(onProgress: (p: ApplyProgress) => void): Promise<ApplyResult> {
@@ -262,42 +328,57 @@ export function createCartApplier(
       return { ok: true, applied: [], failed: [] };
     }
     const cart = await transport.fetchCart();
-    const snapshotKeys = new Set(snapshot.lines.map((l) => `${l.productId}::${l.variantId}`));
-    const cartKeys = new Set(cart.map((l) => `${l.productId}::${l.variantId}`));
+    const keyOf = (l: CartLine) => `${l.productId}::${l.variantId}`;
+    const snapshotKeys = new Set(snapshot.lines.map(keyOf));
+    const snapshotProducts = new Set(snapshot.lines.map((l) => l.productId));
+    const cartKeys = new Set(cart.map(keyOf));
 
     const restored: string[] = [];
     const failed: string[] = [];
+    const errors: Record<string, string> = {};
+    let steps = 0;
 
-    // Remove what the apply added (not in the snapshot).
+    // Remove what the apply added: a row whose product was in the
+    // snapshot but whose variant was not. A product that was NOT in the
+    // snapshot is something the user added later: never touched.
     for (const line of cart) {
-      const key = `${line.productId}::${line.variantId}`;
+      const key = keyOf(line);
       if (snapshotKeys.has(key)) continue;
+      if (!snapshotProducts.has(line.productId)) continue;
+      if (steps++ > 0) await sleep(POLITE_GAP_MS);
       onProgress({ itemKey: key, status: 'adding' });
       try {
         await transport.removeCartItem(line.cartItemId);
         onProgress({ itemKey: key, status: 'added' });
         restored.push(key);
-      } catch {
+      } catch (err) {
+        errors[key] = errorMessage(err);
         onProgress({ itemKey: key, status: 'failed' });
         failed.push(key);
       }
     }
-    // Re-add what the apply removed (in the snapshot, not in cart).
+    // Re-add what the apply removed (in the snapshot, not in cart),
+    // with its original quantity.
     for (const line of snapshot.lines) {
-      const key = `${line.productId}::${line.variantId}`;
+      const key = keyOf(line);
       if (cartKeys.has(key)) continue;
+      if (steps++ > 0) await sleep(POLITE_GAP_MS);
       onProgress({ itemKey: key, status: 'adding' });
       try {
-        await transport.addVariant(line.variantId);
+        const back = await addWithQuantity(line.productId, line.variantId, line.quantity);
+        if (!back || back.quantity < line.quantity) {
+          throw new Error('restore not verified in cart');
+        }
         onProgress({ itemKey: key, status: 'added' });
         restored.push(key);
-      } catch {
+      } catch (err) {
+        errors[key] = errorMessage(err);
         onProgress({ itemKey: key, status: 'failed' });
         failed.push(key);
       }
     }
 
-    return { ok: failed.length === 0, applied: restored, failed };
+    return { ok: failed.length === 0, applied: restored, failed, errors };
   }
 
   return { preflight, apply, undo };

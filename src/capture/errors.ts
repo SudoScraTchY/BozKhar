@@ -16,6 +16,12 @@ export class CaptureError extends Error {
       | 'NO_OFFERS'
       | 'NO_FEE_FOUND'
       | 'OUT_OF_SCOPE',
+    /**
+     * The HTTP status behind an HTTP_STATUS failure. Carried so a
+     * caller can tell "signed out" (401/403) from "gone" without
+     * parsing the message (D-30).
+     */
+    public readonly status?: number,
   ) {
     super(message);
     this.name = 'CaptureError';
@@ -27,7 +33,7 @@ export function networkError(detail: string): CaptureError {
 }
 
 export function httpStatusError(status: number, url: string): CaptureError {
-  return new CaptureError(`HTTP ${status} from ${url}`, 'HTTP_STATUS');
+  return new CaptureError(`HTTP ${status} from ${url}`, 'HTTP_STATUS', status);
 }
 
 /** The JSON API responded but the payload does not match documented shapes. */

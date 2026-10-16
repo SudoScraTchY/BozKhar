@@ -116,6 +116,27 @@ def main() -> int:
                 """() => [...document.querySelectorAll('.bk-num, .bk-ship-value, .bk-hero-total, .bk-ledger-payable')]
                     .map((n) => n.textContent).join(' ')"""
             )
+
+            # Round 3: the brand mark, the export menu and the Plus switch.
+            badge = page.locator(".bk-brand-icon")
+            badge_box = badge.bounding_box() or {}
+            page.locator(".bk-menu").click()
+            page.wait_for_timeout(300)
+            formats = page.locator(".bk-menu-item").all_inner_texts()
+            page.screenshot(path=str(SHOT.parent / "e2e-header-menu.png"), clip={
+                "x": 0, "y": 0, "width": 1280, "height": 250,
+            })
+            page.locator(".bk-menu").click()
+            plus = page.locator(".bk-plus-row")
+            plus.scroll_into_view_if_needed()
+            page.wait_for_timeout(300)
+            plus_before = page.locator("#bk-plus-switch").is_checked()
+            # A REAL click on the visible track: before the label wrap this
+            # hit the track's span and did nothing at all.
+            page.locator(".bk-switch-track").click()
+            page.wait_for_timeout(900)
+            plus_after = page.locator("#bk-plus-switch").is_checked()
+
             checks = {
                 "seeded 12 items / 1336 snapshots": seeded == {"items": 12, "snapshots": 1336},
                 "no ISO strings": not re.search(r"\d{4}-\d{2}-\d{2}T", text),
@@ -123,6 +144,15 @@ def main() -> int:
                 "currency unit present": "تومان" in text,
                 "staleness disclosed": bool(re.search(r"دقیقه|ساعت|روز", text)),
                 "parcels render with shipping": bool(page.locator(".bk-ship-value").count()),
+                "header badge is the 96px mark": (
+                    badge.get_attribute("src") == "/icons/logo-256.png"
+                    and round(badge_box.get("width", 0)) == 96
+                ),
+                "export menu offers six formats": formats == [
+                    "Save as PDF", "CSV", "Excel", "Pretty text", "Markdown", "Plain text",
+                ],
+                "a click on the Plus switch toggles it": plus_before != plus_after,
+                "the approximate notice is gone": "تقریبی است" not in text,
             }
             failed = 0
             for name, ok in checks.items():

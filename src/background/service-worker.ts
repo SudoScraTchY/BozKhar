@@ -8,8 +8,12 @@
  * - capture/badge-sync: toolbar badge = comparison-list size.
  * - capture/progress: broadcast to every open surface.
  *
- * D-01: GET-only everywhere. D-02: fetch targets are guarded to
- * *.digikala.com inside digikalaFetchJson.
+ * D-01: GET-only everywhere, except the sanctioned POSTs recorded
+ * in the decision log: D-19's fixed shipment quote and D-30's two
+ * cart writes (POST/DELETE /checkout/v1/carts/items) that serve the
+ * user-initiated apply flow. D-02: fetch targets are guarded to
+ * *.digikala.com inside digikalaFetchJson (and inside every
+ * injected func).
  */
 import type { CaptureRequest, CaptureResponse } from '../capture/messaging';
 import { isCaptureRequest } from '../capture/messaging';
@@ -17,9 +21,15 @@ import {
   handleCapturePdp,
   handleCrawlStart,
   handleCrawlAbort,
+  handleCartAdd,
+  handleCartRead,
+  handleCartRemove,
+  pickDigikalaTab,
   syncBadge,
 } from '../capture/sw-controller';
 import {
+  delegateCartAdd,
+  delegateCartRemove,
   delegateFetchJson,
   delegateShipmentQuote,
   SHIPMENT_API_BODY,
@@ -64,6 +74,18 @@ chrome.runtime.onMessage.addListener(
       sendResponse(handleCrawlAbort());
       return false;
     }
+    if (req.kind === 'capture/cart-read') {
+      void handleCartRead(deps()).then(sendResponse);
+      return true; // async response
+    }
+    if (req.kind === 'capture/cart-add') {
+      void handleCartAdd(deps(), req.variantId).then(sendResponse);
+      return true; // async response
+    }
+    if (req.kind === 'capture/cart-remove') {
+      void handleCartRemove(deps(), req.cartItemId).then(sendResponse);
+      return true; // async response
+    }
     if (req.kind === 'capture/badge-sync') {
       void syncBadge(deps()).then((count) => sendResponse({ ok: true, kind: 'badge-sync', count }));
       return true;
@@ -92,6 +114,20 @@ function deps() {
     // extension's only POST - read-only quote).
     shipmentQuote: (tabId: number) =>
       delegateShipmentQuote(tabId, SHIPMENT_API_URL, SHIPMENT_API_BODY),
+    // D-30: the apply flow's cart calls run in an open digikala tab.
+    // `sender.tab` is deliberately NOT used: it is unset for
+    // messages from the results extension page, and even when a
+    // Chrome build sets it, it names that page, not a digikala tab.
+    findCartTab: async () => {
+      try {
+        const tabs = await chrome.tabs.query({ url: ['https://*.digikala.com/*'] });
+        return pickDigikalaTab(tabs);
+      } catch {
+        return undefined;
+      }
+    },
+    cartAdd: delegateCartAdd,
+    cartRemove: delegateCartRemove,
     onProgress: broadcast,
     badge: chrome.action,
   };

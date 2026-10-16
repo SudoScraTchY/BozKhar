@@ -63,7 +63,13 @@
  * exception: mainWorldShipmentQuote, whose method is baked
  * in as 'POST' and whose URL and body the service worker
  * fixes to the shipment-quote endpoint (a read-only quote
- * that does not modify the cart). D-02: the closed
+ * that does not modify the cart). D-30 adds the two cart
+ * writes the apply flow needs (D-26): mainWorldCartAdd and
+ * mainWorldCartRemove bake in both the verb and the endpoint
+ * URL, take only an id, publish an IN_FLIGHT checkpoint
+ * before the request leaves (a retried injection must not
+ * add twice) and are reachable only through the user-
+ * initiated apply flow. D-02: the closed
  * *.digikala.com scope is enforced on both sides (here
  * before the tab is touched, and inside the injected
  * func itself).
@@ -266,10 +272,12 @@ function withTimeout<T>(call: Promise<T>, ms: number, what: string): Promise<T> 
 /**
  * Runs func in the tab's MAIN world, retrying
  * when the executeScript callback never arrives.
- * A retried run is idempotent here: every
- * delegated call is a read (a GET fetch or the
- * fixed quote POST), and the outcome channel is
- * keyed by the caller's nonce.
+ * A retried read is idempotent (a GET fetch or
+ * the fixed quote POST), and the outcome channel
+ * is keyed by the caller's nonce. The cart WRITE
+ * funcs (D-30) are not idempotent, so they carry
+ * their own at-most-once guard keyed by that same
+ * nonce.
  */
 async function executeMainWorld(
   tabId: number,
@@ -298,6 +306,71 @@ async function executeMainWorld(
     }
   }
   throw networkError(`main-world execution failed for ${what}: ${String(lastError)}`);
+}
+
+/**
+ * Service-worker side: runs func in the tab's MAIN world, then
+ * waits for the outcome the injected func publishes. Rejects with
+ * the same CaptureError classes as digikalaFetchJson, so callers'
+ * containment is unchanged. D-02: callers guard the scope before
+ * the tab is touched.
+ *
+ * The poll loop is shared by every delegated call (D-30). A write
+ * publishes an `IN_FLIGHT` checkpoint before its request leaves,
+ * so that value means "keep waiting", never "finished".
+ */
+async function awaitDelegateOutcome(tabId: number, nonce: string, what: string): Promise<unknown> {
+  // Poll the page DOM for the outcome. A plain
+  // string return from an injected func is the
+  // reliable channel (file header, finding
+  // 2026-10-08 (5)). A read whose callback is
+  // lost counts as "no outcome yet": the
+  // deadline bounds the loop.
+  const deadline = Date.now() + DELEGATE_TIMEOUT_MS;
+  for (;;) {
+    let raw: string | null = null;
+    try {
+      const frames = await withTimeout(
+        Promise.resolve(
+          chrome.scripting.executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: readDelegateResult,
+          }),
+        ),
+        EXECUTE_TIMING.timeoutMs,
+        `readDelegateResult for ${what}`,
+      );
+      const value = frames?.[0]?.result;
+      raw = typeof value === 'string' ? value : null;
+    } catch {
+      raw = null;
+    }
+    if (raw !== null && raw.startsWith(`${nonce}:`)) {
+      const result = JSON.parse(raw.slice(nonce.length + 1)) as DelegateResult;
+      if (result.ok) {
+        return result.json;
+      }
+      if (result.errorCode !== 'IN_FLIGHT') {
+        switch (result.errorCode) {
+          case 'HTTP_STATUS':
+            throw httpStatusError(typeof result.status === 'number' ? result.status : 0, what);
+          case 'NETWORK':
+            throw networkError(result.message);
+          case 'OUT_OF_SCOPE':
+            throw outOfScopeError(what);
+          default:
+            throw structureUnrecognized(
+              `unknown delegate error code "${String(result.errorCode)}" for ${what}`,
+            );
+        }
+      }
+    }
+    if (Date.now() >= deadline) {
+      throw networkError(`no result from the main world for ${what}`);
+    }
+    await sleep(DELEGATE_POLL_MS);
+  }
 }
 
 /**
@@ -330,55 +403,218 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
     throw networkError(`main-world execution failed for ${url}`);
   }
 
-  // Poll the page DOM for the outcome. A plain
-  // string return from an injected func is the
-  // reliable channel (file header, finding
-  // 2026-10-08 (5)). A read whose callback is
-  // lost counts as "no outcome yet": the
-  // deadline bounds the loop.
-  const deadline = Date.now() + DELEGATE_TIMEOUT_MS;
-  for (;;) {
-    let raw: string | null = null;
-    try {
-      const frames = await withTimeout(
-        Promise.resolve(
-          chrome.scripting.executeScript({
-            target: { tabId },
-            world: 'MAIN',
-            func: readDelegateResult,
-          }),
-        ),
-        EXECUTE_TIMING.timeoutMs,
-        `readDelegateResult for ${url}`,
-      );
-      const value = frames?.[0]?.result;
-      raw = typeof value === 'string' ? value : null;
-    } catch {
-      raw = null;
-    }
-    if (raw !== null && raw.startsWith(`${nonce}:`)) {
-      const result = JSON.parse(raw.slice(nonce.length + 1)) as DelegateResult;
-      if (result.ok) {
-        return result.json;
-      }
-      switch (result.errorCode) {
-        case 'HTTP_STATUS':
-          throw httpStatusError(typeof result.status === 'number' ? result.status : 0, url);
-        case 'NETWORK':
-          throw networkError(result.message);
-        case 'OUT_OF_SCOPE':
-          throw outOfScopeError(url);
-        default:
-          throw structureUnrecognized(
-            `unknown delegate error code "${String(result.errorCode)}" for ${url}`,
-          );
-      }
-    }
-    if (Date.now() >= deadline) {
-      throw networkError(`no result from the main world for ${url}`);
-    }
-    await sleep(DELEGATE_POLL_MS);
+  return awaitDelegateOutcome(tabId, nonce, url);
+}
+
+/**
+ * Page MAIN world: the cart WRITE (D-30, amending D-26's apply flow).
+ *
+ * Same contract as the other injected funcs: self-contained (every
+ * constant a literal inside the body - see the file header,
+ * finding 2026-10-08 (7)), the outcome travels over
+ * <html data-dkopt-result> nonce-prefixed, and the return value is
+ * ignored.
+ *
+ * Two guarantees beyond the GET executor:
+ *  - the endpoint and the verb are literally baked in, so no caller
+ *    can aim this at another path;
+ *  - at-most-once: the worker retries an injection whose callback
+ *    was lost, and a retried add would otherwise buy a second unit.
+ *    An outcome already published under this call's nonce - or the
+ *    IN_FLIGHT checkpoint this func writes before the request
+ *    leaves - ends the retry without fetching again.
+ */
+export function mainWorldCartAdd(args: {
+  variantId: string;
+  headers: Record<string, string>;
+  nonce: string;
+}): void {
+  const { variantId, headers, nonce } = args;
+
+  const write = (value: string): void => {
+    document.documentElement.setAttribute('data-dkopt-result', value);
+  };
+  const finish = (outcome: DelegateResult): void => {
+    write(`${nonce}:${JSON.stringify(outcome)}`);
+  };
+
+  const published = document.documentElement.getAttribute('data-dkopt-result');
+  if (published !== null && published.startsWith(`${nonce}:`)) return;
+
+  const endpoint = 'https://api.digikala.com/checkout/v1/carts/items';
+
+  // D-02 (defense in depth): the closed
+  // *.digikala.com scope is re-checked here.
+  let host = '';
+  try {
+    host = new URL(endpoint).hostname.toLowerCase();
+  } catch {
+    finish({ ok: false, errorCode: 'OUT_OF_SCOPE', message: 'the cart endpoint is not a URL' });
+    return;
   }
+  if (host !== 'digikala.com' && !host.endsWith('.digikala.com')) {
+    finish({
+      ok: false,
+      errorCode: 'OUT_OF_SCOPE',
+      message: 'the cart endpoint is outside the closed scope',
+    });
+    return;
+  }
+
+  // Announce the write BEFORE it leaves: a retry must see it.
+  finish({ ok: false, errorCode: 'IN_FLIGHT', message: 'the cart write is in flight' });
+
+  // No blind retry inside the func: an add is not idempotent
+  // (apply.ts re-reads the cart instead).
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  fetch(endpoint, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ variant_ids: [variantId] }),
+    signal: controller.signal,
+  })
+    .then(async (res: Response) => {
+      clearTimeout(timer);
+      let body: unknown = null;
+      try {
+        body = await res.json();
+      } catch {
+        // an empty body is the normal success shape
+      }
+      if (!res.ok) {
+        finish({
+          ok: false,
+          errorCode: 'HTTP_STATUS',
+          message: `HTTP ${res.status} from the cart API`,
+          status: res.status,
+        });
+        return;
+      }
+      finish({ ok: true, json: body });
+    })
+    .catch((e: Error) => {
+      clearTimeout(timer);
+      finish({
+        ok: false,
+        errorCode: 'NETWORK',
+        message: `Network failure: ${e.message}`,
+      });
+    });
+}
+
+/**
+ * Page MAIN world: the cart row removal (D-30). Same contract as
+ * mainWorldCartAdd, one verb down: the endpoint and 'DELETE' are
+ * baked in, the body names the row to drop, and the at-most-once
+ * checkpoint keeps a lost callback from removing twice.
+ */
+export function mainWorldCartRemove(args: {
+  cartItemId: string;
+  headers: Record<string, string>;
+  nonce: string;
+}): void {
+  const { cartItemId, headers, nonce } = args;
+
+  const write = (value: string): void => {
+    document.documentElement.setAttribute('data-dkopt-result', value);
+  };
+  const finish = (outcome: DelegateResult): void => {
+    write(`${nonce}:${JSON.stringify(outcome)}`);
+  };
+
+  const published = document.documentElement.getAttribute('data-dkopt-result');
+  if (published !== null && published.startsWith(`${nonce}:`)) return;
+
+  const endpoint = 'https://api.digikala.com/checkout/v1/carts/items';
+
+  let host = '';
+  try {
+    host = new URL(endpoint).hostname.toLowerCase();
+  } catch {
+    finish({ ok: false, errorCode: 'OUT_OF_SCOPE', message: 'the cart endpoint is not a URL' });
+    return;
+  }
+  if (host !== 'digikala.com' && !host.endsWith('.digikala.com')) {
+    finish({
+      ok: false,
+      errorCode: 'OUT_OF_SCOPE',
+      message: 'the cart endpoint is outside the closed scope',
+    });
+    return;
+  }
+
+  finish({ ok: false, errorCode: 'IN_FLIGHT', message: 'the cart write is in flight' });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 10_000);
+  fetch(endpoint, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', ...headers },
+    body: JSON.stringify({ cartItemIds: [cartItemId] }),
+    signal: controller.signal,
+  })
+    .then(async (res: Response) => {
+      clearTimeout(timer);
+      let body: unknown = null;
+      try {
+        body = await res.json();
+      } catch {
+        // an empty body is the normal success shape
+      }
+      if (!res.ok) {
+        finish({
+          ok: false,
+          errorCode: 'HTTP_STATUS',
+          message: `HTTP ${res.status} from the cart API`,
+          status: res.status,
+        });
+        return;
+      }
+      finish({ ok: true, json: body });
+    })
+    .catch((e: Error) => {
+      clearTimeout(timer);
+      finish({
+        ok: false,
+        errorCode: 'NETWORK',
+        message: `Network failure: ${e.message}`,
+      });
+    });
+}
+
+/** Service-worker side: one delegated cart add (D-30). */
+export async function delegateCartAdd(tabId: number, variantId: string): Promise<unknown> {
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await executeMainWorld(
+      tabId,
+      mainWorldCartAdd,
+      [{ variantId, headers: SITE_API_HEADERS, nonce }],
+      'mainWorldCartAdd',
+    );
+  } catch {
+    throw networkError('main-world execution failed for the cart add');
+  }
+  return awaitDelegateOutcome(tabId, nonce, 'cart add');
+}
+
+/** Service-worker side: one delegated cart row removal (D-30). */
+export async function delegateCartRemove(tabId: number, cartItemId: string): Promise<unknown> {
+  const nonce = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  try {
+    await executeMainWorld(
+      tabId,
+      mainWorldCartRemove,
+      [{ cartItemId, headers: SITE_API_HEADERS, nonce }],
+      'mainWorldCartRemove',
+    );
+  } catch {
+    throw networkError('main-world execution failed for the cart removal');
+  }
+  return awaitDelegateOutcome(tabId, nonce, 'cart removal');
 }
 
 /**
@@ -538,47 +774,5 @@ export async function delegateShipmentQuote(
   // return from an injected func is the reliable
   // one. A read whose callback is lost counts as
   // "no outcome yet": the deadline bounds us.
-  const deadline = Date.now() + DELEGATE_TIMEOUT_MS;
-  for (;;) {
-    let raw: string | null = null;
-    try {
-      const frames = await withTimeout(
-        Promise.resolve(
-          chrome.scripting.executeScript({
-            target: { tabId },
-            world: 'MAIN',
-            func: readDelegateResult,
-          }),
-        ),
-        EXECUTE_TIMING.timeoutMs,
-        `readDelegateResult for ${url}`,
-      );
-      const value = frames?.[0]?.result;
-      raw = typeof value === 'string' ? value : null;
-    } catch {
-      raw = null;
-    }
-    if (raw !== null && raw.startsWith(`${nonce}:`)) {
-      const result = JSON.parse(raw.slice(nonce.length + 1)) as DelegateResult;
-      if (result.ok) {
-        return result.json;
-      }
-      switch (result.errorCode) {
-        case 'HTTP_STATUS':
-          throw httpStatusError(typeof result.status === 'number' ? result.status : 0, url);
-        case 'NETWORK':
-          throw networkError(result.message);
-        case 'OUT_OF_SCOPE':
-          throw outOfScopeError(url);
-        default:
-          throw structureUnrecognized(
-            `unknown delegate error code "${String(result.errorCode)}" for ${url}`,
-          );
-      }
-    }
-    if (Date.now() >= deadline) {
-      throw networkError(`no result from the main world for ${url}`);
-    }
-    await sleep(DELEGATE_POLL_MS);
-  }
+  return awaitDelegateOutcome(tabId, nonce, url);
 }

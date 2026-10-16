@@ -7,11 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { IDBFactory } from 'fake-indexeddb';
 import {
   handleCapturePdp,
+  handleCartAdd,
+  handleCartRead,
+  handleCartRemove,
   handleCrawlStart,
   handleCrawlAbort,
+  pickDigikalaTab,
   syncBadge,
   type ControllerDeps,
 } from '../src/capture/sw-controller';
+import { CaptureError } from '../src/capture/errors';
 import { getAllItems, getSnapshotsForItem } from '../src/shared/storage/db';
 import { readCartPayload } from '../src/capture/readers/cart';
 import type { CaptureProgressMessage } from '../src/capture/messaging';
@@ -419,5 +424,130 @@ describe('handleCrawlStart: shipment quote (D-19)', () => {
     expect(res.ok).toBe(true);
     const { getShipment } = await import('../src/shared/storage/db');
     expect(await getShipment(deps.dbFactory)).toBeNull();
+  });
+});
+
+/**
+ * D-30: the apply flow's cart calls. The worker resolves the digikala
+ * tab itself (the results page is an extension page, so sender.tab is
+ * useless there), runs the call in that tab's main world, and never
+ * opens a tab: without one it answers NO_TAB and the page explains.
+ */
+describe('cart calls for the apply flow (D-30)', () => {
+  it('reads the cart through the delegate, pinned to the cart endpoint', async () => {
+    const deps = makeDeps();
+    const delegated: Array<{ tabId: number; url: string }> = [];
+    const delegateFetch = async (tabId: number, url: string) => {
+      delegated.push({ tabId, url });
+      return cartBasic;
+    };
+    const res = await handleCartRead({
+      ...deps,
+      findCartTab: async () => 42,
+      delegateFetch,
+    });
+    expect(res).toEqual({ ok: true, kind: 'cart-read', data: cartBasic });
+    expect(delegated).toEqual([{ tabId: 42, url: 'https://api.digikala.com/checkout/v1/carts' }]);
+    // Never a direct extension-origin cart fetch.
+    expect(deps.fetchCalls).toHaveLength(0);
+  });
+
+  it('answers NO_TAB when no digikala tab is open, calling nothing', async () => {
+    const deps = makeDeps();
+    const delegateFetch = vi.fn(async () => cartBasic);
+    const res = await handleCartRead({
+      ...deps,
+      findCartTab: async () => undefined,
+      delegateFetch,
+    });
+    expect(res).toMatchObject({ ok: false, errorCode: 'NO_TAB' });
+    expect(delegateFetch).not.toHaveBeenCalled();
+    expect(deps.fetchCalls).toHaveLength(0);
+  });
+
+  it('forwards a cart add to the tab and reports the id it sent', async () => {
+    const deps = makeDeps();
+    const added: Array<{ tabId: number; variantId: string }> = [];
+    const res = await handleCartAdd(
+      {
+        ...deps,
+        findCartTab: async () => 7,
+        cartAdd: async (tabId, variantId) => {
+          added.push({ tabId, variantId });
+        },
+      },
+      'v123',
+    );
+    expect(res).toEqual({ ok: true, kind: 'cart-add' });
+    expect(added).toEqual([{ tabId: 7, variantId: 'v123' }]);
+  });
+
+  it('forwards a cart removal to the tab', async () => {
+    const deps = makeDeps();
+    const removed: Array<{ tabId: number; cartItemId: string }> = [];
+    const res = await handleCartRemove(
+      {
+        ...deps,
+        findCartTab: async () => 7,
+        cartRemove: async (tabId, cartItemId) => {
+          removed.push({ tabId, cartItemId });
+        },
+      },
+      'c9',
+    );
+    expect(res).toEqual({ ok: true, kind: 'cart-remove' });
+    expect(removed).toEqual([{ tabId: 7, cartItemId: 'c9' }]);
+  });
+
+  it('refuses an empty id before touching a tab', async () => {
+    const deps = makeDeps();
+    const cartAdd = vi.fn(async () => {});
+    const res = await handleCartAdd({ ...deps, findCartTab: async () => 7, cartAdd }, '');
+    expect(res).toMatchObject({ ok: false, errorCode: 'BAD_REQUEST' });
+    expect(cartAdd).not.toHaveBeenCalled();
+  });
+
+  it('carries a 401 out with its status (the sheet says "sign in")', async () => {
+    const deps = makeDeps();
+    const res = await handleCartAdd(
+      {
+        ...deps,
+        findCartTab: async () => 7,
+        cartAdd: async () => {
+          throw new CaptureError('HTTP 401 from the cart API', 'HTTP_STATUS', 401);
+        },
+      },
+      'v1',
+    );
+    expect(res).toMatchObject({ ok: false, errorCode: 'HTTP_STATUS', status: 401 });
+  });
+});
+
+describe('pickDigikalaTab (D-30 tab choice)', () => {
+  it('prefers the cart page, then any www page, then any digikala host', () => {
+    expect(
+      pickDigikalaTab([
+        { id: 1, url: 'https://api.digikala.com/' },
+        { id: 2, url: 'https://www.digikala.com/product/dkp-1/' },
+        { id: 3, url: 'https://www.digikala.com/cart/' },
+      ]),
+    ).toBe(3);
+    expect(
+      pickDigikalaTab([
+        { id: 1, url: 'https://api.digikala.com/' },
+        { id: 2, url: 'https://www.digikala.com/' },
+      ]),
+    ).toBe(2);
+  });
+
+  it('skips discarded and non-digikala tabs, and returns undefined when empty', () => {
+    expect(
+      pickDigikalaTab([
+        { id: 1, url: 'https://www.digikala.com/cart/', discarded: true },
+        { id: 2, url: 'https://example.com/' },
+        { id: 3, url: 'chrome://newtab/' },
+        { url: 'https://www.digikala.com/' },
+      ]),
+    ).toBeUndefined();
   });
 });

@@ -44,6 +44,14 @@ body {
   margin: 0 0 calc(var(--space) * 1.5);
 }
 
+/* The 3D badge is the app mark; the toolbar uses the minimal glyph. */
+.brand-icon {
+  display: block;
+  inline-size: 56px;
+  block-size: 56px;
+  margin-block-end: 12px;
+}
+
 .title {
   font-size: clamp(1.5rem, 4vw, 2rem);
   font-weight: 600;

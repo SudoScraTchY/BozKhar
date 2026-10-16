@@ -2,16 +2,33 @@ import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from '../package.json';
 
 /**
+ * One mark everywhere: the 3D BozKhar badge, cut at each size Chrome
+ * asks for from the single source in brand/BozKhar_Main_Icon.png.
+ * The toolbar no longer has its own line-art glyph - the same art is
+ * used for the action button and the app icon.
+ *
+ * Paths resolve through publicDir: crxjs emits manifest assets from the
+ * project root first, then public/.
+ */
+const ICONS: Record<string, string> = {
+  16: 'icons/icon-16.png',
+  32: 'icons/icon-32.png',
+  48: 'icons/icon-48.png',
+  128: 'icons/icon-128.png',
+};
+
+/**
  * The manifest source of truth, typed against Chrome's MV3 schema.
  * NFR-06: permissions are exactly storage + tabs + *.digikala.com host.
  * Anything beyond this set requires a decision-log entry first (SDD 06).
  */
 export const manifestSource: chrome.runtime.ManifestV3 = {
   manifest_version: 3,
-  name: 'Digikala Cart Optimizer',
-  short_name: 'DK Optimizer',
+  name: 'BozKhar',
+  short_name: 'BozKhar',
   version: pkg.version,
   description: pkg.description,
+  icons: { ...ICONS },
   // NOTE: no default_locale - the extension does its own catalog-based i18n
   // (src/shared/i18n). Declaring it without a _locales/ bundle makes Chrome
   // reject the whole extension at load time.
@@ -41,7 +58,8 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
     },
   ],
   action: {
-    default_title: 'Digikala Cart Optimizer',
+    default_title: 'BozKhar',
+    default_icon: { ...ICONS },
   },
 };
 

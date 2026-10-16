@@ -20,7 +20,14 @@ export type CaptureRequest =
   | { kind: 'capture/crawl-start' }
   | { kind: 'capture/crawl-abort' }
   /** Toolbar badge reflects the comparison-list size (09 Surface 1). */
-  | { kind: 'capture/badge-sync' };
+  | { kind: 'capture/badge-sync' }
+  // D-30: the apply flow's cart calls. The results page has no
+  // Digikala session of its own, so the worker runs them in an
+  // open digikala tab's main world (a read, or one of the two
+  // sanctioned writes).
+  | { kind: 'capture/cart-read' }
+  | { kind: 'capture/cart-add'; variantId: string }
+  | { kind: 'capture/cart-remove'; cartItemId: string };
 
 /** Responses mirror the success/failure of the underlying capture step. */
 export type CaptureResponse =
@@ -31,7 +38,13 @@ export type CaptureResponse =
   | { ok: true; kind: 'crawl-start'; itemCount: number; done: number; failed: number }
   | { ok: true; kind: 'crawl-abort' }
   | { ok: true; kind: 'badge-sync'; count: number }
-  | { ok: false; errorCode: string; message: string };
+  /** The raw cart payload; the results page normalizes it (D-30). */
+  | { ok: true; kind: 'cart-read'; data: unknown }
+  | { ok: true; kind: 'cart-add' }
+  | { ok: true; kind: 'cart-remove' }
+  // `status` carries an HTTP failure code (401/403 => signed out)
+  // so a caller can tell it from "no tab reachable" (D-30).
+  | { ok: false; errorCode: string; message: string; status?: number };
 
 /** Broadcast on every orchestrator progress step; no response expected. */
 export interface CaptureProgressMessage {
@@ -50,6 +63,9 @@ const REQUEST_KINDS = [
   'capture/crawl-start',
   'capture/crawl-abort',
   'capture/badge-sync',
+  'capture/cart-read',
+  'capture/cart-add',
+  'capture/cart-remove',
 ] as const;
 
 export function isCaptureRequest(raw: unknown): raw is CaptureRequest {
