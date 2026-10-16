@@ -57,18 +57,27 @@ python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256
 
 ## Cutting a release
 
-CI only reacts to a tag; creating it is yours.
+Two ways, and both refuse a version that does not match `package.json`:
+
+**From the Actions tab** (nothing to install): *Actions → Release → Run
+workflow*, and type the version — `0.4.0` or `v0.4.0`. The tag is created at
+the commit the run verified, so the zip, the tag and the commit always agree.
+
+**From your machine**, if you prefer the tag to come first:
 
 ```bash
 # 1. bump the version in package.json (the manifest and the tag both read it)
-# 2. commit that bump
+# 2. commit that bump and push it to main
 git tag -a v0.4.0 -m "BozKhar 0.4.0"
 git push origin v0.4.0
 ```
 
-The Release workflow refuses the tag if it does not equal
-`v$(package.json version)`, so the tag and the store version cannot drift.
-Stores require the version to increase on every upload — that is what this
+`v0.4.0` is published this way as of 2026-10-16. Re-running a release for a
+tag that already exists is allowed only when that tag points at the commit
+the run just built — otherwise the run stops and says so, because a release
+built from one tree must never be filed under a tag that names another.
+
+Stores require the version to increase on every upload — that is what the
 bump is.
 
 ## Before the first upload: the listing assets
