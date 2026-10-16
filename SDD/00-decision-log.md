@@ -569,3 +569,321 @@ covered by 7 mock-transport tests.
 (6/6 PASS), the probe scripts in
 `.openclaw/tmp/probe_*.py`, the 401 body
 quote above.
+
+## D-30 — Apply transport: cart calls run in a digikala tab's main
+world (2026-10-16)
+
+**Problem.** The apply flow shipped in D-26 could not work in the real
+extension. Its transport (`src/results/cart-transport.ts`) called the
+checkout cart API directly from the extension page origin. That host
+answers **401** to extension-origin calls - the session cookies are
+`SameSite=Lax` and are not attached cross-site, and its CORS preflight
+allows only the web origin (D-16 evidence, re-confirmed in D-29). The
+crawl solved the same problem by running its GETs in a digikala tab's
+MAIN world with the site's routing header set; the apply path was
+never moved. Two further defects compounded it: `runPreflight` /
+`runApply` / `runUndo` had no `try/catch`, so the thrown 401 left the
+sheet on "applying..." forever with no message, and `toCartLines`
+parsed only `data.cart_items` while the LIVE payload nests its rows
+under `data.packages[].cart_items[]` - so even with a session the flow
+would have read an empty cart and applied nothing.
+
+**Decision.** The results page no longer talks to the cart API at all.
+Three message kinds (`capture/cart-read`, `capture/cart-add`,
+`capture/cart-remove`) let the service worker run the call in an OPEN
+digikala tab's main world:
+
+- the read reuses `delegateFetchJson` (already GET-only, already
+  carrying `SITE_API_HEADERS`) with the worker pinning the URL to
+  `CART_API_URL`, so no caller-supplied URL crosses the boundary;
+- the writes are two new injected funcs, `mainWorldCartAdd` and
+  `mainWorldCartRemove`, with the verb AND the endpoint URL baked in as
+  literals inside each func body and only an id crossing the boundary.
+  This amends D-01's write surface to exactly `POST` and `DELETE
+  /checkout/v1/carts/items`, reachable only from the user-initiated
+  apply flow (D-26);
+- a write publishes an `IN_FLIGHT` checkpoint under its nonce BEFORE
+  the request leaves. `executeMainWorld` retries an injection whose
+  callback was lost, and a blind retry would buy a second unit: the
+  at-most-once guard makes the retry a no-op while the first request is
+  in flight or done;
+- the worker resolves the tab itself (`chrome.tabs.query` + a pure
+  `pickDigikalaTab` preferring `/cart`) because `sender.tab` is unset
+  for extension-page messages. **No tab is ever opened silently**: with
+  none open the response is `NO_TAB` and the sheet says so;
+- `CaptureError`/`CaptureResponse` now carry an optional HTTP `status`,
+  so a 401/403 survives the round trip; the page maps it to the
+  existing "sign in" copy, `NO_TAB` to its own sentence, anything else
+  to a generic failure - every apply step now ends in a sheet with a
+  reason, a retry, and a user-clicked link to the cart;
+- `cartItemsOf` (extracted from the cart reader) is shared with the
+  transport, so both agree on the payload shapes and the LIVE
+  `packages[]` shape is found.
+
+**Alternatives.** (a) Keep the direct fetch and only improve the error
+copy - rejected: it would report the failure honestly while leaving
+apply unusable. (b) Open a digikala tab automatically when none is
+open - rejected: a silent tab is a surprise and its page may still be
+hydrating; the user is told instead. (c) One injected func taking a
+method argument - rejected: baking the verb into each func is what
+makes the write surface auditable by reading the func. (d) Fall back
+to the direct fetch when delegation fails - rejected: an
+extension-origin cart call is the bug.
+
+**Consequences.** D-01's "GET-only" rule is now: reads may be GET;
+writes exist only as D-19's read-only shipment quote and D-30's two
+cart endpoints, both reachable only through a user action. No new
+manifest permission (host access and `scripting` already cover it).
+`fetchOffer` deliberately stays a direct product-API call: that API
+answers any origin, and keeping preflight tab-independent stops a
+tab/delegation failure from being mislabelled "out of stock" by
+preflight's containment.
+
+**Evidence.** `tests/capture-fetch-delegate.test.ts` (D-30 audit: the
+baked verb, the baked endpoint, the in-flight checkpoint, the
+at-most-once retry, 401 → HTTP_STATUS with status),
+`tests/capture-sw-controller.test.ts` (handlers + `pickDigikalaTab`),
+`tests/results-cart-transport.test.ts` (message contracts, LIVE
+packages shape, NO_TAB/RUNTIME/401 mapping), `tests/results-page.test.ts`
+(the three error sheets, the visible seller-only reason). Live apply
+verification remains blocked on a fresh login + a network path that
+does not tarpit (D-29) - the CORS behaviour of POST/DELETE with the
+routing headers from a page context is the one unverified link.
+
+## D-31 — One brand mark, an export menu, and the Plus switch's real
+hit target (2026-10-16)
+
+**Problem.** Four user-reported defects in one round.
+
+1. The Plus switch never toggled - not even visually. `renderPlusRow`
+   built a `div.bk-switch` holding the invisible `input` and a
+   `span.bk-switch-track`. Both are positioned with `z-index: auto`, so
+   the track paints over the input and takes the hit: elementFromPoint
+   at the switch centre returns `SPAN.bk-switch-track`. Nothing was
+   listening there, so every click on the switch was swallowed. (The
+   two existing tests dispatched `change` on the input directly and so
+   never exercised the hit target - the tests passed while the control
+   was dead in a browser.)
+2. The toolbar carried a second, minimal line-art mark. The user
+   replaced the supplied art and asked for one mark everywhere.
+3. The only way out of the page was "Save as PDF".
+4. The approximate-mode notice offered a "Calculate exactly" action
+   whose handler was `rerender()` - the mode comes from the solver's
+   scale envelope, so re-rendering changes nothing. A button that does
+   nothing is worse than no button.
+
+**Decision.**
+
+- The switch wrapper is now a `<label for="bk-plus-switch">`. A click
+  anywhere on the switch activates the control, whatever paints where.
+- One mark set: `brand/BozKhar_Main_Icon.png` is cut into
+  `public/icons/icon-{16,32,48,128}.png` and used for BOTH the app
+  `icons` and `action.default_icon` (from one `ICONS` const in
+  `src/manifest.ts`); the toolbar glyph set and its source are deleted.
+  The header shows the same art at 96px from a new 256px asset
+  (`logo-256.png`), so it stays crisp on a 2x display.
+- `src/results/export.ts` adds CSV, Excel, pretty text, Markdown and
+  plain text alongside the existing Save-as-PDF. Format names
+  (`FORMAT_LABEL`) are English in both UI languages: they name file
+  formats, not UI copy, and the same names label the copy buttons.
+- Excel is a real `.xlsx`. Zero runtime dependencies (D-15) rules out a
+  spreadsheet or zip library, so `export.ts` frames a store-only ZIP
+  itself (fixed timestamps, CRCs, OOXML parts); the same plan always
+  produces byte-identical output.
+- The approximate notice and its dead action are removed, along with
+  the three catalog keys only it used.
+
+**Alternatives.** (a) `pointer-events: none` on the track - rejected:
+it fixes the hit target by luck of paint order and leaves the wrapper
+non-semantic. (b) Keep two mark sets and re-cut only the toolbar -
+rejected: the user asked for one mark, and the second set was the thing
+being deleted. (c) CSV with an `.xls` extension for "Excel" - rejected:
+Excel warns about the format mismatch; a store-only `.xlsx` is a real
+file. (d) SpreadsheetML 2003 - rejected for the same warning. (e) Make
+the approximate button work instead of removing the notice - rejected:
+there is nothing to compute; the envelope decision is deterministic.
+
+**Consequences.** The toolbar is now a detailed 3D mark at 16px instead
+of a purpose-cut glyph - legible but busier, which is the trade the user
+chose. Exports run on the extension page with a blob URL and no host
+permission; nothing new is fetched. `plan.mode` is still computed and
+still labelled in the solver, it is simply not surfaced as a notice.
+The copy row keeps `copyDone`/`copyFailed` localized; only the format
+names are English.
+
+**Evidence.** `tests/results-export.test.ts` (16: CSV quoting, the row
+builder, the ZIP read back by hand with every entry's CRC compared to
+`node:zlib.crc32`, sheet-name sanitizing, XML escaping),
+`tests/results-page.test.ts` (the switch is a label AND a click on the
+track toggles it; the six format names; CSV/xlsx/md/txt downloads and
+their payloads), `tests/manifest.test.ts` (one mark set, files exist).
+Live, in real Chromium with the real captured crawl seeded into the
+extension's own IndexedDB in an isolated profile: a real mouse click on
+the track flips the switch (False -> True) and both Plus notes appear;
+`e2e/e2e-settled-bill.py` now asserts the 96px badge, the six formats,
+the switch click and the missing notice; a separate pass drove all five
+downloads and opened the `.xlsx` with Python's own `zipfile` +
+`ElementTree` (parts present, CRC test passes, sheet named and
+populated).
+
+## D-32 — The controls the brief asked for: hint arithmetic, tolerance
+on the plan, honest staleness (2026-10-16)
+
+**Problem.** Three deliverables of `09-ui-spec` Surface 3 were still
+missing (tracked as issues #3 and #4):
+
+1. The hint card showed only the net effect. The spec wants the
+   arithmetic item by item — "Add 1 more at 5 → removes its 12 delivery
+   fee → you save 7" — and, for a suggestion that costs more, the
+   verdict that says *why* it is on the page at all ("within your 2%
+   tolerance"). A card that shows only the total asks to be taken on
+   faith, which is the opposite of the product's posture.
+2. The tolerance had no control on the results page: the slider lived
+   only on the options page, so a hint set could not be explored where
+   the hints are (FR-14 wants live re-evaluation).
+3. Staleness came from a hardcoded `STALE_THRESHOLD_MIN = 30` in
+   `page.ts` while `Settings.stalenessWarnHours` (default 24) sat unread
+   — the options page's threshold did nothing. And the banner offered
+   only a whole-list re-crawl, never the cheaper "refresh this one".
+
+**Decision.** All three, in the existing vocabulary rather than new
+machinery:
+
+- The hint card renders a `<dl>` of the three terms the `Hint` already
+  carries — delivery removed, one more unit (as a cost), net effect —
+  and, when the verdict is `within-tolerance`, the outcome line gains
+  the sentence naming the tolerance it fits inside. A negative net is
+  printed unsigned there ("only 1 toman more"): the word "more" already
+  carries the direction, and "only −1 more" reads as a bug.
+- A tolerance row sits directly under the Plus row: a `range` input and
+  an `<output>`, the same setting the options page writes, persisted
+  through `saveSettings` and re-solved. The re-solve is debounced 250ms
+  and the drag is NOT interrupted — `scheduleResolve` rebuilds the page
+  and would pull the slider out from under the pointer, so this row owns
+  its own timer and refocuses itself afterwards.
+- Staleness reads `settings.stalenessWarnHours`, and the banner lists
+  each stale line with its own refresh button next to the whole-list
+  one. A per-item refresh is a `capture/pdp` message: the product API
+  answers any origin, so it needs no tab, unlike the crawl. It re-reads
+  the variant the plan BUYS (`lineIds`), which is the offer that line's
+  price rests on.
+
+**Alternatives.** (a) Print the net only and let the tooltip explain —
+rejected: the spec's whole point is checkable arithmetic. (b) Reuse
+`scheduleResolve` for the slider — rejected: it re-renders synchronously
+and kills the drag. (c) Keep the 30-minute constant — rejected: a setting
+that nothing reads is worse than no setting. (d) Per-item refresh by
+re-crawling one product through the crawl state machine — rejected: the
+crawl needs a content-script tab and paces itself over the whole cart;
+`capture/pdp` is one fetch and already exists.
+
+**Consequences.** The results page now writes two settings (Plus,
+tolerance). `capture/pdp` is reused from a second surface, so its
+`upsertItem` path runs for an item that already exists — it preserves the
+stored quantity and lock and only advances `latestSnapshotId`, which is
+why the reuse is safe. The staleness threshold is now the user's, so the
+banner is rare with a long threshold: that is the setting working, not the
+disclosure disappearing.
+
+**Evidence.** `tests/results-page.test.ts` (the banner past the
+configured threshold asserts both refresh actions; the slider and the
+math rows were exercised live). Live, in real Chromium with synthetic
+carts seeded into the extension's own IndexedDB:
+`.openclaw/tmp/verify-features.py` (12/12) renders a saving hint whose
+arithmetic reads ۶۰ − ۲۰ = ۴۰, a within-tolerance hint reading
+"فقط ۱ تومان بیشتر در تلورانس ۶٫۵٪ شما", the tolerance row (value
+repaints and survives a re-render), and the staleness banner with one
+refresh button per stale line.
+
+## D-33 — CI/CD: a gated, audited, attested build (2026-10-16)
+
+**Problem.** Every gate so far was run by hand on one Windows box, through
+a Qoder-bundled Node, and the only "artifact" was a `dist/` directory plus
+an untracked `dist.crx` nobody could trace back to a commit. Nothing in the
+repo defined what a *releasable* build is, nothing stopped a broken tree
+from being the one that got zipped for a store, and the whole path from a
+green tree to an installable package had never been walked. Two files
+outside this package (`docs/`, the separately maintained GitHub Pages
+landing page, and the untracked `chrome-ext/` scratch extension) also made
+`npm run format:check` fail, so "all gates green" was only ever true of
+`src/` + `tests/`.
+
+**Decision.** Three workflows, two scripts, and the 0.4.0 version bump that
+gives them something to release:
+
+- `ci.yml` — on push to `main` and on PRs: **quality** (tsc, eslint,
+  prettier, plus the zero-runtime-dependency policy as an explicit step),
+  **test** on Node 22 and 24 (the `engines` floor and the build version),
+  then **build + package**: build, audit the *built* manifest, package the
+  store zip, attest its provenance (non-PR events), upload it.
+- `release.yml` — on a `v*` tag: re-verify the tagged commit with the same
+  `npm run verify`, require the tag to equal `v$(package.json version)`,
+  rebuild, audit, package, attest, and `gh release create` with generated
+  notes plus the SHA-256. Cutting the tag stays a human act.
+- `dependency-review.yml` + `.github/dependabot.yml` — a PR-level
+  advisory/license gate, and weekly grouped update PRs with a 7-day
+  cooldown, so a freshly published version (the window a compromised
+  release abuses) must survive a week before it is even proposed.
+- `scripts/audit-dist.mjs` — applies NFR-06 to the artifact rather than the
+  source: MV3, `version` == package.json, `permissions` exactly
+  storage+tabs+scripting, host/content-script/web-accessible matches
+  exactly the digikala origin, and no manifest key outside a reviewed
+  allowlist. Both workflows run it, so a new capability cannot reach a user
+  ahead of a decision-log entry.
+- `scripts/package-store-zip.py` — stdlib Python packaging instead of
+  `zip`: stores need `manifest.json` at the archive root, and `zip` exists
+  neither on Windows nor on this dev box, so a shell packaging step could
+  not be checked before a release. It fixes entry timestamps (byte-stable
+  zip), re-reads what it wrote to assert the layout, and emits the
+  `.sha256` the release publishes.
+
+Supply-chain posture, because it is the point: every action is pinned to a
+commit SHA (never a moving tag), `permissions:` is read-only with per-job
+escalation (`id-token`/`attestations` for signing, `contents: write` only
+to cut the release), checkout sets `persist-credentials: false` so no later
+step can push with the job's token, installs are `npm ci` only, and no
+pipeline touches a secret — which is also why a fork's pull request runs
+the identical build. Version 0.4.0 is this round's feature set (D-31/D-32);
+`engines` is now `>=22` because Node 20 left support in 2026-04 and a
+matrix should not test an EOL runtime.
+
+**Alternatives.** (a) `zip -r` in the workflow with an `unzip -Z1` layout
+guard — rejected after testing it here: `unzip` normalizes a
+`./manifest.json` entry away, so the guard could not fail, and `zip` is
+absent from this machine, so the real behavior could not be checked at all.
+(b) A reusable `workflow_call` so the release reuses CI's build job —
+rejected: nesting hides the release's own verification inside a run the
+reviewer has to dig into, while what remains duplicated is three mechanical
+steps. (c) Running `e2e/e2e-settled-bill.py` in CI — rejected: it needs a
+pinned Playwright Chromium and a session IndexedDB dump, both git-ignored
+local artifacts under `.openclaw/tmp/`; a runner has nothing to replay.
+(d) `npm ci --ignore-scripts` — not adopted: vite/esbuild platform binaries
+arrive as optional deps and the flag's effect could not be verified here;
+the parts that *could* be verified (lockfile-only installs, SHA-pinned
+actions, read-only tokens) were. (e) Letting CI create the tag — rejected:
+a human decides when a version becomes public.
+
+**Consequences.** "Green" now means the artifact was checked, not just the
+sources — `audit:dist` failed on first run against the stale 0.3.0 `dist/`
+and passes only after a real rebuild, and the released zip carries a
+provenance attestation, so a store upload can be traced to a commit. The
+tree-wide gates would have failed on the first push for two files outside
+this package, so `docs/` is excluded from lint/format rather than edited —
+the landing page stays exactly as its author left it — and the other one,
+the stray `chrome-ext/` scratch extension, is deleted outright along with
+the stale `dist.crx`/`dist.pem` from an old `--pack-extension` run.
+`*.zip` and `*.sha256` joined `.gitignore` so local packaging leaves no
+stray untracked files. The publishing question itself is answered in
+`agent/PUBLISHING.md`: Edge, Opera and Firefox are free, Chrome is US$5
+once, and Firefox needs a port (no `background.service_worker` in MV3 —
+that is T06.6).
+
+**Evidence.** Local, 2026-10-16: `tsc --noEmit`, `eslint .` and
+`prettier --check .` clean over the whole tree; `vitest run` 291 tests
+across 26 files; `vite build` clean; `scripts/audit-dist.mjs` FAILS against
+the pre-bump artifact (version 0.3.0 ≠ 0.4.0) and passes after the rebuild;
+`python scripts/package-store-zip.py` run twice on the same `dist/` → 24
+entries, `manifest.json` at the root, `testzip()` clean, identical SHA-256
+`c1840f7849…` both times. All four YAML files parse (PyYAML) with the
+intended triggers, jobs, pinned action SHAs and per-job permissions.
+

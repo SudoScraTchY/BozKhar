@@ -1,21 +1,32 @@
 # بز خر — Boz Khar
 
+[![CI](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml)
+[![Release](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml)
+
 **بزخر** (boz khar — literally "goat buyer") is Persian slang for someone who
 hunts bargains relentlessly: a person who buys things **very cheap**. That is
 exactly what this tool does for you on [Digikala](https://www.digikala.com).
 
-**Boz Khar** is an advise-only Chrome extension (MV3) that finds the
+**Boz Khar** is an advise-first Chrome extension (MV3) that finds the
 **cheapest way to buy your Digikala cart across marketplace vendors** — item
 prices **and** per-vendor delivery fees together, with promotions, Digikala
 Plus benefits, large-item fees, and your own vendor locks (pin/ban) factored
-in. It never touches your cart: it shows you a plan, you apply it yourself.
+in. It shows you a plan, and — only when you press **Apply** — it moves the
+plan into your own cart for you (D-26/D-30). Nothing else ever writes to your
+cart.
 
 ```
 سبد خریدت را ارزان‌تر بخر — buy the same cart, pay less.
 ```
 
 - Spec (SDD): [`SDD/`](SDD/README.md) — start with [`00-decision-log.md`](SDD/00-decision-log.md)
-- Status: T03 capture + T04 solver implemented; live-smoke in progress (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
+- Status: T03 capture, T04 solver and the T05 results UI implemented. CI type-checks,
+  lints, tests, audits and packages every push; a `v*` tag publishes an attested release
+  (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
+- Install: not on a store yet — load `dist/` unpacked, or take `bozkhar-<version>.zip`
+  from the [latest release](https://github.com/SudoScraTchY/BozKhar/releases)
+- Publishing: [`agent/PUBLISHING.md`](agent/PUBLISHING.md) — what each browser store costs
+  (only Chrome charges: US$5 once) and what to put in front of a reviewer
 - License: TBD (all rights reserved by the repository owner until decided)
 
 ## Why "بز خر"?
@@ -63,10 +74,13 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
   evaluates adding **one unit of an item already in your list** to cross a
   promo threshold. A hint is shown only if the extra unit cost still yields a
   net saving (or a net increase inside your tolerance — see below). A hint
-  that increases the total beyond tolerance is rejected outright. (FR-13)
+  that increases the total beyond tolerance is rejected outright, and the
+  card shows the arithmetic term by term — the unit's cost, the delivery it
+  removes, the net — so it can be checked by hand rather than trusted. (FR-13)
 - **Tolerance knob.** A percentage of the cart total (default 2%) bounds
   which net-increase hints are even worth showing. It is a first-class
-  setting, not a hidden constant. (FR-14)
+  setting, not a hidden constant — on the options page, and on the plan
+  itself so the hint set can be explored where the hints are. (FR-14)
 - **Digikala Plus members.** A toggle declares Plus status; regular-shipment
   fees are then modeled as Plus-waived (fee = 0), large-item fees are never
   Plus-covered. Non-members see the plain fee model. (FR-08)
@@ -85,10 +99,18 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
 - **Multi-variant products.** Cart identity is product **+ variant** (e.g. a
   supplement in the 60-count pack, not the 30-count). Capture deep-links the
   exact variant; snapshots are keyed `productId::variantId`. (FR-03)
-- **Advise-only, always.** There is **no code path that writes to your
-  cart** — no add, no remove, no quantity change, no checkout. The plan is
-  presented; applying it is 100% your click. Enforced by a GET-only audit
-  test in the suite. (FR-15, NFR-02)
+- **Nothing touches your cart unless you press Apply.** The default is
+  advise-only: the plan is presented and applying it is your click (FR-15,
+  NFR-02). The one exception is the explicit apply flow (D-26): a preflight
+  re-checks every price, the current cart is snapshotted for undo, and the
+  only write endpoints that exist are `POST`/`DELETE /checkout/v1/carts/items`
+  with the verb baked into the injected code (D-30). No checkout, ever.
+- **Get the plan out of the browser.** The results page copies it as
+  Markdown, plain text or pretty text — each line carrying that product's
+  Digikala link — and the Export menu writes it as PDF, CSV, Excel
+  (a real `.xlsx`), pretty text, Markdown or plain text. Format names are
+  English in both UI languages; the exported table is English-headed so a
+  file reads the same whoever you send it to. (FR-16)
 - **Privacy: your shopping list stays in your browser.** Local-only storage,
   zero non-Digikala network requests (verified by a network-log test), no
   telemetry, no remote code. Export your list as JSON or wipe all stored
@@ -99,9 +121,9 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
 - **Persian-first, bilingual.** UI is Persian (RTL) by default with English
   available; both are first-class, not an afterthought. (NFR-08)
 - **Small and auditable.** Zero runtime dependencies, minimal permissions
-  (`storage`, `tabs`, `https://*.digikala.com/*` only), and the whole engine
-  (solver + capture pipeline) is pure, typed TypeScript under test
-  (137 tests at the time of writing). (NFR-06, NFR-09, D-15)
+  (`storage`, `tabs`, `scripting`, `https://*.digikala.com/*` only), and the
+  whole engine (solver + capture pipeline) is pure, typed TypeScript under
+  test (291 tests at the time of writing). (NFR-06, NFR-09, D-15)
 
 ### A worked example (from the test fixtures)
 
@@ -123,15 +145,23 @@ committed fixture in `tests/fixtures/solver/`.
 
 ## Development
 
-Prerequisites: **Node.js >= 20** and npm; any Chromium browser for loading.
+Prerequisites: **Node.js >= 22** and npm; any Chromium browser for loading.
 
 ```bash
 npm install          # devDependencies only — zero runtime deps
 npm run build        # bundle to dist/
-npm run test         # vitest suite
+npm test             # vitest suite
 npm run typecheck    # tsc --noEmit (strict)
 npm run lint         # eslint
 npm run format:check # prettier
+npm run verify       # all four gates in one shot (what CI runs)
+```
+
+Packaging, exactly as CI does it:
+
+```bash
+npm run build && npm run audit:dist   # audit the BUILT manifest against NFR-06
+python scripts/package-store-zip.py   # bozkhar-<version>.zip (+ .sha256) for the stores
 ```
 
 Load into Chrome: `chrome://extensions` → enable **Developer mode** →
@@ -143,6 +173,16 @@ Architecture notes live in [`SDD/06-architecture.md`](SDD/06-architecture.md);
 the solver contract is documented in [`src/shared/solver/API.md`](src/shared/solver/API.md).
 Current engineering state, verified smoke evidence, and the next work items
 are in [`agent/HANDOFF.md`](agent/HANDOFF.md).
+
+### Releasing
+
+CI (`.github/workflows/`) type-checks, lints, tests, audits the built manifest,
+packages the store zip, attests its provenance and publishes it as a build
+artifact. A `v*` tag that matches `package.json`'s version turns that same
+build into a GitHub Release; creating the tag is the only manual step, and the
+workflow refuses a tag that disagrees with the version. Every action is pinned
+to a commit SHA and the pipelines hold no secrets. What to do with the zip is in
+[`agent/PUBLISHING.md`](agent/PUBLISHING.md).
 
 ## Etiquette & fairness
 
