@@ -1,14 +1,19 @@
-# Release: a `v*` tag (or a manual run naming an existing one) publishes a
-# GitHub Release carrying the store zip, its SHA-256 and a provenance
-# attestation.
+# Release: publishes a GitHub Release carrying the store zip, its SHA-256 and a
+# provenance attestation, built from the verified commit by the same gates CI
+# runs - never from a workstation.
 #
-# The build is cut from the tagged commit by the same gates CI runs, never
-# from a workstation, and the tag must equal package.json's version - so
-# "what was reviewed" and "what was uploaded" cannot drift apart.
+# Two ways in, both of which must name the version in package.json, so "what
+# was reviewed" and "what was released" cannot drift apart:
 #
-# Cutting a release (human steps; CI only reacts to the tag):
-#   git tag -a v0.4.0 -m "BozKhar 0.4.0"
-#   git push origin v0.4.0
+#   1. push a tag - the usual path:
+#        git tag -a v0.4.0 -m "BozKhar 0.4.0"
+#        git push origin v0.4.0
+#   2. Actions -> Release -> Run workflow, and type 0.4.0 (or v0.4.0). The tag
+#      is created at the commit this run verified, on the default branch.
+#
+# Re-running for a tag that already exists is allowed only when that tag points
+# at the very commit this run built - otherwise the release would carry
+# artifacts built from a different tree.
 #
 # See agent/PUBLISHING.md for what to do with the zip afterwards.
 
@@ -20,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Existing tag to release (e.g. v0.4.0)
+        description: Version to release, 0.4.0 or v0.4.0
         required: true
         type: string
 
@@ -32,11 +37,9 @@ jobs:
     name: verify, package, publish
     runs-on: ubuntu-latest
     permissions:
-      contents: write # creates the release
+      contents: write # creates the tag and the release
       id-token: write # signs the provenance attestation
       attestations: write # stores it
-    env:
-      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,15 +55,33 @@ jobs:
       - name: Read the version
         id: pkg
         run: echo "version=$(jq -r .version package.json)" >> "$GITHUB_OUTPUT"
-      - name: Match the tag to the version
+      - name: Resolve the requested tag
+        id: tag
+        env:
+          REQUESTED: ${{ inputs.tag || github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           set -euo pipefail
           version="$(jq -r .version package.json)"
-          if [ "$TAG" != "v$version" ]; then
-            echo "::error::tag $TAG does not match package.json version v$version"
+          tag="$REQUESTED"
+          case "$tag" in v*) ;; *) tag="v$tag" ;; esac
+          if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::'$REQUESTED' is not a version - expected 0.4.0 or v0.4.0"
             exit 1
           fi
-      - name: Gate the tagged commit
+          if [ "$tag" != "v$version" ]; then
+            echo "::error::$tag does not match the version in package.json (v$version)"
+            exit 1
+          fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] &&
+            [ "$GITHUB_REF_NAME" != "$DEFAULT_BRANCH" ]; then
+            echo "::error::a manual release is cut from $DEFAULT_BRANCH, not $GITHUB_REF_NAME"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "Releasing $tag from $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
+          echo "releasing $tag from $GITHUB_SHA"
+      - name: Gate the release commit
         run: npm run verify
       - name: Build
         run: npm run build
@@ -78,12 +99,42 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
         run: |
           set -euo pipefail
           version="$(jq -r .version package.json)"
-          gh release create "$TAG" \
-            --verify-tag \
-            --title "BozKhar $version" \
-            --generate-notes \
-            "bozkhar-$version.zip" \
-            "bozkhar-$version.zip.sha256"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::release $TAG already exists"
+            exit 1
+          fi
+
+          # Peeling an annotated tag needs a second call: a tag ref points at
+          # the tag object, not at the commit.
+          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" \
+            --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null || true)"
+          if [ -n "$existing" ]; then
+            sha="${existing##* }"
+            if [ "${existing%% *}" = "tag" ]; then
+              sha="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq .object.sha)"
+            fi
+            if [ "$sha" != "$GITHUB_SHA" ]; then
+              echo "::error::$TAG points at $sha, but this run built $GITHUB_SHA"
+              exit 1
+            fi
+            echo "$TAG exists and points at this commit"
+            gh release create "$TAG" \
+              --verify-tag \
+              --title "BozKhar $version" \
+              --generate-notes \
+              "bozkhar-$version.zip" \
+              "bozkhar-$version.zip.sha256"
+          else
+            echo "$TAG does not exist yet - creating it at $GITHUB_SHA"
+            gh release create "$TAG" \
+              --target "$GITHUB_SHA" \
+              --title "BozKhar $version" \
+              --generate-notes \
+              "bozkhar-$version.zip" \
+              "bozkhar-$version.zip.sha256"
+          fi
