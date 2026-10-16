@@ -20,7 +20,7 @@
     "node": ">=22"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.7.1",
+    "@crxjs/vite-plugin": "^3.0.0",
     "@types/chrome": "^0.3.4",
     "@types/node": "^26.6.4",
     "@vitest/coverage-v8": "^3.2.7",
