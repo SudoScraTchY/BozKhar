@@ -67,6 +67,42 @@ const REASON_KEYS: Record<UnsolvedReason, MessageKey> = {
 type ApplyErrorKind = 'auth' | 'no-tab' | 'other';
 
 /**
+ * How many alternative sellers the why-disclosure re-solves before it shows
+ * three. A small pool, because the rows are ranked by their effect on the cart
+ * total, not by unit price - the cheapest unit is often not the best row.
+ */
+const WHY_ALTERNATIVE_POOL = 5;
+
+/**
+ * The severity ramp for a rejected option (D-35): the hue slides from just
+ * below the saving green (the least-bad loser) down to red (the worst one).
+ * It deliberately starts BELOW green rather than at it - a green chip already
+ * means "this is what the plan buys", and a loser must never read as chosen.
+ */
+const LOSS_HUE_BEST = 100;
+const LOSS_HUE_WORST = 0;
+
+/** Where `loss` sits on the ramp, as an HSL hue, given the worst `worst`. */
+function lossHue(loss: number, worst: number): number {
+  if (!(worst > 0)) return LOSS_HUE_BEST;
+  const t = Math.min(1, Math.max(0, loss / worst));
+  return Math.round(LOSS_HUE_BEST + (LOSS_HUE_WORST - LOSS_HUE_BEST) * t);
+}
+
+/**
+ * Paints a chip with its position on the loss ramp. The scale is relative to
+ * the worst loss in the set the user is looking at, so the ramp always spans
+ * its full range instead of collapsing when every loser is nearly as good.
+ * The magnitude is still the chip's own text; the colour only orders them.
+ */
+function paintLoss(node: HTMLElement, loss: number, worst: number): void {
+  const hue = lossHue(loss, worst);
+  node.classList.add('bk-chip-loss');
+  node.dataset.lossHue = String(hue);
+  node.style.setProperty('--loss-hue', String(hue));
+}
+
+/**
  * A failed apply step is never silent (D-30). 401/403 means the
  * session is gone; NO_TAB means there is no digikala tab to run the
  * cart call in; everything else is a generic failure.
@@ -844,8 +880,20 @@ export function createReportPage(deps: ReportPageDeps): {
       state.items.map((i) => [itemKeyOf(i.itemId.productId, i.itemId.variantId as string), i]),
     );
 
+    // The worst unit-price rise anywhere in this plan is the red end of the
+    // loss ramp, so the change chips are coloured relative to the bill the
+    // user is looking at rather than to an arbitrary toman scale (D-35).
+    let worstRise = 0;
     for (const group of plan.groups) {
-      wrap.append(renderParcel(lang, plan, group, itemByKey, opts));
+      for (const line of group.lines) {
+        const item = itemByKey.get(line.itemKey);
+        const offer = item ? cartOffer(item) : undefined;
+        if (offer) worstRise = Math.max(worstRise, line.unitPrice - offer.price);
+      }
+    }
+
+    for (const group of plan.groups) {
+      wrap.append(renderParcel(lang, plan, group, itemByKey, opts, worstRise));
     }
     return wrap;
   }
@@ -856,6 +904,7 @@ export function createReportPage(deps: ReportPageDeps): {
     group: PlanGroup,
     itemByKey: Map<string, ComparisonItem>,
     opts: { stale: boolean },
+    worstRise: number,
   ): HTMLElement {
     const card = el('article', 'bk-parcel');
     if (opts.stale) card.classList.add('bk-stale-content');
@@ -883,7 +932,7 @@ export function createReportPage(deps: ReportPageDeps): {
     table.append(thead);
 
     for (const line of group.lines) {
-      table.append(renderItemRow(lang, plan, group, line, itemByKey));
+      table.append(renderItemRow(lang, plan, group, line, itemByKey, worstRise));
     }
     card.append(table);
 
@@ -968,6 +1017,7 @@ export function createReportPage(deps: ReportPageDeps): {
     group: PlanGroup,
     line: PlanLine,
     itemByKey: Map<string, ComparisonItem>,
+    worstRise: number,
   ): HTMLElement {
     void plan;
     void group;
@@ -1025,7 +1075,7 @@ export function createReportPage(deps: ReportPageDeps): {
 
     // Change line: what the cart holds today (the "قبل"
     // disclosure, brief §2 P1.5).
-    const change = changeLine(lang, item, group.vendorId, line);
+    const change = changeLine(lang, item, group.vendorId, line, worstRise);
     if (change) cell.append(change);
 
     row.append(cell);
@@ -1065,29 +1115,35 @@ export function createReportPage(deps: ReportPageDeps): {
     return row;
   }
 
-  /** "قبلاً: seller، price" + the difference chip. */
-  function changeLine(
-    lang: Lang,
-    item: ComparisonItem | undefined,
-    chosenVendorId: string,
-    line: PlanLine,
-  ): HTMLElement | null {
-    if (!item?.sellerId || !item?.sellerName) return null;
-    // The cart's current offer for this item: the
-    // cart seller's offer on the cart's variant,
-    // from the latest capture that still shows it
-    // (snapshots are stored oldest-first).
+  /**
+   * The cart's current offer for an item: the cart seller's offer on the
+   * cart's variant, from the latest capture that still shows it (snapshots
+   * are stored oldest-first). Also the baseline the loss ramp measures.
+   */
+  function cartOffer(item: ComparisonItem): Offer | undefined {
     const cartVariant = item.itemId.variantId as string;
     const snaps = state.snapshots
       .filter(
         (s) => s.itemId.productId === item.itemId.productId && s.itemId.variantId === cartVariant,
       )
       .reverse();
-    let currentOffer: Offer | undefined;
     for (const snap of snaps) {
-      currentOffer = snap.offers.find((o) => o.vendor.id === item.sellerId);
-      if (currentOffer) break;
+      const offer = snap.offers.find((o) => o.vendor.id === item.sellerId);
+      if (offer) return offer;
     }
+    return undefined;
+  }
+
+  /** "قبلاً: seller، price" + the difference chip. */
+  function changeLine(
+    lang: Lang,
+    item: ComparisonItem | undefined,
+    chosenVendorId: string,
+    line: PlanLine,
+    worstRise: number,
+  ): HTMLElement | null {
+    if (!item?.sellerId || !item?.sellerName) return null;
+    const currentOffer = cartOffer(item);
     if (!currentOffer) return null;
 
     const changedSeller = currentOffer.vendor.id !== chosenVendorId;
@@ -1113,6 +1169,17 @@ export function createReportPage(deps: ReportPageDeps): {
       const none = el('span', 'bk-chip');
       none.textContent = t(lang, 'changeNone');
       wrap.append(none);
+    } else {
+      // The item moved to a dearer unit to join a cheaper package. Saying so
+      // is the whole point: silently raising the unit price reads as a wrong
+      // calculation (2026-10-16 report). The chip rides the loss ramp so the
+      // size of the trade-off is legible at a glance (D-35).
+      const more = el('span', 'bk-chip');
+      more.textContent = fill(lang, 'changeMore', {
+        n: money(priceDiff, lang),
+      });
+      paintLoss(more, priceDiff, worstRise);
+      wrap.append(more);
     }
     return wrap;
   }
@@ -1163,6 +1230,9 @@ export function createReportPage(deps: ReportPageDeps): {
           h.textContent = t(lang, head);
           table.append(h);
         }
+        // The heaviest loss in this list anchors the ramp: the best loser
+        // sits just under green, the worst is fully red (D-35).
+        const worst = alts.reduce((max, a) => Math.max(max, a.effect), 0);
         for (const alt of alts) {
           const sellerCell = el('span', 'bk-why-seller');
           sellerCell.textContent = alt.sellerName;
@@ -1171,6 +1241,7 @@ export function createReportPage(deps: ReportPageDeps): {
           priceCell.textContent = money(alt.price, lang);
           const effectCell = el('span', 'bk-why-effect');
           const effectChip = el('span', alt.effect < 0 ? 'bk-chip bk-chip-saving' : 'bk-chip');
+          if (alt.effect >= 0) paintLoss(effectChip, alt.effect, worst);
           effectChip.textContent =
             alt.effect < 0
               ? fill(lang, 'changeLess', { n: money(-alt.effect, lang) })
@@ -1218,8 +1289,14 @@ export function createReportPage(deps: ReportPageDeps): {
     if (!input || !plan) return [];
     const productId = item.itemId.productId;
 
-    // Cheapest in-stock offer per alternative vendor.
-    const seen = new Map<string, { sellerName: string; price: number }>();
+    // Cheapest in-stock offer per alternative vendor, ranked by TOTAL (unit
+    // price + that vendor's own package fee). Ranking by unit price alone put
+    // a dearer-total seller at the top of this list, which reads as the
+    // extension recommending it (2026-10-16 report).
+    const fallback = input.unknownFeeFallback ?? 0;
+    const totalOf = (o: { price: number; fee: number | null }): number =>
+      o.price + (o.fee ?? fallback);
+    const seen = new Map<string, { sellerName: string; price: number; fee: number | null }>();
     for (const solverItem of input.items) {
       if (!solverItem.itemKey.startsWith(`${productId}::`)) continue;
       for (const offer of solverItem.offers) {
@@ -1227,15 +1304,19 @@ export function createReportPage(deps: ReportPageDeps): {
         if (offer.vendorId === chosenVendorId) continue;
         if (offer.unitPrice <= 0) continue;
         const known = seen.get(offer.vendorId);
-        if (!known || offer.unitPrice < known.price) {
-          seen.set(offer.vendorId, {
-            sellerName: offer.vendorName ?? offer.vendorId,
-            price: offer.unitPrice,
-          });
+        const next = {
+          sellerName: offer.vendorName ?? offer.vendorId,
+          price: offer.unitPrice,
+          fee: offer.fee,
+        };
+        if (!known || totalOf(next) < totalOf(known)) {
+          seen.set(offer.vendorId, next);
         }
       }
     }
-    const candidates = [...seen.entries()].sort((a, b) => a[1].price - b[1].price).slice(0, 3);
+    const candidates = [...seen.entries()]
+      .sort((a, b) => totalOf(a[1]) - totalOf(b[1]) || a[0].localeCompare(b[0]))
+      .slice(0, WHY_ALTERNATIVE_POOL);
 
     const out: WhyAlternative[] = [];
     for (const [vendorId, data] of candidates) {
@@ -1260,7 +1341,11 @@ export function createReportPage(deps: ReportPageDeps): {
         effect: pinnedSolve.plan.grandTotal - plan.grandTotal,
       });
     }
-    return out;
+    // Best three by effect on the cart total: the list then leads with the
+    // arrangement that is actually cheapest, not with the cheapest sticker.
+    return out
+      .sort((a, b) => a.effect - b.effect || a.vendorId.localeCompare(b.vendorId))
+      .slice(0, 3);
   }
 
   // ---- the seller control (replaces 'هر فروشنده‌ای', brief §2 P1.6) ----
@@ -1302,13 +1387,14 @@ export function createReportPage(deps: ReportPageDeps): {
         }),
       );
       // Then every seller with an in-stock offer on this
-      // product, cheapest first.
+      // product, cheapest TOTAL first (unit price + its
+      // own shipment), each showing both numbers.
       for (const offer of offersForProduct(item.itemId.productId)) {
         popover.append(
           sellerOption(
             lang,
             offer.sellerName,
-            offer.price,
+            { price: offer.price, fee: offer.fee },
             locked && pinnedVendor === offer.vendorId,
             () => {
               void mutateItem(itemKeyOf(item.itemId.productId, item.itemId.variantId as string), {
@@ -1335,32 +1421,47 @@ export function createReportPage(deps: ReportPageDeps): {
     return wrap;
   }
 
-  /** In-stock offers for a product, one per vendor, cheapest first. */
+  /**
+   * In-stock offers for a product, one per vendor, ranked by TOTAL (unit price
+   * + that vendor's own package fee). A price-only order put the fee-blind
+   * cheapest at the top, which reads as the tool's own recommendation even
+   * when the shipment makes it the dearer choice (2026-10-16 report).
+   */
   function offersForProduct(productId: string) {
     const input = state.last?.input;
     if (!input) return [];
-    const seen = new Map<string, { vendorId: string; sellerName: string; price: number }>();
+    const fallback = input.unknownFeeFallback ?? 0;
+    const totalOf = (o: { price: number; fee: number | null }): number =>
+      o.price + (o.fee ?? fallback);
+    const seen = new Map<
+      string,
+      { vendorId: string; sellerName: string; price: number; fee: number | null }
+    >();
     for (const solverItem of input.items) {
       if (!solverItem.itemKey.startsWith(`${productId}::`)) continue;
       for (const offer of solverItem.offers) {
         if (offer.stock !== 'in-stock') continue;
+        const next = {
+          vendorId: offer.vendorId,
+          sellerName: offer.vendorName ?? offer.vendorId,
+          price: offer.unitPrice,
+          fee: offer.fee,
+        };
         const known = seen.get(offer.vendorId);
-        if (!known || offer.unitPrice < known.price) {
-          seen.set(offer.vendorId, {
-            vendorId: offer.vendorId,
-            sellerName: offer.vendorName ?? offer.vendorId,
-            price: offer.unitPrice,
-          });
+        if (!known || totalOf(next) < totalOf(known)) {
+          seen.set(offer.vendorId, next);
         }
       }
     }
-    return [...seen.values()].sort((a, b) => a.price - b.price);
+    return [...seen.values()].sort(
+      (a, b) => totalOf(a) - totalOf(b) || a.vendorId.localeCompare(b.vendorId),
+    );
   }
 
   function sellerOption(
     lang: Lang,
     label: string,
-    price: number | null,
+    quote: { price: number; fee: number | null } | null,
     checked: boolean,
     onPick: () => void,
   ): HTMLElement {
@@ -1372,11 +1473,22 @@ export function createReportPage(deps: ReportPageDeps): {
     const name = el('span', 'bk-popover-name');
     name.textContent = label;
     option.append(name);
-    if (price !== null) {
+    if (quote) {
+      // Unit price AND the shipment it implies: the pair is what the choice
+      // actually costs, and showing only the first is how a dearer total came
+      // to look like the cheapest offer (2026-10-16 report).
+      const box = el('span', 'bk-popover-quote');
       const priceNode = el('span', 'bk-popover-price bk-num');
       priceNode.dir = 'ltr';
-      priceNode.textContent = money(price, lang);
-      option.append(priceNode);
+      priceNode.textContent = money(quote.price, lang);
+      const ship = el('span', 'bk-popover-ship');
+      ship.dir = 'ltr';
+      ship.textContent =
+        quote.fee === null
+          ? t(lang, 'feeUnknownShort')
+          : `${t(lang, 'shippingFee')} ${money(quote.fee, lang)}`;
+      box.append(priceNode, ship);
+      option.append(box);
     }
     if (checked) {
       const check = el('span', 'bk-popover-check');

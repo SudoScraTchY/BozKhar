@@ -120,6 +120,44 @@ export interface ToastHandle {
   remove(): void;
 }
 
+/**
+ * Rotates `setText` through `lines` at a near-random interval (1.4-2.6s),
+ * never showing the same line twice in a row, until the returned stop handle
+ * is called. This fills the crawl overlay's opening silence (D-36): the real
+ * "i of N" progress replaces it the moment it arrives, so the loop only ever
+ * covers the seconds before the first capture.
+ */
+export function rotateTexts(
+  setText: (text: string) => void,
+  lines: readonly string[],
+  random: () => number = Math.random,
+): () => void {
+  const MIN_MS = 1400;
+  const SPREAD_MS = 1200;
+  if (lines.length === 0) return () => undefined;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let last = -1;
+  const nextDelay = () => MIN_MS + Math.floor(random() * SPREAD_MS);
+  const pick = (): string => {
+    let index = Math.min(lines.length - 1, Math.floor(random() * lines.length));
+    if (index === last) index = (index + 1) % lines.length;
+    last = index;
+    return lines[index] as string;
+  };
+  const tick = () => {
+    if (stopped) return;
+    setText(pick());
+    timer = setTimeout(tick, nextDelay());
+  };
+  timer = setTimeout(tick, nextDelay());
+  return () => {
+    stopped = true;
+    if (timer !== undefined) clearTimeout(timer);
+    timer = undefined;
+  };
+}
+
 /** Shows a toast that auto-dismisses after `ms` (default 4s). */
 export function showToast(doc: Document, text: string, ms = 4000): ToastHandle {
   ensureStyles(doc);

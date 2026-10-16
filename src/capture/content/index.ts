@@ -4,7 +4,7 @@
  * default is fa; the stored setting overrides when present (read
  * fire-and-forget; the button label refreshes when settings arrive late).
  */
-import { messages } from '../../shared/i18n/messages';
+import { crawlStartingLines, messages } from '../../shared/i18n/messages';
 import { mountPdpSurface } from './pdp';
 import { mountCartSurface } from './cart';
 import type { CaptureProgressMessage, CaptureResponse } from '../messaging';
@@ -29,6 +29,7 @@ function labels(lang: Lang) {
       m.capturedOffersToast.replaceAll('{count}', String(count)).replaceAll('{variant}', variant),
     optimizeCart: m.optimizeCart,
     crawlStarting: m.crawlStarting,
+    crawlStartingLines: crawlStartingLines[lang],
     crawlRunning: m.crawlRunning,
     crawlStartFailed: m.crawlStartFailed,
     crawlProgress: (done: number, total: number) =>

@@ -49,7 +49,9 @@
 }
 
 :root {
-  /* "The settled bill" palette (D-27). No red outside errors. */
+  /* "The settled bill" palette (D-27). No red outside errors — the one
+     exception is the rejection ramp's bad end (D-35), which is a severity
+     scale read as "how much worse", not a failure. */
   --ink: #1b2b5b; /* lapis: text + the only primary button */
   --paper: #f6f7f9; /* page */
   --surface: #ffffff;
@@ -256,6 +258,16 @@ img {
   background: var(--saving-bg);
   color: var(--saving);
   font-weight: 600;
+}
+
+/* A rejected option's chip (D-35). The page sets --loss-hue per chip, on a
+   ramp from just below the saving green (least-bad loser) to red (worst), so
+   the losers order themselves by how much they cost. Green itself is never
+   used here: it stays reserved for what the plan actually buys. */
+.bk-chip-loss {
+  --loss-hue: 100;
+  color: hsl(var(--loss-hue) 72% 30%);
+  background: hsl(var(--loss-hue) 62% 95%);
 }
 
 .bk-chip-reason,
@@ -1129,9 +1141,23 @@ img {
   min-inline-size: 0;
 }
 
+/* Unit price over the shipment it implies - the pair is the real cost. */
+.bk-popover-quote {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: end;
+}
+
 .bk-popover-price {
   font-size: 13.5px;
   color: var(--muted);
+}
+
+.bk-popover-ship {
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 .bk-popover-check {

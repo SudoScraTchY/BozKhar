@@ -929,3 +929,178 @@ Three corrections ride with it:
   Until it is, "never merge a red PR" is a convention, and this entry is the
   record of what happens when it is one.
 
+## D-34 — approximate mode's local optimum, and the fee-blind seller lists (2026-10-16)
+
+**Problem (user report, exact cart):** product 8881997 was in the cart at
+variant 82750265 (بهدارو رسان، ۳۱۸٬۵۳۰ + ۱۱۰٬۰۰۰ ارسال); the sibling variant
+73998432 (مکمل نوین شاپ، ۳۱۰٬۸۶۰ + ۴۰۰٬۰۰۰) was captured as an alternative.
+The plan for that item came out as وانیل دارو ۳۲۹٬۰۰۰ riding a ۱۸۸٬۰۰۰ package,
+total ۲٬۰۰۲٬۸۴۰ for the five-item cart. The reachable optimum is ۱٬۹۵۹٬۵۳۰: the
+same item back on بهدارو رسان (its own seller, its own ۱۱۰٬۰۰۰ package) and the
+other four pooled on محور سلامتی (۱۵۰٬۰۰۰). **۴۳٬۳۱۰ too dear** — and the tool's
+own "why this seller?" panel said so, listing بهدارو رسان as ۴۳٬۳۱۰ *less*.
+Two display defects made it read as "the extension chose the dearer seller":
+the seller picker ranked by unit price with no shipment on the row (so
+۳۱۰٬۸۶۰ sat at the top), and the item row rendered *no* chip when the plan's
+unit price was higher (the ۳۱۸٬۵۳۰ → ۳۲۹٬۰۰۰ rise was silent).
+
+**Root cause.** The cart has 42 candidate vendors (every captured variant is an
+offer), so it runs approximate mode. `approximate.ts` was greedy (ranked by
+unit price, fee-blind) + D-23's repair, and that repair can only move a
+*single-item* group onto a vendor the plan already uses. Neither pass ever
+reconsiders WHICH vendor carries a package: the repair anchored the package on
+وانیل دارو (۱۸۸٬۰۰۰) because that was the first merge that paid, and it can
+neither re-anchor the group onto a cheaper-fee vendor nor send an item back to
+a solo vendor whose total is cheaper (بانی دارو ۹۹٬۰۰۰ lost to داروبانک ایران’s
+cheaper sticker, +۷٬۸۲۰ on the total).
+
+**Decision:** (1) `hubs.ts` — a bounded, deterministic hub-set candidate
+search. Hub sets of one and two vendors (pairs among the 24 cheapest-fee hubs);
+each item takes its best offer (price + that vendor’s own package fee) inside
+the set, or its own best outside it, so a set is never infeasible. Candidates
+are scored with the solver’s own `scoringTotal` and the pass returns only a
+**strict** improvement over greedy + D-23. (2) The picker and the why panel
+rank by total (unit price + package fee) and the picker prints the shipment
+beside the price (`bk-popover-quote`); the change line discloses a unit-price
+rise with the existing `changeMore` chip. New key `feeUnknownShort` for the
+picker’s compact unknown-fee label.
+
+**Alternatives:** (a) raise the exact envelope — 42 vendors is 2^42; (b) prune
+offers first — the sound prune (price > item minimum + largest fee) takes the
+real cart 42 → 38, still above 15; (c) swap-based local search — more code for
+the same class of fix; (d) a full metaheuristic — approximate mode stays
+labeled and cheap; (e) change only the UI — the arithmetic would still be
+۴۳٬۳۱۰ wrong.
+
+**Consequences:** approximate plans are never dearer than before (strict
+minimum over greedy, D-23 and the hub family), and a cart whose items share a
+seller now lands on the cheaper package; exact mode and its optimality
+guarantee are untouched; the seller list no longer reads as a recommendation of
+the cheapest sticker. The pass is O(hubs × items × offers) with pairs capped,
+so 30 items × 10 vendors stays far inside the < 1 s budget.
+
+**Evidence:** `tests/fixtures/solver/hub-set-hijack.json` — the user’s cart
+verbatim (rebuilt from the live product API plus the stored shipment quote):
+mode `approximate`, grandTotal ۱٬۹۵۹٬۵۳۰, four items on `694673` and
+`8881997::82750265` on `881751`. `tests/solver-hubs.test.ts` (five cases:
+fee-blind greedy repair, package re-anchor, no-regression on the D-23 example,
+determinism, unknown-fee fallback). `tests/results-page.test.ts`: "the seller
+control ranks by total, not by unit price alone", "a move to a dearer unit that
+joins a cheaper package discloses the rise". Local, 2026-10-16: `tsc --noEmit`,
+`eslint .`, `prettier --check .` clean; `vitest run` 300 tests across 27 files;
+`vite build` and `scripts/audit-dist.mjs` clean.
+
+## D-35 — a severity ramp for the options the plan rejected (2026-10-16)
+
+**Problem (user request):** with D-34's chips in place, every alternative seller
+and every "the unit price went up" row still looked the same — one neutral grey
+`.bk-chip`. The only difference between "barely worse" and "absurdly worse" was
+the number inside the chip, which the reader had to sort by eye against the
+green chip meaning *this is what the plan buys*.
+
+**Decision:** the plain `.bk-chip`s that describe a **rejected** option ride a
+hue ramp — `LOSS_HUE_BEST = 100` (just below the saving green) down to
+`LOSS_HUE_WORST = 0` (red) — positioned by the loss relative to the worst loss
+in the set on screen: the plan's item rows set the top for `changeMore`, and
+the why panel's own list sets it for its effect chips. The scale is relative on
+purpose: an absolute toman scale has no anchor for "much", and a fixed range
+collapses to one colour whenever every loser happens to be nearly as good. The
+ramp never uses the saving green itself — that colour stays reserved for what
+the plan actually buys, which is exactly why it starts *below* it. Implemented
+as `.bk-chip-loss` plus an inline `--loss-hue` (mirrored into `data-loss-hue`
+so the position is legible to tests and to anyone reading the DOM).
+
+**Alternatives:** one flat red for anything rejected — loses the ordering, and
+red-for-everything is the same as grey-for-everything; a length/bar encoding —
+a chip is 12px of text and a bar there is noise; colour the *chosen* chip by
+margin instead — inverts the meaning of green at the moment the user just
+learned it.
+
+**Consequences:** the D-27 palette note ("no red outside errors") is amended for
+this one chip family — here red is a severity scale, not a failure, and the
+chip's own text still carries the magnitude, so colour only orders. The
+overall palette is untouched; the ramp is computed per render from data already
+in hand (no extra solves, no new storage).
+
+**Evidence:** `tests/results-page.test.ts` — the dearer-unit test now also
+asserts `.bk-chip-loss` with `data-loss-hue` at the red end (the only rise in
+that plan), and "orders the rejected sellers on the loss ramp, best loser
+closest to green" pins the ordering (two losers, hues strictly descending,
+worst at 0, nothing on the ramp green). Local, 2026-10-16: full suite green.
+
+## D-36 — the crawl overlay talks while it waits (2026-10-16)
+
+**Problem (user request):** between the click and the service worker's first
+`capture/progress` broadcast the overlay held one frozen line — "در حال شروع
+بررسی سبد…". On a cold worker or a rate-limited CDN that is seconds to minutes
+of a motionless box, which reads as a hang; the same shape as the D-21 wedged
+worker that made this overlay worth building carefully in the first place.
+
+**Decision:** `crawlStartingLines` — 26 fa and 26 en lines in the i18n catalog —
+cycled by `rotateTexts` at a 1.4–2.6 s random interval, never showing the same
+line twice in a row. Real progress always wins: the first `capture/progress`
+stops the loop for good, and every teardown path (finished broadcast, error
+response, no-answer catch, `destroy`) now goes through one `closeOverlay`, so
+the loop cannot outlive the box it writes into. The lines are flavour and are
+deliberately never counted — the honest status is the broadcast; these only
+cover the silence before it.
+
+**Alternatives:** a CSS animation — cannot change the words; a fixed interval —
+mechanical, and it still reads as a machine idling; a bare spinner — no message
+at all; put the lines in the service worker's progress messages — the worker's
+job is the crawl, and a stalled worker would stall its own reassurances.
+
+**Consequences:** the overlay is never still for more than ~2.6 s, and it costs
+one timer and one array. The i18n catalog stays the only place strings live, so
+an English UI gets English lines (and the rotator is injectable-random, so a
+test can pin the sequence).
+
+**Evidence:** `tests/capture-content.test.ts` — "cycles the opening lines until
+real progress arrives": with a pinned `Math.random`, the overlay shows the
+canonical starting line, then a different catalog line after each interval, and
+freezes on "بررسی ۱ از ۲…" once a progress message lands (10 s of further
+timers change nothing). Local, 2026-10-16: full suite green.
+
+## D-37 — the release carries a stable download, and the landing page points at it (2026-10-16)
+
+**Problem:** `docs/index.html` — the GitHub Pages landing page, and the only
+download a stranger ever sees — linked
+`github.com/.../archive/refs/heads/main.zip`. That is the **source**, which
+contains no built extension at all (`dist/` is gitignored), and the very next
+step told the user to "select the `dist` folder". The instructions could not
+work for anyone. Pinning the link to an asset (`releases/download/v0.5.0/...`)
+would work and is the other way this link fails: it rots at every release, and
+the rotted link is exactly what a visitor would find.
+
+**Decision:** the Release workflow now also publishes **`bozkhar-latest.zip`** —
+byte-identical to `bozkhar-<version>.zip` — and attests **both** names, so
+`releases/latest/download/bozkhar-latest.zip` is a permanent URL that only a new
+release ever changes; the landing page links it and its install step now says
+"the extracted folder, where `manifest.json` lives" (the dev tab keeps the
+`dist/` wording, which is correct for a source build). Hardening that rides
+with it: the workflow asserts the zip's **own** `manifest.json` version equals
+`package.json` and the tag before publishing anything, echoes the SHA-256 into
+the step summary, and `scripts/package-store-zip.py` now **refuses** to package a
+`.pem`, `.crx` or `.map` — a leftover `dist.pem` from a local "Pack extension"
+run would otherwise be zipped straight into a published artifact.
+
+**Alternatives:** link `releases/latest` (works, but it is a page, not a
+download, and it is one more thing to explain); resolve the asset at runtime
+from the GitHub API (a network call and a 60/hour rate limit on a page whose
+whole pitch is that it is local); keep the source link and document
+`npm run build` (that is already the dev tab, and it is not a one-click
+install).
+
+**Consequences:** a visitor's download is now an installable extension, and
+nothing in the release path can publish a zip whose manifest disagrees with
+the tag. The stable alias is a name, not a new artifact: same bytes, and
+`gh attestation verify bozkhar-latest.zip` answers alongside the versioned
+name. The guard `tests/landing.test.ts` fails if the link is repointed back at
+a branch archive, pinned to a version, or if the install step stops naming the
+extracted folder.
+
+**Evidence:** `tests/landing.test.ts` (4 cases). Local, 2026-10-16: `vite
+build` + `npm run audit:dist` clean on 0.5.0, `scripts/package-store-zip.py`
+writes `bozkhar-0.5.0.zip` (24 entries) and exits 1 with a clear message when a
+`dist/leak.pem` is planted, and the workflow's version assertion prints
+`0.5.0` for that zip.

@@ -1,7 +1,8 @@
 # Publishing BozKhar
 
 Where this extension can ship, what each store costs, and exactly what to put
-in front of a reviewer. Written 2026-10-16 against the 0.4.0 package.
+in front of a reviewer. Written 2026-10-16 against the 0.4.0 package, updated
+the same day for 0.5.0 (the stable download alias, D-37).
 
 ## The answer in one table
 
@@ -38,15 +39,35 @@ Nothing here needs a local build — the pipeline produces the artifact:
   SHA-256, auto-generated notes, and a **provenance attestation**.
 
 The zip is what every store wants: `manifest.json` at the archive root,
-`sourcemap: false`, and no local `dist.pem`/`dist.crx` (the packager reads
-only `dist/`).
+`sourcemap: false`, and no local `dist.pem`/`dist.crx` — the packager reads only
+`dist/` and now **refuses** to package a `.pem`, `.crx` or `.map` if one is
+there, so a leftover key from a local "Pack extension" run cannot ride along.
+
+**The stable download link (D-37).** Every release also carries
+`bozkhar-latest.zip`, byte-identical to the versioned zip, so the landing page
+links
+
+```
+https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip
+```
+
+and never needs editing when a version is cut — `releases/latest` resolves to
+the newest non-prerelease release, so publishing *is* the update. Both names
+are attested, so either download verifies. Before publishing, the workflow also
+asserts that the zip's own `manifest.json` version equals `package.json` and
+the tag, and writes the SHA-256 into the run's step summary.
 
 To verify a download before you upload it:
 
 ```bash
-sha256sum -c bozkhar-0.4.0.zip.sha256                       # or shasum -a 256 -c
-gh attestation verify bozkhar-0.4.0.zip --repo SudoScraTchY/BozKhar
+sha256sum -c bozkhar-0.5.0.zip.sha256                       # or shasum -a 256 -c
+gh attestation verify bozkhar-0.5.0.zip --repo SudoScraTchY/BozKhar
+gh attestation verify bozkhar-latest.zip --repo SudoScraTchY/BozKhar
 ```
+
+(The sidecar is named for the versioned file, so `sha256sum -c` only matches
+that name; for the alias compare `sha256sum bozkhar-latest.zip` against the
+digest in it.)
 
 Locally, the same two commands CI runs:
 

@@ -276,6 +276,83 @@ describe('results page — the settled bill (D-27)', () => {
     });
   });
 
+  it('the seller control ranks by total, not by unit price alone', async () => {
+    // vend-cheap asks 80 but ships for 500; vend-dear asks 100 and ships for
+    // 10. A price-only order put the dearer TOTAL on top, which read as the
+    // tool's own recommendation (2026-10-16 report).
+    await putItem(IDB(), item('p1', 'v1'));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-cheap', 'ارزان‌نما', 80, 500));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-dear', 'گران‌نما', 100, 10));
+    await createReportPage(pageDeps()).run();
+
+    document
+      .querySelector('.bk-seller-btn')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const options = [...document.querySelectorAll('.bk-popover-option')];
+    expect(options).toHaveLength(3);
+    // Automatic first, then the cheaper TOTAL.
+    expect(options[1]?.textContent).toContain('گران‌نما');
+    expect(options[2]?.textContent).toContain('ارزان‌نما');
+    // Both numbers ride on the row: the sticker and the shipment behind it.
+    expect(options[1]?.querySelector('.bk-popover-price')?.textContent).toContain('۱۰۰');
+    expect(options[1]?.querySelector('.bk-popover-ship')?.textContent).toContain('۱۰');
+    expect(options[2]?.querySelector('.bk-popover-price')?.textContent).toContain('۸۰');
+    expect(options[2]?.querySelector('.bk-popover-ship')?.textContent).toContain('۵۰۰');
+  });
+
+  it('a move to a dearer unit that joins a cheaper package discloses the rise', async () => {
+    // فروشنده ب's package costs 300 and item p2 is only sold there. Moving p1
+    // onto that package raises its unit price 100 -> 105 (a rise the row used
+    // to render silently) while dropping p1's own 10 fee.
+    await putItem(IDB(), item('p1', 'v1'));
+    await putItem(IDB(), item('p2', 'v2', { sellerId: 'vend-b', sellerName: 'فروشنده ب' }));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-b', 'فروشنده ب', 105, 300));
+    await appendSnapshot(IDB(), snapshot('p2', 'v2', 'vend-b', 'فروشنده ب', 50, 300));
+    await createReportPage(pageDeps()).run();
+
+    const row = [...document.querySelectorAll('.bk-item')].find((n) =>
+      n.querySelector('.bk-item-was')?.textContent?.includes('فروشنده الف'),
+    );
+    expect(row?.querySelector('.bk-item-unit')?.textContent).toContain('۱۰۵');
+    expect(row?.querySelector('.bk-item-change .bk-chip')?.textContent).toContain('۵');
+    expect(row?.querySelector('.bk-item-change .bk-chip-saving')).toBeNull();
+    // The rise rides the loss ramp (D-35): it is the only rise in the plan,
+    // so it sits at the red end.
+    const rise = row?.querySelector<HTMLElement>('.bk-item-change .bk-chip-loss');
+    expect(rise).not.toBeNull();
+    expect(rise?.dataset.lossHue).toBe('0');
+  });
+
+  it('orders the rejected sellers on the loss ramp, best loser closest to green', async () => {
+    // The plan keeps vend-a (110 total). vend-b is 10 dearer, vend-c 100
+    // dearer: the why-panel chips must order them, and never reach green
+    // itself - green means "this is what the plan buys".
+    await putItem(IDB(), item('p1', 'v1'));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-b', 'فروشنده ب', 110, 10));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-c', 'فروشنده ج', 200, 10));
+    await createReportPage(pageDeps()).run();
+
+    document
+      .querySelector('.bk-why-btn')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      expect(document.querySelectorAll('.bk-why-effect .bk-chip-loss').length).toBe(2);
+    });
+    const hues = [...document.querySelectorAll<HTMLElement>('.bk-why-effect .bk-chip-loss')].map(
+      (n) => Number(n.dataset.lossHue),
+    );
+    // Best loser near green (100), worst fully red (0), strictly ordered.
+    expect(hues[0]).toBeGreaterThan(hues[1]!);
+    expect(hues[1]).toBe(0);
+    expect(hues[0]).toBeLessThan(100);
+    // Nothing on the ramp is ever the saving green.
+    expect(document.querySelector('.bk-why-effect .bk-chip-saving')).toBeNull();
+  });
+
   it('extra-unit hints render with the sentence, the outcome and both actions', async () => {
     // The plan splits: p1 rides vend-b (20 + 60 fee),
     // p2 stays at vend-a (200 + 10). All-vend-b would

@@ -1078,6 +1078,20 @@ body {
   flex: 1;
 }
 
+/* A secondary line under a step: the "see the releases page" pointer, which
+   must not compete with the step's own instruction. */
+.step-note {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.65;
+  opacity: 0.85;
+}
+
+.step-note a {
+  color: var(--saving);
+  text-decoration: underline;
+}
+
 .code-box {
   background: #f1f5f9;
   border: 1px solid var(--line);

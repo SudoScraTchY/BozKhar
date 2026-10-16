@@ -36,6 +36,7 @@ export type MessageKey =
   | 'crawlProgress'
   | 'crawlRunning'
   | 'feeUnknown'
+  | 'feeUnknownShort'
   | 'crawlAborted'
   | 'crawlFinished'
   | 'crawlStarting'
@@ -216,6 +217,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlStarting: 'در حال شروع بررسی سبد…',
     crawlRunning: 'در حال بررسی سبد…',
     feeUnknown: 'هزینه‌ی ارسال این فروشنده نامشخص است؛ حداقل ممکن نشان داده شده.',
+    feeUnknownShort: 'ارسال نامشخص',
     crawlStartFailed:
       'برقراری ارتباط با سرویس‌دهنده‌ی پس‌زمینه ناموفق؛ افزونه را دوباره بارگذاری کنید.',
     abortCrawl: 'توقف',
@@ -393,6 +395,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     crawlStarting: 'Starting the cart crawl…',
     crawlRunning: 'Reviewing the cart…',
     feeUnknown: "This seller's delivery fee is unknown; the minimum possible is shown.",
+    feeUnknownShort: 'Shipping unknown',
     crawlStartFailed: 'Could not reach the background service worker; please reload the extension.',
     abortCrawl: 'Stop',
     resultsTitle: 'Cart optimization report',
@@ -535,6 +538,72 @@ export const messages: Record<'fa' | 'en', Catalog> = {
       'This plan saves only by changing the seller, which must be applied by hand in your cart.',
     loadingCalc: 'Calculating…',
   },
+};
+
+/**
+ * The opening lines of the crawl overlay (D-36). The crawl's real progress
+ * ("i of N", broadcast by the service worker) always outranks these, so they
+ * only cover the seconds before the first product is captured - a slow start
+ * should read as work in progress, not as a hang. Flavour, not status: they
+ * are rotated, never counted.
+ */
+export const crawlStartingLines: Record<'fa' | 'en', readonly string[]> = {
+  fa: [
+    'داریم قیمت غرفه‌ها را می‌خوانیم…',
+    'هزینه‌ی ارسال هر غرفه را مقایسه می‌کنیم…',
+    'فروشنده‌های هر کالا را جمع می‌کنیم…',
+    'دنبال غرفه‌ای هستیم که ارزان‌تر تمام شود…',
+    'مرسوله‌های سنگین را جدا حساب می‌کنیم…',
+    'می‌بینیم پلاس روی کدام ارسال اثر دارد…',
+    'تخفیف‌های شرطی را دنبال می‌کنیم…',
+    'قیمت‌ها را یکی‌یکی ثبت می‌کنیم…',
+    'ترکیب‌های مختلف را روی کاغذ می‌آوریم…',
+    'بزخر دارد چانه می‌زند…',
+    'فروشنده‌ها یکی‌یکی مرور می‌شوند؛ کمی صبر…',
+    'هر غرفه یک مرسوله است؛ همه را می‌شماریم…',
+    'دنبال سقف ارسال رایگان می‌گردیم…',
+    'موجودی انبار غرفه‌ها را چک می‌کنیم…',
+    'کالاهای ناموجود را کنار می‌گذاریم…',
+    'حساب می‌کنیم کدام چیدمان کمترین کرایه را دارد…',
+    'رایگان‌شدن ارسال با یک قلم بیشتر را می‌سنجیم…',
+    'قیمت‌های تکراری را پاک می‌کنیم…',
+    'سبد را قلم‌به‌قلم می‌رویم…',
+    'هنوز در حال خواندن صفحه‌ی غرفه‌ها هستیم…',
+    'داریم ریاضیات این خرید را مرتب می‌کنیم…',
+    'کمی دیگر؛ چند غرفه مانده…',
+    'قیمت‌های مشکوک را کنار می‌زنیم…',
+    'جمع نهایی نزدیک است…',
+    'این حوصله‌ی بزخر است، نه کندی!',
+    'داریم ارزان‌ترین راه را پیدا می‌کنیم…',
+  ],
+  en: [
+    'Reading the sellers’ prices…',
+    'Comparing what each seller charges for delivery…',
+    'Collecting every seller of every item…',
+    'Looking for the package that ends up cheapest…',
+    'Counting large items separately…',
+    'Checking where Plus covers the shipping…',
+    'Chasing the conditional discounts…',
+    'Recording the prices one by one…',
+    'Sketching the possible arrangements…',
+    'Boz Khar is haggling…',
+    'Walking the sellers one at a time; one moment…',
+    'Every seller is its own shipment; counting them all…',
+    'Looking for the free-shipping threshold…',
+    'Checking what each seller has in stock…',
+    'Setting the out-of-stock offers aside…',
+    'Finding the arrangement with the least delivery cost…',
+    'Weighing one more unit against free shipping…',
+    'Dropping the duplicate prices…',
+    'Going through the cart item by item…',
+    'Still reading the seller pages…',
+    'Tidying up the arithmetic of this basket…',
+    'Almost there; a few sellers left…',
+    'Discarding the implausible prices…',
+    'The final total is close…',
+    'This is patience, not slowness!',
+    'Finding the cheapest way to buy it…',
+  ],
 };
 
 /** Replaces {placeholders} in a catalog string. */

@@ -23,6 +23,7 @@ const PDP_LABELS = {
 const CART_LABELS = {
   optimizeCart: 'بهینه‌سازی سبد خرید',
   crawlStarting: 'در حال شروع…',
+  crawlStartingLines: ['یک…', 'دو…', 'سه…'],
   crawlRunning: 'در حال بررسی…',
   crawlStartFailed: 'ارتباط با سرویس‌دهنده برقرار نشد',
   crawlProgress: (done: number, total: number) => `بررسی ${done} از ${total}…`,
@@ -392,6 +393,49 @@ describe('Cart surface (T03.5)', () => {
     crawlSettled = true;
     await vi.waitFor(() => expect(seen).toContain('capture/crawl-abort'));
     surface?.destroy();
+  });
+
+  it('cycles the opening lines until real progress arrives (D-36)', async () => {
+    vi.useFakeTimers();
+    try {
+      // Deterministic "random": the pick walks 0 -> 1 -> ... and the delay
+      // sits at its 1.4s floor.
+      vi.spyOn(Math, 'random').mockReturnValue(0);
+      let progressCb: ((m: CaptureProgressMessage) => void) | null = null;
+      const emitProgress = (m: CaptureProgressMessage) => progressCb?.(m);
+      const sendMessage = vi.fn(async (_req: unknown): Promise<CaptureResponse> => {
+        return new Promise<CaptureResponse>(() => {}); // a crawl that stays open
+      });
+      const surface = mountCartSurface({
+        doc: document,
+        location: currentLocation,
+        labels: CART_LABELS,
+        sendMessage,
+        onProgress(cb) {
+          progressCb = cb;
+          return () => (progressCb = null);
+        },
+      });
+      (document.querySelector('button.dkopt-btn') as HTMLButtonElement).click();
+      const overlayText = () => document.querySelector('.dkopt-progress span')?.textContent;
+      expect(overlayText()).toBe('در حال شروع…');
+
+      await vi.advanceTimersByTimeAsync(1400);
+      expect(CART_LABELS.crawlStartingLines).toContain(overlayText() as string);
+      const first = overlayText();
+      await vi.advanceTimersByTimeAsync(1400);
+      expect(overlayText()).not.toBe(first);
+
+      // Real progress wins, and the loop never speaks again.
+      emitProgress({ kind: 'capture/progress', step: 1, total: 2, done: 1, failed: 0 });
+      expect(overlayText()).toBe('بررسی 1 از 2…');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(overlayText()).toBe('بررسی 1 از 2…');
+      surface?.destroy();
+    } finally {
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+    }
   });
 
   it('closes the overlay from the response when the finished broadcast is missed', async () => {

@@ -92,10 +92,41 @@ jobs:
         # stores want manifest.json at the archive root - the script
         # asserts that after writing) plus its .sha256 sidecar.
         run: python3 scripts/package-store-zip.py
+      - name: Verify the package and add the stable alias
+        # Two guards the release should never go out without:
+        #  - the zip's OWN manifest must name the version being released, so
+        #    package.json, the tag and the artifact cannot drift apart;
+        #  - bozkhar-latest.zip is the fixed name the landing page links to
+        #    (releases/latest/download/bozkhar-latest.zip), so publishing a
+        #    version is the only step that ever updates that download.
+        run: |
+          set -euo pipefail
+          version="$(jq -r .version package.json)"
+          zip="bozkhar-$version.zip"
+          packed="$(python3 -c 'import json,sys,zipfile;print(json.loads(zipfile.ZipFile(sys.argv[1]).read("manifest.json"))["version"])' "$zip")"
+          if [ "$packed" != "$version" ]; then
+            echo "::error::$zip carries manifest version '$packed', not '$version'"
+            exit 1
+          fi
+          cp "$zip" bozkhar-latest.zip
+          {
+            echo "### BozKhar $version"
+            echo
+            echo 'The landing page downloads `bozkhar-latest.zip`; the attested file is `'"$zip"'`.'
+            echo
+            echo '```'
+            cat "$zip.sha256"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Attest build provenance
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: bozkhar-${{ steps.pkg.outputs.version }}.zip
+          # Both names are attested: the versioned zip the stores take, and
+          # the stable alias the landing page hands out, so either download
+          # can be verified.
+          subject-path: |
+            bozkhar-${{ steps.pkg.outputs.version }}.zip
+            bozkhar-latest.zip
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -137,7 +168,8 @@ jobs:
               --title "BozKhar $version" \
               --generate-notes \
               "bozkhar-$version.zip" \
-              "bozkhar-$version.zip.sha256"
+              "bozkhar-$version.zip.sha256" \
+              "bozkhar-latest.zip"
           else
             echo "$TAG does not exist yet - creating it at $GITHUB_SHA"
             gh release create "$TAG" \
@@ -145,5 +177,6 @@ jobs:
               --title "BozKhar $version" \
               --generate-notes \
               "bozkhar-$version.zip" \
-              "bozkhar-$version.zip.sha256"
+              "bozkhar-$version.zip.sha256" \
+              "bozkhar-latest.zip"
           fi

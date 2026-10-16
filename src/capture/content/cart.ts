@@ -7,6 +7,7 @@
 import { isCartPage, findMountPoint, CART_SUMMARY_CANDIDATES } from '../dom/selectors';
 import {
   mountButton,
+  rotateTexts,
   showProgressOverlay,
   showToast,
   type ButtonHandle,
@@ -21,6 +22,8 @@ export interface CartSurfaceDeps {
   labels: {
     optimizeCart: string;
     crawlStarting: string;
+    /** Opening lines cycled under the overlay until real progress arrives. */
+    crawlStartingLines: readonly string[];
     /** Button label while the crawl runs (the button is locked). */
     crawlRunning: string;
     crawlStartFailed: string;
@@ -88,6 +91,17 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
   let overlay: { setText(t: string): void; remove(): void } | null = null;
   let toast: ToastHandle | null = null;
   let unsub: (() => void) | null = null;
+  let stopHints: (() => void) | null = null;
+
+  /** Tears the overlay down: the opening-line loop, the subscription, the box. */
+  const closeOverlay = () => {
+    stopHints?.();
+    stopHints = null;
+    overlay?.remove();
+    overlay = null;
+    unsub?.();
+    unsub = null;
+  };
 
   const start = async () => {
     if (overlay) return; // a crawl UI is already up
@@ -95,13 +109,14 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       void deps.sendMessage({ kind: 'capture/crawl-abort' });
     });
     overlay.setText(deps.labels.crawlStarting);
+    stopHints = rotateTexts((line) => overlay?.setText(line), deps.labels.crawlStartingLines);
     unsub = deps.onProgress((msg) => {
+      // Real progress won: the opening lines have done their job.
+      stopHints?.();
+      stopHints = null;
       overlay?.setText(deps.labels.crawlProgress(msg.done, msg.total));
       if (msg.finished) {
-        overlay?.remove();
-        overlay = null;
-        unsub?.();
-        unsub = null;
+        closeOverlay();
         toast?.remove();
         toast = showToast(
           doc,
@@ -118,19 +133,13 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       // registered). Fail loudly instead of leaving the
       // overlay up forever (live report 2026-10-08: the
       // overlay sat on "starting..." with nothing happening).
-      overlay?.remove();
-      overlay = null;
-      unsub?.();
-      unsub = null;
+      closeOverlay();
       toast?.remove();
       toast = showToast(doc, deps.labels.crawlStartFailed, 6000);
       return;
     }
     if (!res.ok) {
-      overlay?.remove();
-      overlay = null;
-      unsub?.();
-      unsub = null;
+      closeOverlay();
       toast?.remove();
       toast = showToast(doc, `${res.errorCode}: ${res.message}`, 6000);
       return;
@@ -143,10 +152,7 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       // counts, so close the overlay here instead of leaving
       // it up forever. Unsubscribing makes a late broadcast
       // a no-op, so the finished toast never doubles.
-      overlay.remove();
-      overlay = null;
-      unsub?.();
-      unsub = null;
+      closeOverlay();
       toast?.remove();
       toast = showToast(doc, deps.labels.crawlFinished((res as { failed: number }).failed), 6000);
     }
@@ -199,9 +205,8 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       destroyed = true;
       stopWatching();
       button?.remove();
-      overlay?.remove();
+      closeOverlay();
       toast?.remove();
-      unsub?.();
     },
   };
 }

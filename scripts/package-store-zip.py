@@ -28,6 +28,12 @@ DIST = ROOT / "dist"
 # instead of carrying the checkout's file times.
 STAMP = (1980, 1, 1, 0, 0, 0)
 
+# Never inside a published archive: a local Chromium private key or CRX pack
+# (Chrome writes dist.pem when you "Pack extension"), and a sourcemap (the
+# build sets sourcemap:false). Any of them means the build config or the
+# folder changed under us, so refuse loudly rather than packaging it.
+FORBIDDEN_SUFFIXES = (".pem", ".crx", ".map")
+
 
 def main(argv):
     manifest_path = DIST / "manifest.json"
@@ -39,6 +45,12 @@ def main(argv):
     out = Path(argv[1]) if len(argv) > 1 else ROOT / f"bozkhar-{version}.zip"
 
     files = sorted(path for path in DIST.rglob("*") if path.is_file())
+    forbidden = [path for path in files if path.suffix.lower() in FORBIDDEN_SUFFIXES]
+    if forbidden:
+        names = ", ".join(str(path.relative_to(ROOT)) for path in forbidden)
+        print(f"refusing to package private keys, CRX packs or sourcemaps: {names}", file=sys.stderr)
+        return 1
+
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as archive:
         for path in files:
             info = zipfile.ZipInfo(path.relative_to(DIST).as_posix(), STAMP)
