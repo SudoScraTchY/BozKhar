@@ -1,7 +1,18 @@
-# Keep the toolchain current without letting it move on its own: weekly,
-# grouped PRs that go through the same gates as any other change, and a
-# cooldown so a freshly published version - the window a compromised
-# release exploits - has to be public for a week before it is proposed.
+# Keep the toolchain current without letting it move on its own.
+#
+# Two rules this repo learned the hard way on 2026-10-16: a Dependabot group
+# is all-or-nothing, so one uninstallable update (typescript 7 against
+# typescript-eslint 8's `typescript <6.1.0` peer range) fails `npm ci` for the
+# entire batch - and once a red batch is merged, main itself is broken. So:
+#   * a group carries minor and patch updates only, and
+#   * majors arrive as their own pull request, one migration at a time, with
+#     the decision log alongside: accepting a version here is a judgement,
+#     not a chore.
+# typescript majors stay ignored until typescript-eslint's peer range catches
+# up - remove that entry then, not before.
+#
+# The cooldown keeps a freshly published version (the window a compromised
+# release abuses) public for a week before it is even proposed.
 
 version: 2
 updates:
@@ -16,6 +27,10 @@ updates:
     groups:
       npm-dev:
         patterns: ['*']
+        update-types: ['minor', 'patch']
+    ignore:
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   - package-ecosystem: github-actions
     directory: /
@@ -27,3 +42,4 @@ updates:
     groups:
       actions:
         patterns: ['*']
+        update-types: ['minor', 'patch']

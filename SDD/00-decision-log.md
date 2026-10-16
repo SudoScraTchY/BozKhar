@@ -820,10 +820,11 @@ gives them something to release:
   `npm run verify`, require the tag to equal `v$(package.json version)`,
   rebuild, audit, package, attest, and `gh release create` with generated
   notes plus the SHA-256. Cutting the tag stays a human act.
-- `dependency-review.yml` + `.github/dependabot.yml` — a PR-level
-  advisory/license gate, and weekly grouped update PRs with a 7-day
+- `.github/dependabot.yml` — weekly grouped update PRs with a 7-day
   cooldown, so a freshly published version (the window a compromised
-  release abuses) must survive a week before it is even proposed.
+  release abuses) must survive a week before it is even proposed. (A
+  `dependency-review.yml` was written alongside it and deleted the same
+  day; see the amendment below.)
 - `scripts/audit-dist.mjs` — applies NFR-06 to the artifact rather than the
   source: MV3, `version` == package.json, `permissions` exactly
   storage+tabs+scripting, host/content-script/web-accessible matches
@@ -886,4 +887,33 @@ the pre-bump artifact (version 0.3.0 ≠ 0.4.0) and passes after the rebuild;
 entries, `manifest.json` at the root, `testzip()` clean, identical SHA-256
 `c1840f7849…` both times. All four YAML files parse (PyYAML) with the
 intended triggers, jobs, pinned action SHAs and per-job permissions.
+
+**Amended the same day, 2026-10-16.** Two hours after this landed,
+Dependabot opened its first `npm-dev` group PR (ten dev-dependency
+updates). Its CI failed on `npm ci` — typescript 7.0 against
+typescript-eslint 8.71.1, whose peer range is `typescript <6.1.0` — and the
+PR was merged anyway, so **`main` itself went red**: CI `38894670069` and
+the manual Release run `38894747089` both die in "Install (lockfile only)".
+`90afe14` reverts the merge, restoring `package.json` and
+`package-lock.json` byte-exactly to `2f2c05a`.
+
+Three corrections ride with it:
+
+- The npm group now carries **minor and patch updates only**; majors arrive
+  as individual PRs. A group is all-or-nothing, so one member that cannot
+  install is not a partial update, it is the whole batch failing — and a
+  batch that someone merges anyway is a broken `main`. typescript majors
+  are ignored outright until typescript-eslint's peer range catches up.
+- `dependency-review.yml` is **deleted**. The repository's dependency graph
+  is disabled (`security_and_analysis` reports it absent; the compare API
+  answers `403`), so the action failed on every pull request no matter what
+  the diff contained. A permanently red gate is worse than no gate: it
+  teaches people that red means nothing, which is precisely how the batch
+  above got merged. Advisory coverage returns by enabling the dependency
+  graph and Dependabot security updates in Settings → Code security —
+  nothing in the build depends on either.
+- The guard that would have prevented this is repository configuration, not
+  code: **branch protection requiring the CI checks** is still not enabled.
+  Until it is, "never merge a red PR" is a convention, and this entry is the
+  record of what happens when it is one.
 

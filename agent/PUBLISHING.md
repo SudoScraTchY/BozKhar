@@ -205,11 +205,15 @@ That work is **T06.6** in `SDD/tasks/T06-hardening-release.md` and is still
 - **Settings → Actions → General**: keep the workflow token read-only (the
   workflows assume it; `permissions:` narrows it further per job).
 - **Branch protection on `main`**: require the `CI` checks (`quality`,
-  `test (node 22)`, `test (node 24)`, `build + package`) and
-  `Dependency review` before merge.
-- **Code security**: enable Dependabot alerts and security updates. Version
-  updates are already configured in `.github/dependabot.yml` (weekly,
-  grouped, with a 7-day cooldown).
+  `test (node 22)`, `test (node 24)`, `build + package`) before merge. Not
+  just politeness: a red Dependabot batch was merged on 2026-10-16 and took
+  `main` down until it was reverted (`90afe14`).
+- **Code security**: enable the **dependency graph**, then Dependabot alerts
+  and security updates. The graph is currently off, which is why this repo
+  has no dependency-review workflow — the action answers `403` without it, so
+  the check would be red on every pull request regardless of content. Version
+  updates are configured in `.github/dependabot.yml` (weekly; minor+patch in
+  one group, majors one at a time, 7-day cooldown).
 - **Private vulnerability reporting**: enable it so a reporter has somewhere
   to go that is not a public issue.
 
