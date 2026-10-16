@@ -904,6 +904,18 @@ Three corrections ride with it:
   install is not a partial update, it is the whole batch failing — and a
   batch that someone merges anyway is a broken `main`. typescript majors
   are ignored outright until typescript-eslint's peer range catches up.
+  **Corrected again the same day (505518f, 3e15055):** the solo-major rule
+  produced a burst of individual majors, and one of them cannot install at
+  all — `@vitest/coverage-v8@5.0.3` peers `vitest@5.0.3` *exactly*, so
+  beside vitest 3.2.7 it fails `npm ci` for the entire tree. Because a
+  `pull_request` workflow tests the merge of head and base, that one merge
+  (PR #13) turned every later PR red as well, #14's own run included. The
+  verified lockfile is restored, and Dependabot now holds majors back for
+  the peer-locked trio — `typescript`, `vitest`, `@vitest/coverage-v8` —
+  while vite, eslint, @types/node and jsdom still arrive individually,
+  where CI prices each migration: `@crxjs/vite-plugin` declares `vite ^8`
+  and typescript-eslint accepts `eslint ^10`, so those two are adoptable as
+  they stand.
 - `dependency-review.yml` is **deleted**. The repository's dependency graph
   is disabled (`security_and_analysis` reports it absent; the compare API
   answers `403`), so the action failed on every pull request no matter what
