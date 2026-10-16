@@ -3,7 +3,18 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'SDD/**', 'agent/**', '.openclaw/**'],
+    // docs/ is the GitHub Pages landing page, authored and maintained
+    // separately from this package (see .prettierignore), so it is not
+    // linted as shipped code.
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'SDD/**',
+      'agent/**',
+      '.openclaw/**',
+      'docs/**',
+    ],
   },
   ...tseslint.configs.recommended,
   {

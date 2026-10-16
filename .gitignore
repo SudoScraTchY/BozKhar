@@ -9,3 +9,5 @@ coverage/
 .openclaw/
 *.pem
 *.crx
+*.zip
+*.sha256

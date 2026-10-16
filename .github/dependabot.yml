@@ -1,0 +1,29 @@
+# Keep the toolchain current without letting it move on its own: weekly,
+# grouped PRs that go through the same gates as any other change, and a
+# cooldown so a freshly published version - the window a compromised
+# release exploits - has to be public for a week before it is proposed.
+
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      npm-dev:
+        patterns: ['*']
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ['*']

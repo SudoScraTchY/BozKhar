@@ -6,3 +6,5 @@ SDD/
 agent/
 .openclaw/
 *.md
+# The GitHub Pages landing page, authored and maintained separately.
+docs/

@@ -1,0 +1,30 @@
+# Every pull request gets a diff-level dependency review: a new dependency
+# with a known advisory, or a license the project cannot ship, fails the PR
+# instead of reaching a release. Pull requests only - the action compares a
+# base against a head.
+
+name: Dependency review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: review the dependency diff
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # posts the summary on the PR
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Review
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: on-failure
