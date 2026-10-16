@@ -110,14 +110,23 @@ jobs:
           fi
 
           # Peeling an annotated tag needs a second call: a tag ref points at
-          # the tag object, not at the commit.
-          existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" \
-            --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null || true)"
-          if [ -n "$existing" ]; then
+          # the tag object, not at the commit. The exit status decides whether
+          # the tag exists - `gh api` writes its 404 body to stdout as well as
+          # failing, so the text alone cannot be trusted.
+          if existing="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$TAG" \
+            --jq '"\(.object.type) \(.object.sha)"' 2>/dev/null)"; then
             sha="${existing##* }"
             if [ "${existing%% *}" = "tag" ]; then
               sha="$(gh api "repos/$GITHUB_REPOSITORY/git/tags/$sha" --jq .object.sha)"
             fi
+            case "$sha" in
+              [0-9a-f][0-9a-f]*)
+                ;;
+              *)
+                echo "::error::could not resolve the commit behind $TAG (got '$sha')"
+                exit 1
+                ;;
+            esac
             if [ "$sha" != "$GITHUB_SHA" ]; then
               echo "::error::$TAG points at $sha, but this run built $GITHUB_SHA"
               exit 1
