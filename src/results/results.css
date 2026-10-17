@@ -349,7 +349,9 @@ img {
   position: absolute;
   inset-block-start: calc(100% + 4px);
   inset-inline-end: 0;
-  z-index: 30;
+  /* Same layer as the seller option list: above the sticky apply bar,
+     below a sheet overlay. */
+  z-index: 45;
   min-inline-size: 200px;
   padding: 6px;
   border: 1px solid var(--line);
@@ -1102,7 +1104,10 @@ img {
   position: absolute;
   inset-inline-start: 0;
   inset-block-start: calc(100% + 4px);
-  z-index: 35;
+  /* Above the sticky apply bar (40), below the sheet overlay (50): an
+     open seller list must never be painted under the bar it overlaps
+     when it opens near the bottom of the viewport. */
+  z-index: 45;
   min-inline-size: 260px;
   max-inline-size: min(340px, 86cqi);
   padding: 6px;
@@ -1581,6 +1586,17 @@ img {
 .bk-status-added {
   color: var(--saving);
   font-weight: 600;
+}
+
+/* Skipped because the cart already holds the planned variant. Muted on
+   purpose: green is reserved for an actual saving (D-27). */
+.bk-status-unchanged {
+  color: var(--muted);
+}
+
+/* Same variant, another seller: the API cannot make that move (D-28). */
+.bk-status-manual {
+  color: var(--caution);
 }
 
 .bk-status-failed {

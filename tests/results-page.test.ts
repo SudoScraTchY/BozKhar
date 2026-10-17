@@ -12,7 +12,7 @@ import { createReportPage } from '../src/results/page';
 import { appendSnapshot, getAllItems, putItem } from '../src/shared/storage/db';
 import { DEFAULT_SETTINGS } from '../src/shared/types';
 import { CartApiError, CartTransportError } from '../src/results/cart-transport';
-import type { CartTransport } from '../src/results/apply';
+import type { CartLine, CartTransport } from '../src/results/apply';
 import type { ComparisonItem, Snapshot } from '../src/shared/types';
 
 const IDB = () => globalThis.indexedDB;
@@ -751,6 +751,92 @@ describe('results page — a failed apply is never silent (D-30)', () => {
     await clickAndSettle(document.querySelector('.bk-sheet .bk-btn-primary'));
 
     expect(document.querySelector('.bk-sheet-error')?.textContent).toContain('انجام نشد');
+  });
+});
+
+/**
+ * The apply sheet seeds every row as pending. Lines the pipeline skips
+ * must reach a terminal label; leaving them pending reads as a stuck
+ * apply (2026-10-17 report).
+ */
+describe('results page — the apply sheet settles skipped lines', () => {
+  beforeEach(freshIndexedDbAndShell);
+
+  it('marks a cart item the plan already buys as "already optimal", not pending', async () => {
+    // p1/v1 → v2 is the applyable move; p2/v1 is already the plan's
+    // choice and must settle when the run finishes.
+    await putItem(IDB(), item('p1', 'v1'));
+    await putItem(IDB(), item('p2', 'v1'));
+    await appendSnapshot(
+      IDB(),
+      snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10, {
+        capturedAt: '2026-10-09T13:00:00Z',
+      }),
+    );
+    await appendSnapshot(IDB(), snapshot('p1', 'v2', 'vend-b', 'فروشنده ب', 60, 20));
+    await appendSnapshot(
+      IDB(),
+      snapshot('p2', 'v1', 'vend-a', 'فروشنده الف', 50, 10, {
+        capturedAt: '2026-10-09T13:00:00Z',
+      }),
+    );
+
+    const cart: CartLine[] = [
+      {
+        cartItemId: 'c1',
+        productId: 'p1',
+        variantId: 'v1',
+        sellerId: 'vend-a',
+        sellerName: 'فروشنده الف',
+        quantity: 1,
+      },
+      {
+        cartItemId: 'c2',
+        productId: 'p2',
+        variantId: 'v1',
+        sellerId: 'vend-a',
+        sellerName: 'فروشنده الف',
+        quantity: 1,
+      },
+    ];
+    const transport: CartTransport = {
+      fetchCart: async () => cart,
+      fetchOffer: async (productId, variantId) => ({
+        vendorId: variantId === 'v2' ? 'vend-b' : 'vend-a',
+        price: variantId === 'v2' ? 60 : productId === 'p1' ? 100 : 50,
+        stockState: 'in-stock',
+      }),
+      addVariant: async (variantId) => {
+        cart.push({
+          cartItemId: `new-${variantId}`,
+          productId: 'p1',
+          variantId,
+          sellerId: 'vend-b',
+          sellerName: 'فروشنده ب',
+          quantity: 1,
+        });
+      },
+      removeCartItem: async (cartItemId) => {
+        const at = cart.findIndex((l) => l.cartItemId === cartItemId);
+        if (at !== -1) cart.splice(at, 1);
+      },
+    };
+
+    const page = createReportPage(pageDeps(transport));
+    await page.run();
+
+    (document.querySelector('.bk-apply-btn') as HTMLButtonElement).click();
+    await settle();
+    (document.querySelector('.bk-sheet .bk-btn-primary') as HTMLButtonElement).click();
+    await settle();
+
+    const statusOf = (itemKey: string): string | undefined =>
+      [...document.querySelectorAll<HTMLElement>('.bk-progress-row')]
+        .find((row) => row.dataset.itemKey === itemKey)
+        ?.querySelector('.bk-progress-status')?.textContent ?? undefined;
+    expect(statusOf('p1::v1')).toBe('افزوده شد');
+    expect(statusOf('p2::v1')).toBe('از قبل بهینه');
+    expect(document.querySelector('.bk-sheet')?.textContent).not.toContain('در انتظار');
   });
 });
 

@@ -2204,6 +2204,10 @@ export function createReportPage(deps: ReportPageDeps): {
         return 'statusAdding';
       case 'added':
         return 'statusAdded';
+      case 'unchanged':
+        return 'statusUnchanged';
+      case 'manual':
+        return 'statusManual';
       case 'failed':
         return 'statusFailed';
     }

@@ -75,7 +75,7 @@ export type PreflightResult =
     }
   | { status: 'out-of-stock'; titles: string[] };
 
-export type LineStatus = 'pending' | 'adding' | 'added' | 'failed';
+export type LineStatus = 'pending' | 'adding' | 'added' | 'unchanged' | 'manual' | 'failed';
 
 export interface ApplyProgress {
   itemKey: string;
@@ -134,23 +134,6 @@ function errorMessage(err: unknown): string {
 function productIdOf(itemKey: string): string {
   const sep = itemKey.lastIndexOf('::');
   return sep === -1 ? itemKey : itemKey.slice(0, sep);
-}
-
-/**
- * A line needs applying when the plan's chosen offer belongs to a
- * different variant than the cart item holds (D-17 passthrough:
- * `line.variantId` is the CHOSEN variant, while the item key names the
- * cart item's own variant). Seller-only changes (same variant,
- * different vendor) are not applyable through the API transport and
- * are left alone; the page tells the user to do those by hand.
- */
-function currentRowFor(line: PlanLine, cartByItem: Map<string, CartLine>): CartLine | undefined {
-  const current = cartByItem.get(line.itemKey);
-  if (!current) return undefined; // no cart row: nothing to apply
-  if (line.variantId && line.variantId === current.variantId) {
-    return undefined; // same variant: unchanged for this transport
-  }
-  return current; // the old row to remove after the verified add
 }
 
 /** Every plan line with its owning group's vendor. */
@@ -282,13 +265,33 @@ export function createCartApplier(
 
     for (const { group, line } of planEntries(plan)) {
       if (!line.variantId) continue; // cannot apply without a chosen variant
-      const old = currentRowFor(line, cartByItem);
-      if (!old) continue;
+      const productId = productIdOf(line.itemKey);
+      const current = cartByItem.get(line.itemKey);
+      const planned = cartByItem.get(`${productId}::${line.variantId}`);
+      // Already at the planned variant - either this apply has nothing to
+      // do for the line, or a retry finds a previous run's successful
+      // move. Report it as settled instead of leaving the row "pending"
+      // (2026-10-17 report). Seller-only changes (same variant, another
+      // vendor) are not applyable through the API transport; the page
+      // tells the user to do those by hand.
+      if (planned && (!current || current.cartItemId === planned.cartItemId)) {
+        // A different seller for the SAME variant cannot go through the
+        // add-by-variant endpoint (D-28): that one is a manual change.
+        const sellerDiffers =
+          !!current?.sellerId && !!group.vendorId && current.sellerId !== group.vendorId;
+        onProgress({
+          itemKey: line.itemKey,
+          title: line.title,
+          status: sellerDiffers ? 'manual' : 'unchanged',
+        });
+        continue;
+      }
+      if (!current) continue; // no cart row at all: nothing to apply
       if (applied.length + failed.length > 0) await sleep(POLITE_GAP_MS);
       onProgress({ itemKey: line.itemKey, title: line.title, status: 'adding' });
       let added: CartLine | undefined;
       try {
-        added = await addWithQuantity(productIdOf(line.itemKey), line.variantId, line.quantity);
+        added = await addWithQuantity(productId, line.variantId, line.quantity);
         if (!added) {
           throw new Error('add not verified in cart');
         }
@@ -299,7 +302,7 @@ export function createCartApplier(
           throw new Error('quantity not reached');
         }
         // Only now is it safe to touch the old row.
-        await transport.removeCartItem(old.cartItemId);
+        await transport.removeCartItem(current.cartItemId);
         onProgress({ itemKey: line.itemKey, title: line.title, status: 'added' });
         applied.push(line.itemKey);
       } catch (err) {

@@ -231,7 +231,36 @@ describe('apply-to-cart pipeline (D-26)', () => {
     expect(state.cart.map((l) => l.variantId)).toEqual(['v2']);
   });
 
-  it('apply leaves an unchanged line alone', async () => {
+  it('apply leaves an unchanged line alone and reports it as settled', async () => {
+    const state: MockState = {
+      calls: [],
+      cart: [line('c1', 'p1', 'v1', 'vend-b')],
+      offers: new Map([['p1/v1/vend-b', offer('vend-b', 80)]]),
+      failAdds: new Set(),
+      variantProduct: new Map(),
+    };
+    const applier = createCartApplier(mockTransport(state), {
+      loadSnapshot: async () => null,
+      saveSnapshot: async () => {},
+    });
+    // The plan keeps the cart's own variant AND seller.
+    const plan = planOf([{ itemKey: 'p1::v1', title: 'محصول p1', variantId: 'v1', unitPrice: 80 }]);
+    const progress: string[] = [];
+    const result = await applier.apply(plan, (p) => {
+      progress.push(`${p.itemKey}:${p.status}`);
+    });
+    expect(result.ok).toBe(true);
+    expect(result.applied).toEqual([]);
+    // The UI seeds every row as pending; the pipeline must settle the
+    // ones it deliberately skips (2026-10-17 report).
+    expect(progress).toEqual(['p1::v1:unchanged']);
+    expect(state.cart).toEqual([line('c1', 'p1', 'v1', 'vend-b')]);
+  });
+
+  it('apply marks a same-variant seller change as manual, not pending', async () => {
+    // The plan wants the same variant from vend-b; the cart holds it from
+    // vend-a. The API transport cannot switch sellers (D-28), so the
+    // sheet must say "change by hand" instead of leaving the row pending.
     const state: MockState = {
       calls: [],
       cart: [line('c1', 'p1', 'v1')],
@@ -243,12 +272,39 @@ describe('apply-to-cart pipeline (D-26)', () => {
       loadSnapshot: async () => null,
       saveSnapshot: async () => {},
     });
-    // The plan keeps the cart's own variant.
     const plan = planOf([{ itemKey: 'p1::v1', title: 'محصول p1', variantId: 'v1', unitPrice: 80 }]);
-    const result = await applier.apply(plan, () => {});
+    const progress: string[] = [];
+    await applier.apply(plan, (p) => {
+      progress.push(`${p.itemKey}:${p.status}`);
+    });
+    expect(progress).toEqual(['p1::v1:manual']);
+    expect(state.calls).toEqual(['fetchCart']);
+  });
+
+  it('apply reports a line a previous run already moved as settled', async () => {
+    // A retry after a partial failure: the cart already holds the
+    // planned variant under a new row, while the plan still names the
+    // original cart item. Nothing must be added or removed.
+    const state: MockState = {
+      calls: [],
+      cart: [line('c1', 'p1', 'v2')],
+      offers: new Map(),
+      failAdds: new Set(),
+      variantProduct: new Map(),
+    };
+    const applier = createCartApplier(mockTransport(state), {
+      loadSnapshot: async () => null,
+      saveSnapshot: async () => {},
+    });
+    const plan = planOf([{ itemKey: 'p1::v1', title: 'محصول p1', variantId: 'v2', unitPrice: 60 }]);
+    const progress: string[] = [];
+    const result = await applier.apply(plan, (p) => {
+      progress.push(`${p.itemKey}:${p.status}`);
+    });
     expect(result.ok).toBe(true);
     expect(result.applied).toEqual([]);
-    expect(state.cart).toEqual([line('c1', 'p1', 'v1')]);
+    expect(progress).toEqual(['p1::v1:unchanged']);
+    expect(state.calls).toEqual(['fetchCart']);
   });
 
   it('partial failure: the failed line keeps its old row, the rest apply', async () => {

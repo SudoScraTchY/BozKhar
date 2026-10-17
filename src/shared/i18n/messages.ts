@@ -160,6 +160,8 @@ export type MessageKey =
   | 'statusPending'
   | 'statusAdding'
   | 'statusAdded'
+  | 'statusUnchanged'
+  | 'statusManual'
   | 'statusFailed'
   | 'successTitle'
   | 'goToCart'
@@ -341,6 +343,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     statusPending: 'در انتظار',
     statusAdding: 'در حال افزودن',
     statusAdded: 'افزوده شد',
+    statusUnchanged: 'از قبل بهینه',
+    statusManual: 'تغییر دستی',
     statusFailed: 'ناموفق',
     successTitle: 'سبد خرید به‌روز شد',
     goToCart: 'رفتن به سبد خرید',
@@ -518,6 +522,8 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     statusPending: 'Pending',
     statusAdding: 'Adding',
     statusAdded: 'Added',
+    statusUnchanged: 'Already optimal',
+    statusManual: 'Change by hand',
     statusFailed: 'Failed',
     successTitle: 'Cart updated',
     goToCart: 'Go to cart',

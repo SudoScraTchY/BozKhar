@@ -1104,3 +1104,49 @@ build` + `npm run audit:dist` clean on 0.5.0, `scripts/package-store-zip.py`
 writes `bozkhar-0.5.0.zip` (24 entries) and exits 1 with a clear message when a
 `dist/leak.pem` is planted, and the workflow's version assertion prints
 `0.5.0` for that zip.
+
+## D-38 — skipped apply rows settle, and option lists outrank the apply bar (2026-10-17)
+
+**Problem (user report):** during Apply, an item already at the plan's exact
+offer stayed on "در انتظار" (pending) forever. The option list opened from the
+seller control could also be painted underneath other page elements.
+
+**Root cause.** `runApply` seeds every plan row as `pending`, but `apply()` only
+emitted `adding` / `added` / `failed` for lines whose variant differs. Lines
+that need no change — the cart already holds the planned variant, or the same
+variant sits at another seller, which the add-by-variant endpoint cannot move
+(D-28) — were skipped silently, so their seeded rows never got an update. The
+seller popover was `z-index: 35`, below the sticky apply bar's `40`: an open
+list near the bottom of the viewport was painted under the bar.
+
+**Decision:** `LineStatus` gains `unchanged` and `manual`, emitted for **every**
+skipped plan line: `unchanged` when the cart already holds the planned variant
+and seller (this also covers a retry whose earlier run succeeded, where the
+plan still names the original cart row), `manual` when the variant matches but
+the seller differs. Labels: `statusUnchanged` = «از قبل بهینه» / "Already
+optimal", `statusManual` = «تغییر دستی» / "Change by hand". Both option lists
+(the seller picker and the export menu) move to `z-index: 45` — above the
+action bar (40), below a sheet overlay (50).
+
+**Alternatives:** label every skipped line "unchanged" (would call a seller-only
+move optimal); label them "failed" (nothing failed); precompute statuses in the
+page (only the applier sees the live cart); flip the popover upward dynamically
+(more code for an overlap that a layer fix already removes).
+
+**Consequences:** every progress row reaches a terminal label in the same run,
+including on retries; a same-variant seller change points at the manual step
+the page already documents. The layer change affects stacking only, not layout.
+
+**Evidence:** `tests/results-apply.test.ts` — "apply leaves an unchanged line
+alone and reports it as settled", "apply marks a same-variant seller change as
+manual, not pending", "apply reports a line a previous run already moved as
+settled". `tests/results-page.test.ts` — "marks a cart item the plan already
+buys as 'already optimal', not pending" (also asserts the sheet contains no
+"در انتظار"). Real Chromium at 1280×800 against the built extension, with the
+production action bar inside the production `.bk-page` stacking context: at
+the popover/bar intersection `elementFromPoint` is a `.bk-popover-option` at
+z-index 45; forcing the old 35 returns `.bk-actionbar`
+(`.openclaw/tmp/verify-popover-z.py`, screenshots `popover-z.png` and
+`popover-z-old.png`). Local, 2026-10-17: `tsc --noEmit`, `eslint src tests`,
+`prettier --check .` clean; `vitest run` 309 tests across 28 files; `vite build`
+and `scripts/audit-dist.mjs` clean.
