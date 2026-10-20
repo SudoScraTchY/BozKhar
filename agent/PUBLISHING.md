@@ -2,7 +2,8 @@
 
 Where this extension can ship, what each store costs, and exactly what to put
 in front of a reviewer. Written 2026-10-16 against the 0.4.0 package, updated
-the same day for 0.5.0 (the stable download alias, D-37).
+the same day for 0.5.0 (the stable download alias, D-37), and again on
+2026-10-20 for 0.6.0 (Order Insights and the Torob host permission, D-42).
 
 ## The answer in one table
 
@@ -60,8 +61,8 @@ the tag, and writes the SHA-256 into the run's step summary.
 To verify a download before you upload it:
 
 ```bash
-sha256sum -c bozkhar-0.5.0.zip.sha256                       # or shasum -a 256 -c
-gh attestation verify bozkhar-0.5.0.zip --repo SudoScraTchY/BozKhar
+sha256sum -c bozkhar-0.6.0.zip.sha256                       # or shasum -a 256 -c
+gh attestation verify bozkhar-0.6.0.zip --repo SudoScraTchY/BozKhar
 gh attestation verify bozkhar-latest.zip --repo SudoScraTchY/BozKhar
 ```
 
@@ -81,7 +82,7 @@ python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256
 Two ways, and both refuse a version that does not match `package.json`:
 
 **From the Actions tab** (nothing to install): *Actions → Release → Run
-workflow*, and type the version — `0.4.0` or `v0.4.0`. The tag is created at
+workflow*, and type the version — `0.6.0` or `v0.6.0`. The tag is created at
 the commit the run verified, so the zip, the tag and the commit always agree.
 
 **From your machine**, if you prefer the tag to come first:
@@ -89,14 +90,15 @@ the commit the run verified, so the zip, the tag and the commit always agree.
 ```bash
 # 1. bump the version in package.json (the manifest and the tag both read it)
 # 2. commit that bump and push it to main
-git tag -a v0.4.0 -m "BozKhar 0.4.0"
-git push origin v0.4.0
+git tag -a v0.6.0 -m "BozKhar 0.6.0"
+git push origin v0.6.0
 ```
 
-`v0.4.0` is published this way as of 2026-10-16. Re-running a release for a
-tag that already exists is allowed only when that tag points at the commit
-the run just built — otherwise the run stops and says so, because a release
-built from one tree must never be filed under a tag that names another.
+v0.4.0 and v0.5.0 were published this way; v0.6.0 is cut the same way.
+Re-running a release for a tag that already exists is allowed only when that
+tag points at the commit the run just built — otherwise the run stops and says
+so, because a release built from one tree must never be filed under a tag that
+names another.
 
 Stores require the version to increase on every upload — that is what the
 bump is.
@@ -106,11 +108,11 @@ bump is.
 | Asset | Size | Where it comes from |
 |---|---|---|
 | Package icon | 128×128 | already in the zip (`public/icons/icon-128.png`) — the stores take the icon from the package, not a separate upload |
-| Screenshots | 1280×800 (640×400 also accepted), 1–5 on Chrome | take fresh ones of the cart button, the results page with a real saving, the hint card, the Export menu and the options page |
+| Screenshots | 1280×800 (640×400 also accepted), 1–5 on Chrome | take fresh ones of the cart button, the results page with a real saving, the hint card, the Export menu, the order-insights summary, the cancelled-orders table and the options page |
 | Small promo tile | 440×280 (Chrome, optional but recommended) | crop the badge + wordmark onto a flat background |
 | Marquee | 1400×560 (Chrome, only needed for featuring) | optional |
 | Homepage / support URL | — | `https://sudoscratchy.github.io/BozKhar/` (already set as the repo homepage) |
-| Privacy policy URL | — | optional, because the extension collects nothing; the landing page doubles as one if a form insists |
+| Privacy policy URL | — | **now recommended**: the explicit Torob lookup sends the public product title to a third party, so say so. The landing page can serve as the policy if it names Torob and the click-only trigger. |
 
 Screenshot hygiene: the panel shows **your** cart. Use a demo cart you do not
 mind publishing, and check that no order number, address or phone number is
@@ -119,37 +121,59 @@ on screen before you upload.
 ## The answers a reviewer will ask for
 
 Have these ready; they are the difference between "in review for a week" and
-a rejection. They are all true of this codebase as of 0.4.0 — keep them true
+a rejection. They are all true of this codebase as of 0.6.0 — keep them true
 if that changes.
 
-**Single purpose.** "BozKhar does one thing: it compares the sellers offering
-the items already in the user's digikala.com cart and shows the cheapest way
-to buy that same cart, including what each used seller charges for delivery.
-It reads the offers the user's own browser already sees, computes the plan
-locally, and writes to the cart only when the user presses Apply."
+**Single purpose.** "BozKhar helps a shopper pay less on digikala.com. It
+compares the sellers offering the items already in the user's cart and shows
+the cheapest way to buy that same cart, including delivery fees; on request it
+also shows the cheapest Torob sellers for the product being viewed, and keeps
+a private, on-device summary of the user's own order history. It reads pages
+the user already has open, computes everything locally, and writes to the cart
+only when the user presses Apply."
 
 **Permission justifications.**
 
-- `storage` — "Keeps the captured offers and the user's own settings (Plus
-  status, tolerance, crawl delay, language) in the browser's local
-  IndexedDB. There is no server; nothing is transmitted anywhere."
-- `tabs` — "Two uses: open the extension's own results page in a tab, and
-  find the user's already-open digikala.com tab so the cart's own API calls
-  can run inside the page that is allowed to make them. It never touches any
-  other site's tabs."
-- `scripting` — "Runs the cart read/write request in the page's main world,
-  because the site's own request headers cannot be reproduced from an
-  extension context. The code executed ships inside the extension; nothing
-  is fetched or evaluated at runtime."
-- `https://*.digikala.com/*` — "The extension only ever reads and acts on
-  digikala.com, including the `api.` subdomain the site's own pages use. No
-  other host is requested anywhere in the code."
+- `storage` — "Keeps the captured offers, the user's own order summaries and
+  the extension's settings (Plus status, tolerance, crawl delay, language) in
+  the browser's local IndexedDB. There is no server of ours; nothing is sent
+  to the developer."
+- `tabs` — "Two uses: open the extension's own results and insights pages in a
+  tab, and find the user's already-open digikala.com tab so the site's own API
+  calls can run inside the page that is allowed to make them. It never touches
+  any other site's tabs."
+- `scripting` — "Runs the cart read/write request and the order-history read
+  in the page's main world, because the site's own request headers cannot be
+  reproduced from an extension context. The code executed ships inside the
+  extension; nothing is fetched or evaluated at runtime."
+- `https://*.digikala.com/*` — "The extension reads and acts on digikala.com,
+  including the `api.` subdomain the site's own pages use."
+- `https://api.torob.com/*` — "Used only when the user presses the
+  'Compare on Torob' button on a product page. The extension then asks
+  Torob's public product API for that product's public title and lists the
+  five cheapest sellers. The request carries no cookies, no referrer, no
+  account and no cart data, and is made with credentials omitted
+  (D-42)."
 
-**Data usage.** Declare that the extension does **not** collect or transmit
-user data. That is accurate: no analytics, no account, no server, no
-telemetry, and the options page can wipe all stored data (NFR-01, D-04). The
-extension does read page/API content (prices, cart items) to do its job, but
-that content stays in the browser.
+**Data usage.** Declare that the extension does **not** collect user data for
+the developer and does not transmit user data to any server of ours. That is
+accurate: no analytics, no account, no developer server, no telemetry, and the
+options page can wipe all stored data (NFR-01, D-04). Two nuances to state
+honestly if a form asks:
+
+1. The extension reads page/API content (prices, cart items, the user's own
+   order history) to do its job, but that content stays in the browser.
+   Order records are reduced on read — address, payment and invoice fields are
+   discarded and never stored.
+2. The **only** outbound request outside digikala.com is the user-initiated
+   Torob lookup, which sends the public product title and nothing else. No
+   user identity or browsing history is included, and no lookup happens
+   without a click.
+
+Because of point 2, attach a privacy policy rather than declaring "no
+third-party requests". The landing page doubles as one; it should say exactly
+the two paragraphs above, name Torob as the recipient, and state that the
+lookup is click-only.
 
 **Remote code.** None. Every line is bundled into the package; there is no
 `eval`, no `new Function`, and no remotely loaded script (verified by grep
@@ -213,7 +237,7 @@ answer to any "is this a scraper?" question.
 
 ## Firefox: a port, not an upload (T06.6)
 
-Firefox is free to publish on, but the 0.4.0 package will not run there
+Firefox is free to publish on, but the 0.6.0 package will not run there
 unmodified:
 
 - **No `background.service_worker` in Firefox MV3.** Firefox runs an *event

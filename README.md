@@ -11,17 +11,19 @@ exactly what this tool does for you on [Digikala](https://www.digikala.com).
 **cheapest way to buy your Digikala cart across marketplace vendors** — item
 prices **and** per-vendor delivery fees together, with promotions, Digikala
 Plus benefits, large-item fees, and your own vendor locks (pin/ban) factored
-in. It shows you a plan, and — only when you press **Apply** — it moves the
-plan into your own cart for you (D-26/D-30). Nothing else ever writes to your
-cart.
+in. It also summarizes your own order history **on-device** and, on request,
+shows the cheapest **Torob** sellers for the product you are viewing. It shows
+you a plan, and — only when you press **Apply** — it moves the plan into your
+own cart for you (D-26/D-30). Nothing else ever writes to your cart.
 
 ```
 سبد خریدت را ارزان‌تر بخر — buy the same cart, pay less.
 ```
 
 - Spec (SDD): [`SDD/`](SDD/README.md) — start with [`00-decision-log.md`](SDD/00-decision-log.md)
-- Status: T03 capture, T04 solver and the T05 results UI implemented. CI type-checks,
-  lints, tests, audits and packages every push; a `v*` tag publishes an attested release
+- Status: T03 capture, T04 solver, the T05 results UI, Order Insights and the
+  Torob comparison implemented. CI type-checks, lints, tests, audits and
+  packages every push; a `v*` tag publishes an attested release
   (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
 - Install: not on a store yet — load `dist/` unpacked, or take `bozkhar-<version>.zip`
   from the [latest release](https://github.com/SudoScraTchY/BozKhar/releases)
@@ -43,18 +45,30 @@ exactly, so you can buy like a proper بزخر.
 
 ## What it does
 
-Two surfaces, both user-triggered:
+Four surfaces, all user-triggered:
 
 1. **Product page — "Add to comparison" (افزودن به مقایسه).** Captures every
    vendor offer for the current variant: vendor identity, price, stock,
    delivery-fee signal, promos.
-2. **Cart page — "Optimize this cart" (بهینه‌سازی سبد خرید).** Resolves your
+2. **Product page — "Compare on Torob" (مقایسه در ترب).** On your click,
+   looks up the product's public title on [Torob](https://torob.com) and lists
+   the top five cheapest sellers with their prices and links. Nothing is sent
+   until you press it, and only the public product title is sent — no
+   account, no cart, no session.
+3. **Cart page — "Optimize this cart" (بهینه‌سازی سبد خرید).** Resolves your
    actual cart items (product + the exact variant in your cart), captures
    their offers with polite sequential fetches, then computes the plan.
+4. **Order Insights (خریدهای من).** Reads your own order history on request —
+   from the orders page or the toolbar popup — and keeps a local, all-time
+   summary: spend, item and vendor breakdowns, monthly/value/weekday charts,
+   current deliveries, a separate cancelled-orders table (never added to
+   totals), an optional deep analysis with persona-styled suggestions, and a
+   shareable card image.
 
-Everything is captured from Digikala's own JSON payloads (read-only GETs with
-your existing session), normalized into a local model, and stored **only in
-your browser** (IndexedDB). No server. No account. No telemetry.
+Digikala data is captured from the site's own JSON payloads (read-only GETs
+with your existing session), normalized into a local model, and stored **only
+in your browser** (IndexedDB). Torob is the single external request, and only
+after an explicit click. No server of ours. No account. No telemetry.
 
 ## Use cases we accounted for
 
@@ -112,18 +126,21 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
   English in both UI languages; the exported table is English-headed so a
   file reads the same whoever you send it to. (FR-16)
 - **Privacy: your shopping list stays in your browser.** Local-only storage,
-  zero non-Digikala network requests (verified by a network-log test), no
-  telemetry, no remote code. Export your list as JSON or wipe all stored
-  data from the options page at any time. (NFR-01, FR-16)
+  no telemetry, no remote code, and no network request of our own. The only
+  request that ever leaves Digikala is the Torob lookup you explicitly trigger,
+  and it carries nothing but the public product title. Export your data as
+  JSON or wipe all stored data from the options page at any time. (NFR-01,
+  FR-16)
 - **Polite crawling.** Sequential item fetches with a configurable delay
   (default 1.5s), bounded retries, abort button mid-crawl, user-initiated
   only — no scheduled or background visits, ever. (NFR-07, NFR-02)
 - **Persian-first, bilingual.** UI is Persian (RTL) by default with English
   available; both are first-class, not an afterthought. (NFR-08)
 - **Small and auditable.** Zero runtime dependencies, minimal permissions
-  (`storage`, `tabs`, `scripting`, `https://*.digikala.com/*` only), and the
-  whole engine (solver + capture pipeline) is pure, typed TypeScript under
-  test (291 tests at the time of writing). (NFR-06, NFR-09, D-15)
+  (`storage`, `tabs`, `scripting`; hosts `https://*.digikala.com/*` and
+  `https://api.torob.com/*`), and the whole engine (solver + capture pipeline
+  + insights + Torob matching) is pure, typed TypeScript under test (438 tests
+  at the time of writing). (NFR-06, NFR-09, D-15)
 
 ### A worked example (from the test fixtures)
 
@@ -140,8 +157,11 @@ committed fixture in `tests/fixtures/solver/`.
 
 - No background fetching, scheduling, or auto-refresh (NFR-02).
 - No cart writes, no auto-checkout, no payment interaction (FR-15).
-- No data collection or sharing — there is no server to collect it (D-04).
-- No support for sites other than digikala.com (scope guard in code).
+- No data collection and no server of ours. Your cart, orders and settings
+  never leave the browser; the Torob lookup sends only the public product
+  title, only when you click it (D-04, D-42).
+- No content scripts, capture or page access on any site other than
+  digikala.com.
 
 ## Development
 
@@ -187,7 +207,9 @@ to a commit SHA and the pipelines hold no secrets. What to do with the zip is in
 ## Etiquette & fairness
 
 Boz Khar reads only pages/APIs you are already browsing, at human-ish pace,
-only when you click. It adds no load beyond a careful user's own browsing.
+only when you click. The one exception is the Torob lookup, which happens only
+when you press the compare button and asks Torob's public API for the product
+you are already viewing. It adds no load beyond a careful user's own browsing.
 Please keep the crawl delay at its default or higher; this tool is meant to
 be a good citizen of Digikala, not a scraper.
 
