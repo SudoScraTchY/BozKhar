@@ -178,7 +178,7 @@ describe('boot and empty state', () => {
     expect(deps.send).not.toHaveBeenCalled();
   });
 
-  it('lists cancelled orders separately and keeps them out of totals', async () => {
+  it('keeps cancelled orders out of totals without listing them', async () => {
     const cancelled = order(2, {
       status: 'cancelled',
       statusFa: 'لغوشده',
@@ -202,9 +202,9 @@ describe('boot and empty state', () => {
     expect(statValue('سفارش‌ها')).toBe('۱');
     expect(statValue('پرداخت خالص')).toBe('۱۰٬۰۰۰ تومان');
     expect(statValue('مبلغ سفارش‌های لغوشده')).toBe('۹۰٬۰۰۰ تومان');
-    expect(document.body.textContent).toContain('سفارش‌های لغوشده');
-    expect(document.body.textContent).toContain('۲ قلم');
-    expect(document.querySelectorAll('.bk-order-row.is-cancelled')).toHaveLength(1);
+    expect(document.querySelector('.bk-cancelled')).toBeNull();
+    expect(document.querySelectorAll('.bk-order-row.is-cancelled')).toHaveLength(0);
+    expect(document.body.textContent).not.toContain('۲ قلم');
 
     // The status chart marks the cancelled bar with its own colour.
     const charts = [...document.querySelectorAll('.bk-chart')]

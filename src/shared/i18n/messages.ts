@@ -229,13 +229,6 @@ export type MessageKey =
   | 'insightsVendors'
   | 'insightsCancelledAmount'
   | 'insightsInProgressAmount'
-  | 'insightsCancelledTitle'
-  | 'insightsCancelledBody'
-  | 'insightsCancelledCount'
-  | 'insightsCancelledItems'
-  | 'insightsCancelledPartial'
-  | 'insightsCancelledDeepHint'
-  | 'insightsCancelledNoItems'
   | 'insightsInsights'
   | 'insightsInsightsBody'
   | 'insightsMedianOrder'
@@ -371,7 +364,10 @@ export type MessageKey =
   | 'popupResultsHint'
   | 'popupSettings'
   | 'popupSettingsHint'
-  | 'popupOpenOrders';
+  | 'popupOpenOrders'
+  | 'popupStarGithub'
+  | 'popupUpdateAvailable'
+  | 'popupUpdateTitle';
 
 type Catalog = Record<MessageKey, string>;
 
@@ -608,14 +604,6 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     insightsVendors: 'فروشنده‌ها',
     insightsCancelledAmount: 'مبلغ سفارش‌های لغوشده',
     insightsInProgressAmount: 'در جریان',
-    insightsCancelledTitle: 'سفارش‌های لغوشده',
-    insightsCancelledBody:
-      'این سفارش‌ها و اقلامشان در پرداخت خالص، نمودارهای هزینه و آمار کالاها حساب نمی‌شوند؛ فقط برای شفافیت اینجا آمده‌اند.',
-    insightsCancelledCount: '{n} سفارش',
-    insightsCancelledItems: '{n} قلم',
-    insightsCancelledPartial: 'جزئیات اقلام {n} سفارش هنوز خوانده نشده است.',
-    insightsCancelledDeepHint: 'برای دیدن اقلام لغوشده، تحلیل عمیق را اجرا کنید.',
-    insightsCancelledNoItems: 'جزئیات خوانده نشده',
     insightsInsights: 'تحلیل‌های کوتاه',
     insightsInsightsBody: 'چند عدد که تصویر خرید شما را سریع‌تر نشان می‌دهند.',
     insightsMedianOrder: 'میانهٔ سفارش',
@@ -755,6 +743,9 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     popupSettings: 'تنظیمات',
     popupSettingsHint: 'زبان، پلاس و رفتار افزونه',
     popupOpenOrders: 'باز کردن سفارش‌های دیجی‌کالا',
+    popupStarGithub: 'ستاره دادن به بُزخَر در گیت‌هاب',
+    popupUpdateAvailable: 'به‌روزرسانی v{version}',
+    popupUpdateTitle: 'نسخهٔ تازه در گیت‌هاب منتشر شده است',
   },
   en: {
     optionsTitle: 'Digikala Cart Optimizer - Settings',
@@ -984,14 +975,6 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     insightsVendors: 'Vendors',
     insightsCancelledAmount: 'Cancelled order amount',
     insightsInProgressAmount: 'In progress',
-    insightsCancelledTitle: 'Cancelled orders',
-    insightsCancelledBody:
-      'These orders and their items are excluded from net paid, spend charts and item stats; they are listed here for transparency.',
-    insightsCancelledCount: '{n} orders',
-    insightsCancelledItems: '{n} items',
-    insightsCancelledPartial: 'Item details for {n} orders have not been read yet.',
-    insightsCancelledDeepHint: 'Run deep analysis to see the cancelled items.',
-    insightsCancelledNoItems: 'Details not read',
     insightsInsights: 'Quick insights',
     insightsInsightsBody: 'A few numbers that sketch your shopping.',
     insightsMedianOrder: 'Median order',
@@ -1130,6 +1113,9 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     popupSettings: 'Settings',
     popupSettingsHint: 'Language, Plus and extension behavior',
     popupOpenOrders: 'Open Digikala orders',
+    popupStarGithub: 'Star BozKhar on GitHub',
+    popupUpdateAvailable: 'Update v{version}',
+    popupUpdateTitle: 'A newer release is available on GitHub',
   },
 };
 

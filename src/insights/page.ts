@@ -737,88 +737,6 @@ export function createInsightsPage(deps: InsightsPageDeps): { run(): Promise<voi
     return section;
   }
 
-  /**
-   * Cancelled orders have their own table and stay out of every spend/item
-   * total. Item counts are shown only when the order's detail was read; the
-   * hint says so instead of implying zero.
-   */
-  function renderCancelledOrders(): HTMLElement | null {
-    const cancelled = aggregate(state.snapshot, {
-      startDay: state.range.startDay,
-      endDay: state.range.endDay,
-      statusFilter: 'cancelled',
-    });
-    if (cancelled.orders.length === 0) return null;
-
-    const rows = cancelled.orders.map((order) => {
-      const items = state.snapshot.itemsByOrder[order.orderId] ?? [];
-      const itemCount =
-        items.length === 0
-          ? null
-          : items.reduce(
-              (sum, item) =>
-                sum +
-                Math.max(0, item.cancelledQuantity > 0 ? item.cancelledQuantity : item.quantity),
-              0,
-            );
-      return { order, itemCount };
-    });
-    const detailedOrders = rows.filter((row) => row.itemCount !== null).length;
-    const knownItems = rows.reduce((sum, row) => sum + (row.itemCount ?? 0), 0);
-
-    const section = el('section', 'bk-section bk-cancelled');
-    section.append(
-      el('h2', 'bk-section-title', t(lang(), 'insightsCancelledTitle')),
-      el('p', 'bk-muted', t(lang(), 'insightsCancelledBody')),
-    );
-
-    const summary = [formatMessage(lang(), 'insightsCancelledCount', { n: count(rows.length) })];
-    if (detailedOrders > 0) {
-      summary.push(formatMessage(lang(), 'insightsCancelledItems', { n: count(knownItems) }));
-    }
-    section.append(el('p', 'bk-cancelled-summary', summary.join(' · ')));
-
-    const list = el('ul', 'bk-order-list');
-    for (const { order, itemCount } of rows) {
-      const row = el('li', 'bk-order-row is-cancelled');
-      const when = el('div', 'bk-order-when');
-      when.append(
-        el('strong', '', order.createdDay === null ? '—' : jalaliText(order.createdDay)),
-        el('span', 'bk-cancel-tag', order.statusFa || t(lang(), 'insightsStatusCancelled')),
-      );
-
-      const items = el('div', 'bk-order-items');
-      items.append(
-        itemCount === null
-          ? el('span', 'bk-muted', t(lang(), 'insightsCancelledNoItems'))
-          : el(
-              'strong',
-              '',
-              formatMessage(lang(), 'insightsCancelledItems', { n: count(itemCount) }),
-            ),
-      );
-
-      const amount = el('div', 'bk-order-amount');
-      amount.append(
-        el('strong', '', money(rialToToman(order.paidRial ?? order.payableRial))),
-        el(
-          'span',
-          'bk-muted',
-          formatMessage(lang(), 'insightsOrderRef', { id: count(order.orderId) }),
-        ),
-      );
-
-      row.append(when, items, amount);
-      list.append(row);
-    }
-    section.append(list);
-
-    if (detailedOrders < rows.length) {
-      section.append(note(t(lang(), 'insightsCancelledDeepHint')));
-    }
-    return section;
-  }
-
   function chartBlock(
     titleKey: MessageKey,
     points: ChartPoint[],
@@ -1407,8 +1325,6 @@ export function createInsightsPage(deps: InsightsPageDeps): { run(): Promise<voi
         content.append(renderSummary(agg));
         const currentDeliveries = renderCurrentDeliveries();
         if (currentDeliveries) content.append(currentDeliveries);
-        const cancelledOrders = renderCancelledOrders();
-        if (cancelledOrders) content.append(cancelledOrders);
         content.append(
           renderInsights(agg),
           renderCharts(agg),

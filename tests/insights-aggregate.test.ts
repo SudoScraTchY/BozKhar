@@ -197,6 +197,14 @@ describe('cancelled exclusion', () => {
     expect(agg.valueBuckets.reduce((sum, bucket) => sum + bucket.orders, 0)).toBe(1);
     expect(agg.weekdays.reduce((sum, bucket) => sum + bucket.orders, 0)).toBe(1);
   });
+
+  it('values a cancelled order by its total when no payment was recorded', () => {
+    const agg = aggregate(
+      snapshot([order(1, { status: 'cancelled', paidRial: 0, totalCostRial: 3_000_000 })]),
+    );
+    expect(agg.netPaidToman).toBe(0);
+    expect(agg.cancelledToman).toBe(300_000);
+  });
 });
 
 describe('deep metrics', () => {

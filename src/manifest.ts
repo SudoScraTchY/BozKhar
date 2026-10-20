@@ -19,7 +19,8 @@ const ICONS: Record<string, string> = {
 
 /**
  * The manifest source of truth, typed against Chrome's MV3 schema.
- * NFR-06: permissions are exactly storage + tabs + *.digikala.com host.
+ * NFR-06: permissions are exactly storage + tabs + scripting; hosts are
+ * digikala.com plus the two reviewed API hosts below.
  * Anything beyond this set requires a decision-log entry first (SDD 06).
  */
 export const manifestSource: chrome.runtime.ManifestV3 = {
@@ -39,8 +40,14 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
   // not execute in the current Chromium, live-verified 2026-10-08).
   // D-42 adds the Torob API host: it is contacted only after an explicit
   // PDP click, with the public product title, no credentials/referrer.
+  // D-44 adds the GitHub releases API: a GET when the popup opens, used
+  // only to compare the latest tag with the running version.
   permissions: ['storage', 'tabs', 'scripting'],
-  host_permissions: ['https://*.digikala.com/*', 'https://api.torob.com/*'],
+  host_permissions: [
+    'https://*.digikala.com/*',
+    'https://api.torob.com/*',
+    'https://api.github.com/*',
+  ],
   background: {
     service_worker: 'src/background/service-worker.ts',
     type: 'module',

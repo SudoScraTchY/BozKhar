@@ -1387,3 +1387,53 @@ value, vendors, monthly, value-bucket or weekday totals; `tests/insights-charts.
 covers per-point colours and rejects invalid colour strings; `tests/insights-page.test.ts`
 covers the separate table, item count, exclusion from net paid, and the red
 cancelled bar.
+
+**Amended 2026-10-20 (same day):** the table was removed at the user's request.
+Cancelled orders report a paid amount of zero, so every row read "۰ تومان" next
+to its order reference and looked broken. The separated accounting is
+unchanged; the red status bar remains the place cancelled orders are visible.
+The cancelled-amount card now falls back to the order's `totalCostRial` when no
+payment was recorded, so it no longer reports zero for orders cancelled before
+payment. `tests/insights-page.test.ts` now asserts the list is absent, and
+`tests/insights-aggregate.test.ts` covers the zero-paid fallback.
+
+## D-44 — Release check on popup open, and a GitHub star link (2026-10-20)
+
+**Problem:** the extension is distributed through GitHub Releases, not a
+store, so Chrome's built-in `chrome.runtime.requestUpdateCheck()` cannot see a
+new build - it only knows the item's store/update URL. A user running an
+unpacked or manually updated copy had no way to learn that a newer release
+exists, and no pointer from the popup back to the repository.
+
+**Decision:** add a small GitHub star link in the popup header and a quiet
+update pill in the popup footer. When the popup opens it sends `update/check`
+to the worker; the worker performs one unauthenticated GET to
+`https://api.github.com/repos/SudoScraTchY/BozKhar/releases/latest`, reads only
+`tag_name`, and compares it numerically with
+`chrome.runtime.getManifest().version`. A strictly newer tag reveals a pill
+that opens `https://github.com/SudoScraTchY/BozKhar/releases/latest`. The URL
+is built locally, never taken from the response. The request uses
+`credentials: 'omit'`, `referrerPolicy: 'no-referrer'`, an 8 s timeout, and a
+typed failure the popup silently ignores. This adds `https://api.github.com/*`
+to `host_permissions`.
+
+**Alternatives:** `chrome.runtime.requestUpdateCheck()` (blind to GitHub
+zips); a background alarm that polls (violates NFR-02 and adds unsolicited
+traffic); scraping the GitHub HTML release page (fragile); embedding a version
+file in the repo (still a request, plus another moving part); showing a
+download link in every popup (noise when the user is already current).
+
+**Consequences:** the popup is no longer zero-network, but it is zero-network
+until the user opens it. No user data is sent; GitHub sees only the request's
+IP address. The check is best-effort: offline, rate-limited or malformed
+responses produce no UI and never block the popup. The star link is a plain
+anchor to the repository, opened through `chrome.tabs.create`, so no new
+permission is involved.
+
+**Evidence:** `tests/update-check.test.ts` covers version parsing and numeric
+comparison, the request guard, credentials/referrer/cache options, newer and
+equal versions, the locally-built URL (a response-supplied `html_url` is
+ignored), and typed HTTP/parse/network failures; `tests/popup.test.ts` asserts
+the star href, its accessible-label hook, the hidden update pill, its
+permalink and the absence of a version-pinned release link;
+`tests/manifest.test.ts` and `scripts/audit-dist.mjs` audit the added host.

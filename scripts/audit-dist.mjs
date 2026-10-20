@@ -22,7 +22,11 @@ const DIST = process.argv[2] ?? join(ROOT, 'dist');
 /** The audited surface: exactly what SDD 06 / NFR-06 grants. */
 const EXPECTED_VERSION = 3;
 const EXPECTED_PERMISSIONS = ['storage', 'tabs', 'scripting'];
-const EXPECTED_HOST_PERMISSIONS = ['https://*.digikala.com/*', 'https://api.torob.com/*'];
+const EXPECTED_HOST_PERMISSIONS = [
+  'https://*.digikala.com/*',
+  'https://api.torob.com/*',
+  'https://api.github.com/*',
+];
 /** Content scripts and web-accessible assets stay on Digikala only. */
 const EXPECTED_CONTENT_ORIGINS = ['https://*.digikala.com/*'];
 /**

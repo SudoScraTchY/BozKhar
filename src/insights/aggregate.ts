@@ -139,6 +139,12 @@ function netRialOf(order: InsightOrder): number {
   }
 }
 
+/** What a cancelled order was worth: a real payment if any, else its total. */
+function cancelledValueOf(order: InsightOrder): number {
+  const paid = paidOf(order);
+  return paid > 0 ? paid : (order.totalCostRial ?? 0);
+}
+
 /** Linear-interpolated percentile over a pre-sorted ascending array. */
 function percentile(sorted: readonly number[], p: number): number {
   if (sorted.length === 0) return 0;
@@ -445,7 +451,7 @@ export function aggregate(snapshot: InsightSnapshot, options: AggregateOptions =
     netPaidToman: rialToToman(netRial),
     refundsToman: rialToToman(refundsRial),
     inProgressToman: rialToToman(sumRial(running, paidOf)),
-    cancelledToman: rialToToman(sumRial(cancelled, paidOf)),
+    cancelledToman: rialToToman(sumRial(cancelled, cancelledValueOf)),
     averageOrderToman: contributing.length > 0 ? rialToToman(netRial / contributing.length) : 0,
     medianOrderToman: rialToToman(percentile(orderValues, 0.5)),
     p90OrderToman: rialToToman(percentile(orderValues, 0.9)),

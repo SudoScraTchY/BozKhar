@@ -7,6 +7,9 @@
  * - capture/crawl-start | capture/crawl-abort: the cart crawl lifecycle.
  * - capture/badge-sync: toolbar badge = comparison-list size.
  * - capture/progress: broadcast to every open surface.
+ * - update/check: the popup's one-shot release check on GitHub (D-44).
+ *   No polling and no storage; the request happens only when the popup
+ *   opens and reads nothing but the latest tag name.
  *
  * D-01: GET-only everywhere, except the sanctioned POSTs recorded
  * in the decision log: D-19's fixed shipment quote and D-30's two
@@ -21,6 +24,11 @@ import { isInsightsRequest, type InsightsResponse } from '../insights/api';
 import { handleInsightsRequest } from '../insights/sw';
 import { isTorobRequest, type TorobResponse } from '../torob/api';
 import { handleTorobCompare } from '../torob/handler';
+import {
+  handleUpdateCheck,
+  isUpdateCheckRequest,
+  type UpdateCheckResponse,
+} from '../shared/update';
 import {
   handleCapturePdp,
   handleCrawlStart,
@@ -48,7 +56,11 @@ function broadcast(msg: unknown): void {
 }
 
 type WorkerResponse =
-  CaptureResponse | InsightsResponse | TorobResponse | { ok: true; kind: 'insights-open' };
+  | CaptureResponse
+  | InsightsResponse
+  | TorobResponse
+  | UpdateCheckResponse
+  | { ok: true; kind: 'insights-open' };
 
 chrome.runtime.onMessage.addListener(
   (raw: unknown, sender, sendResponse: (res: WorkerResponse) => void) => {
@@ -66,6 +78,16 @@ chrome.runtime.onMessage.addListener(
       );
       sendResponse({ ok: true, kind: 'insights-open' });
       return false;
+    }
+
+    // Release check (D-44): the popup opens, the worker asks GitHub for
+    // the latest tag. GET only; credentials and referrer are omitted.
+    if (isUpdateCheckRequest(raw)) {
+      void handleUpdateCheck(
+        (url, init) => globalThis.fetch(url, init),
+        chrome.runtime.getManifest().version,
+      ).then(sendResponse);
+      return true;
     }
 
     // Order Insights (D-39): on-demand reads of the user's own order
