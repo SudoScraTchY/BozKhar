@@ -36,6 +36,29 @@ export interface PdpSurface {
   destroy(): void;
 }
 
+/** Balance-scales icon: comparison without another image asset. */
+function compareIcon(doc: Document): SVGElement {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = doc.createElementNS(NS, 'svg') as SVGElement;
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '1.8');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  for (const d of [
+    'M12 3v18',
+    'M5 7h14',
+    'M7 7l-3 6a3 3 0 0 0 6 0L7 7',
+    'M17 7l-3 6a3 3 0 0 0 6 0L17 7',
+  ]) {
+    const path = doc.createElementNS(NS, 'path') as SVGPathElement;
+    path.setAttribute('d', d);
+    svg.append(path);
+  }
+  return svg;
+}
+
 /** Resolves the product/variant identity from the page location. */
 export function resolvePdpIdentity(
   href: string,
@@ -59,6 +82,7 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
 
   let button: ButtonHandle | null = null;
   let toast: ToastHandle | null = null;
+  let actions: HTMLElement | null = null;
 
   const click = async () => {
     if (!button) return;
@@ -112,7 +136,23 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
     const anchor = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
     if (anchor) {
       stopWatching();
-      button = mountButton(doc, anchor, deps.labels.addToComparison, click);
+      // A narrow buy row cannot host a third control without wrapping
+      // ugly (live 2026-10-20). Both BozKhar actions get their own stack
+      // below the row, styled as one intentional feature block.
+      actions = doc.createElement('div');
+      actions.className = 'dkopt-pdp-actions';
+      const row = anchor.parentElement;
+      const host = row && row !== doc.body ? row : anchor;
+      host.insertAdjacentElement('afterend', actions);
+      button = mountButton(doc, anchor, deps.labels.addToComparison, click, {
+        icon: compareIcon(doc),
+        className: 'dkopt-btn-pdp',
+        host: actions,
+      });
+      // The Torob surface may have mounted first and parked its trigger
+      // in the buy row; move it into this stack.
+      const torob = doc.getElementById('dkopt-torob');
+      if (torob) actions.append(torob);
       return;
     }
     if (Date.now() - startedAt >= ATTACH_DEADLINE_MS) return; // give up quietly
@@ -132,6 +172,8 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
       destroyed = true;
       stopWatching();
       button?.remove();
+      actions?.remove();
+      actions = null;
       toast?.remove();
     },
   };

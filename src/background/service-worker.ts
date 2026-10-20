@@ -17,6 +17,10 @@
  */
 import type { CaptureRequest, CaptureResponse } from '../capture/messaging';
 import { isCaptureRequest } from '../capture/messaging';
+import { isInsightsRequest, type InsightsResponse } from '../insights/api';
+import { handleInsightsRequest } from '../insights/sw';
+import { isTorobRequest, type TorobResponse } from '../torob/api';
+import { handleTorobCompare } from '../torob/handler';
 import {
   handleCapturePdp,
   handleCrawlStart,
@@ -31,6 +35,7 @@ import {
   delegateCartAdd,
   delegateCartRemove,
   delegateFetchJson,
+  delegateFetchJsonBare,
   delegateShipmentQuote,
   SHIPMENT_API_BODY,
   SHIPMENT_API_URL,
@@ -42,8 +47,45 @@ function broadcast(msg: unknown): void {
   void chrome.runtime.sendMessage(msg, () => void chrome.runtime.lastError);
 }
 
+type WorkerResponse =
+  CaptureResponse | InsightsResponse | TorobResponse | { ok: true; kind: 'insights-open' };
+
 chrome.runtime.onMessage.addListener(
-  (raw: unknown, sender, sendResponse: (res: CaptureResponse) => void) => {
+  (raw: unknown, sender, sendResponse: (res: WorkerResponse) => void) => {
+    // The orders-tab button asks the worker to open the insights page.
+    // Content scripts cannot call chrome.tabs, and this keeps the open
+    // action tied to an explicit user click (D-30).
+    if (
+      typeof raw === 'object' &&
+      raw !== null &&
+      (raw as { kind?: unknown }).kind === 'insights/open'
+    ) {
+      chrome.tabs.create(
+        { url: chrome.runtime.getURL('src/insights/index.html') },
+        () => void chrome.runtime.lastError,
+      );
+      sendResponse({ ok: true, kind: 'insights-open' });
+      return false;
+    }
+
+    // Order Insights (D-39): on-demand reads of the user's own order
+    // history, routed before the capture guard. The handler normalizes
+    // and strips sensitive fields inside the worker.
+    if (isInsightsRequest(raw)) {
+      void handleInsightsRequest(insightsDeps(), raw).then(sendResponse);
+      return true;
+    }
+
+    // Torob comparison (D-42): one click on the PDP trigger sends the
+    // public product title to Torob's API. The worker is the only place
+    // that talks to Torob, so the page never sees a cross-origin request.
+    if (isTorobRequest(raw)) {
+      void handleTorobCompare((url, init) => globalThis.fetch(url, init), raw.query).then(
+        sendResponse,
+      );
+      return true;
+    }
+
     if (!isCaptureRequest(raw)) return false; // not ours: leave channel free
     const req = raw as CaptureRequest;
 
@@ -130,6 +172,28 @@ function deps() {
     cartRemove: delegateCartRemove,
     onProgress: broadcast,
     badge: chrome.action,
+  };
+}
+
+/**
+ * Insights deps: the same session fetch and main-world delegation the
+ * crawl uses, plus the bare-header retry (profile endpoints reject the
+ * checkout routing headers at the preflight) and the open-tab picker.
+ * The worker never opens a tab on its own (D-30).
+ */
+function insightsDeps() {
+  return {
+    fetch: (url: string, init?: RequestInit) => globalThis.fetch(url, init),
+    delegate: delegateFetchJson,
+    delegateBare: delegateFetchJsonBare,
+    findTab: async () => {
+      try {
+        const tabs = await chrome.tabs.query({ url: ['https://*.digikala.com/*'] });
+        return pickDigikalaTab(tabs);
+      } catch {
+        return undefined;
+      }
+    },
   };
 }
 

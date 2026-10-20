@@ -1,0 +1,46 @@
+{
+  "status": "ok",
+  "data": {
+    "orders": [
+      {
+        "id": 1001,
+        "created_at": "13 آبان 1404",
+        "status": "sent",
+        "status_fa": "تحویل شده",
+        "payable_price": 2450000,
+        "price_details": {
+          "total_cost": 2700000,
+          "shipping_cost": 100000,
+          "discount": 150000,
+          "gift_card": 0,
+          "voucher": 0,
+          "user_paid": 2450000,
+          "user_received": 0
+        },
+        "product_images": ["https://cdn.example.test/private-1001.jpg"],
+        "address": "SENSITIVE-ADDRESS-1001",
+        "payments": [{ "gateway": "SENSITIVE-PAYMENT-1001" }],
+        "payment_method": "SENSITIVE-METHOD-1001",
+        "invoice_url": "https://example.test/SENSITIVE-INVOICE-1001.pdf"
+      },
+      {
+        "id": 1002,
+        "created_at": "۲ مهر ۱۴۰۴",
+        "status": "sent",
+        "status_fa": "تحویل شده",
+        "payable_price": 890000,
+        "price_details": {
+          "total_cost": 990000,
+          "shipping_cost": 90000,
+          "discount": 10000,
+          "user_paid": 890000
+        }
+      }
+    ],
+    "pager": {
+      "current_page": 1,
+      "total_pages": 2,
+      "total_items": 3
+    }
+  }
+}

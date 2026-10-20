@@ -31,6 +31,13 @@ describe('selectors (mount points only)', () => {
     expect(el?.getAttribute('data-testid')).toBe('sellers-cta');
   });
 
+  it('finds the add-to-cart anchor on the current PDP layout', () => {
+    // 2026-10-20 live DOM: no sellers-cta / buy-box, only add-to-cart.
+    const doc = docWith('<div><button data-testid="add-to-cart">خرید</button></div>');
+    const el = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
+    expect(el?.getAttribute('data-testid')).toBe('add-to-cart');
+  });
+
   it('finds a fallback cart anchor when the primary is absent', () => {
     const doc = docWith('<div class="cart-summary"></div>');
     const el = findMountPoint(doc, CART_SUMMARY_CANDIDATES);

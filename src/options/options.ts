@@ -124,6 +124,12 @@ function wire(): void {
   $('#stalenessWarnHours').addEventListener('change', persist);
   $('#exportBtn').addEventListener('click', () => void onExport());
   $('#clearBtn').addEventListener('click', () => void onClear());
+  $('#openInsightsBtn').addEventListener('click', () => {
+    void chrome.tabs.create(
+      { url: chrome.runtime.getURL('src/insights/index.html') },
+      () => void chrome.runtime.lastError,
+    );
+  });
 }
 
 async function init(): Promise<void> {

@@ -28,6 +28,19 @@ export type MessageKey =
   // T03.4/T03.5 surfaces (09-ui-spec Surfaces 1-2)
   | 'addToComparison'
   | 'inComparison'
+  | 'torobCta'
+  | 'torobHint'
+  | 'torobLoading'
+  | 'torobOffersTitle'
+  | 'torobNoMatch'
+  | 'torobError'
+  | 'torobNoOffers'
+  | 'torobSearchOnTorob'
+  | 'torobViewOffer'
+  | 'torobClose'
+  | 'torobCheapest'
+  | 'torobShopCount'
+  | 'torobPanelNote'
   | 'capturing'
   | 'captureFailed'
   | 'tryAgain'
@@ -178,7 +191,187 @@ export type MessageKey =
   | 'errApplyNoTab'
   | 'errApplyFailed'
   | 'sellerOnlyNote'
-  | 'loadingCalc';
+  | 'loadingCalc'
+  // Order Insights (D-39)
+  | 'insightsTitle'
+  | 'insightsPrivacy'
+  | 'insightsReadCta'
+  | 'insightsRefreshCta'
+  | 'insightsOpenDigikala'
+  | 'insightsLastSynced'
+  | 'insightsNeverSynced'
+  | 'insightsRange'
+  | 'insightsRangeAll'
+  | 'insightsRange30'
+  | 'insightsRange90'
+  | 'insightsRange180'
+  | 'insightsRange365'
+  | 'insightsRangeCustom'
+  | 'insightsFrom'
+  | 'insightsTo'
+  | 'insightsApplyRange'
+  | 'insightsInvalidDate'
+  | 'insightsIncludeInProgress'
+  | 'insightsStatusAll'
+  | 'insightsStatusSent'
+  | 'insightsStatusReturned'
+  | 'insightsStatusInProgress'
+  | 'insightsStatusCancelled'
+  | 'insightsSummary'
+  | 'insightsNetPaid'
+  | 'insightsOrders'
+  | 'insightsAverageOrder'
+  | 'insightsLargestOrder'
+  | 'insightsRefunds'
+  | 'insightsShipping'
+  | 'insightsDiscountRate'
+  | 'insightsItems'
+  | 'insightsVendors'
+  | 'insightsCancelledAmount'
+  | 'insightsInProgressAmount'
+  | 'insightsCancelledTitle'
+  | 'insightsCancelledBody'
+  | 'insightsCancelledCount'
+  | 'insightsCancelledItems'
+  | 'insightsCancelledPartial'
+  | 'insightsCancelledDeepHint'
+  | 'insightsCancelledNoItems'
+  | 'insightsInsights'
+  | 'insightsInsightsBody'
+  | 'insightsMedianOrder'
+  | 'insightsP90Order'
+  | 'insightsAverageOrdersPerMonth'
+  | 'insightsRefundRate'
+  | 'insightsShippingShare'
+  | 'insightsTopThreeVendors'
+  | 'insightsBusiestMonth'
+  | 'insightsBusiestWeekday'
+  | 'insightsCurrentDeliveries'
+  | 'insightsCurrentDeliveriesBody'
+  | 'insightsOrderRef'
+  | 'insightsUnknownRefunds'
+  | 'insightsCharts'
+  | 'insightsMonthly'
+  | 'insightsMonthlyOrders'
+  | 'insightsCumulative'
+  | 'insightsAverageOrderMonthly'
+  | 'insightsStatusBreakdown'
+  | 'insightsCategorySpend'
+  | 'insightsChartHint'
+  | 'insightsOrderValues'
+  | 'insightsWeekdays'
+  | 'insightsTopVendors'
+  | 'insightsTopBrands'
+  | 'insightsChartEmpty'
+  | 'insightsBucketUnder500'
+  | 'insightsBucket500to1m'
+  | 'insightsBucket1to2m'
+  | 'insightsBucket2to5m'
+  | 'insightsBucket5to10m'
+  | 'insightsBucketOver10m'
+  | 'insightsDaySat'
+  | 'insightsDaySun'
+  | 'insightsDayMon'
+  | 'insightsDayTue'
+  | 'insightsDayWed'
+  | 'insightsDayThu'
+  | 'insightsDayFri'
+  | 'insightsDeepTitle'
+  | 'insightsDeepBody'
+  | 'insightsDeepCta'
+  | 'insightsDeepCancel'
+  | 'insightsDeepProgress'
+  | 'insightsDeepDone'
+  | 'insightsDeepFailed'
+  | 'insightsDeepError'
+  | 'insightsDeepBased'
+  | 'insightsDeepAborted'
+  | 'insightsRepeatProducts'
+  | 'insightsRepeatRate'
+  | 'insightsReorderGap'
+  | 'insightsReturnRate'
+  | 'insightsItemDiscount'
+  | 'insightsShipments'
+  | 'insightsNoName'
+  | 'insightsDays'
+  | 'personaNewcomer'
+  | 'personaReplenisher'
+  | 'personaLoyalist'
+  | 'personaDevotee'
+  | 'personaBargain'
+  | 'personaBulk'
+  | 'personaWeekend'
+  | 'personaRegular'
+  | 'insightsPersonaTitle'
+  | 'insightsPersonaHint'
+  | 'insightsShareTitle'
+  | 'insightsShareBody'
+  | 'insightsThemeLedger'
+  | 'insightsThemeNight'
+  | 'insightsThemeMarket'
+  | 'insightsThemeMint'
+  | 'insightsThemeRose'
+  | 'insightsThemeOcean'
+  | 'insightsThemeSunset'
+  | 'insightsThemeMono'
+  | 'insightsStyleLabel'
+  | 'insightsStyleCards'
+  | 'insightsStyleStrip'
+  | 'insightsStyleEditorial'
+  | 'insightsSizePortrait'
+  | 'insightsSizeLandscape'
+  | 'insightsShowVendors'
+  | 'insightsBuildCard'
+  | 'insightsCopyImage'
+  | 'insightsDownloadPng'
+  | 'insightsShareX'
+  | 'insightsCopyCaption'
+  | 'insightsCopied'
+  | 'insightsCopyFailed'
+  | 'insightsCaption'
+  | 'insightsCaptionAll'
+  | 'insightsCardFooter'
+  | 'insightsCardSubtitle'
+  | 'insightsCardRangeAll'
+  | 'insightsCardRangeFrom'
+  | 'insightsCardRangeTo'
+  | 'insightsCardRangeFromTo'
+  | 'insightsCardTopVendor'
+  | 'insightsCardRepeat'
+  | 'insightsCardItems'
+  | 'insightsCardOrders'
+  | 'insightsShareHint'
+  | 'insightsEmptyTitle'
+  | 'insightsEmptyBody'
+  | 'insightsLoading'
+  | 'insightsPartial'
+  | 'insightsAborted'
+  | 'insightsAuthError'
+  | 'insightsNoTab'
+  | 'insightsNetworkError'
+  | 'insightsNoRangeData'
+  | 'insightsClearCache'
+  | 'insightsClearCacheConfirm'
+  | 'insightsClearCacheDone'
+  | 'insightsCancelledExcluded'
+  | 'insightsInProgressNote'
+  | 'openInsights'
+  | 'openInsightsHint'
+  | 'openInsightsFromOrders'
+  // Toolbar popup
+  | 'popupTitle'
+  | 'popupPrivacy'
+  | 'popupNoData'
+  | 'popupOrders'
+  | 'popupNetPaid'
+  | 'popupLastSync'
+  | 'popupInsights'
+  | 'popupInsightsHint'
+  | 'popupResults'
+  | 'popupResultsHint'
+  | 'popupSettings'
+  | 'popupSettingsHint'
+  | 'popupOpenOrders';
 
 type Catalog = Record<MessageKey, string>;
 
@@ -208,6 +401,19 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     languageEn: 'English',
     addToComparison: 'افزودن به مقایسه',
     inComparison: 'در مقایسه',
+    torobCta: 'مقایسه قیمت در ترب',
+    torobHint: 'ارزان‌ترین فروشنده‌های این کالا را در ترب ببینید.',
+    torobLoading: 'در حال گرفتن قیمت‌ها از ترب…',
+    torobOffersTitle: 'ارزان‌ترین فروشنده‌های ترب',
+    torobNoMatch: 'محصول مشابهی در ترب پیدا نشد.',
+    torobError: 'گرفتن قیمت‌ها از ترب ناموفق بود.',
+    torobNoOffers: 'فروشندهٔ فعالی برای این محصول در ترب پیدا نشد.',
+    torobSearchOnTorob: 'جست‌وجو در ترب',
+    torobViewOffer: 'مشاهده',
+    torobClose: 'بستن',
+    torobCheapest: 'کمترین قیمت',
+    torobShopCount: '{count} فروشنده',
+    torobPanelNote: 'قیمت‌ها از ترب؛ پیش از خرید در ترب بررسی کنید.',
     capturing: 'در حال دریافت…',
     captureFailed: 'دریافت ناموفق بود',
     tryAgain: 'تلاش دوباره',
@@ -263,12 +469,12 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     reasonOutOfStock: 'همه‌ی گزینه‌ها ناموجود هستند',
     reasonPinnedUnavailable: 'فروشنده‌ی قفل‌شده موجود نیست',
     // D-27 redesign — "the settled bill" copy deck (brief §9)
-    wordmark: 'بز خر',
+    wordmark: 'افزونه بُزخَر',
     headerLabel: 'برنامهٔ پیشنهادی',
     heroTitle: 'با این برنامه {saved} کمتر می‌پردازید',
     heroLine: '{items} کالا در {shipments} مرسوله، با هزینهٔ ارسال',
     barCurrent: 'سبد فعلی',
-    barPlan: 'با برنامهٔ بز خر',
+    barPlan: 'با برنامهٔ بُزخَر',
     pctLess: '{pct}٪ کمتر',
     savedLabel: '{saved} صرفه‌جویی',
     heroHintsLink: '{n} پیشنهاد برای صرفه‌جویی بیشتر',
@@ -298,7 +504,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     changeNone: 'بدون تغییر',
     whyBtn: 'چرا این فروشنده؟',
     openProduct: 'باز کردن صفحهٔ کالا',
-    sellerAuto: 'پیشنهاد بز خر',
+    sellerAuto: 'پیشنهاد بُزخَر',
     lockedChip: 'قفل‌شده',
     unlockBtn: 'باز کردن قفل',
     lockHelper: 'کالای قفل‌شده تغییر نمی‌کند و در بهینه‌سازی بررسی نمی‌شود.',
@@ -364,6 +570,191 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     sellerOnlyNote:
       'صرفه‌جویی این برنامه فقط با تغییر فروشنده به دست می‌آید؛ باید دستی در سبد اعمال شود.',
     loadingCalc: 'در حال محاسبه…',
+    // Order Insights (D-39)
+    insightsTitle: 'خریدهای من',
+    insightsPrivacy:
+      'تاریخچهٔ سفارش‌ها فقط با درخواست شما خوانده می‌شود و روی همین دستگاه می‌ماند.',
+    insightsReadCta: 'خواندن تاریخچهٔ سفارش‌ها',
+    insightsRefreshCta: 'به‌روزرسانی',
+    insightsOpenDigikala: 'باز کردن دیجی‌کالا',
+    insightsLastSynced: 'آخرین به‌روزرسانی: {time}',
+    insightsNeverSynced: 'هنوز خوانده نشده',
+    insightsRange: 'بازهٔ زمانی',
+    insightsRangeAll: 'همه',
+    insightsRange30: '۳۰ روز',
+    insightsRange90: '۹۰ روز',
+    insightsRange180: '۱۸۰ روز',
+    insightsRange365: 'یک سال',
+    insightsRangeCustom: 'بازهٔ دلخواه',
+    insightsFrom: 'از',
+    insightsTo: 'تا',
+    insightsApplyRange: 'اعمال',
+    insightsInvalidDate: 'تاریخ معتبر نیست؛ نمونه: ۱۴۰۴/۰۸/۱۳',
+    insightsIncludeInProgress: 'سفارش‌های در جریان هم در پرداخت خالص حساب شوند',
+    insightsStatusAll: 'همه',
+    insightsStatusSent: 'تحویل‌شده',
+    insightsStatusReturned: 'مرجوعی',
+    insightsStatusInProgress: 'در جریان',
+    insightsStatusCancelled: 'لغوشده',
+    insightsSummary: 'خلاصه',
+    insightsNetPaid: 'پرداخت خالص',
+    insightsOrders: 'سفارش‌ها',
+    insightsAverageOrder: 'میانگین سفارش',
+    insightsLargestOrder: 'بزرگ‌ترین سفارش',
+    insightsRefunds: 'بازگشت وجه',
+    insightsShipping: 'ارسال پرداخت‌شده',
+    insightsDiscountRate: 'نرخ تخفیف',
+    insightsItems: 'کالاها',
+    insightsVendors: 'فروشنده‌ها',
+    insightsCancelledAmount: 'مبلغ سفارش‌های لغوشده',
+    insightsInProgressAmount: 'در جریان',
+    insightsCancelledTitle: 'سفارش‌های لغوشده',
+    insightsCancelledBody:
+      'این سفارش‌ها و اقلامشان در پرداخت خالص، نمودارهای هزینه و آمار کالاها حساب نمی‌شوند؛ فقط برای شفافیت اینجا آمده‌اند.',
+    insightsCancelledCount: '{n} سفارش',
+    insightsCancelledItems: '{n} قلم',
+    insightsCancelledPartial: 'جزئیات اقلام {n} سفارش هنوز خوانده نشده است.',
+    insightsCancelledDeepHint: 'برای دیدن اقلام لغوشده، تحلیل عمیق را اجرا کنید.',
+    insightsCancelledNoItems: 'جزئیات خوانده نشده',
+    insightsInsights: 'تحلیل‌های کوتاه',
+    insightsInsightsBody: 'چند عدد که تصویر خرید شما را سریع‌تر نشان می‌دهند.',
+    insightsMedianOrder: 'میانهٔ سفارش',
+    insightsP90Order: 'سقف ۹۰٪ سفارش‌ها',
+    insightsAverageOrdersPerMonth: 'سفارش در ماه',
+    insightsRefundRate: 'نرخ بازگشت وجه',
+    insightsShippingShare: 'سهم ارسال',
+    insightsTopThreeVendors: 'سهم ۳ فروشندهٔ اول',
+    insightsBusiestMonth: 'بیشترین خرید: {month} با {amount}',
+    insightsBusiestWeekday: 'شلوغ‌ترین روز: {day} با {n} سفارش',
+    insightsCurrentDeliveries: 'تحویل‌های در جریان',
+    insightsCurrentDeliveriesBody:
+      'این سفارش‌ها هنوز در راه‌اند؛ مبلغشان جداگانه نمایش داده می‌شود و در تحلیل عمیق هم خوانده می‌شوند.',
+    insightsOrderRef: 'سفارش {id}',
+    insightsUnknownRefunds: '{n} سفارش مرجوعی مبلغ بازگشت مشخصی ندارد.',
+    insightsCharts: 'نمودارها',
+    insightsMonthly: 'پرداخت خالص در هر ماه',
+    insightsMonthlyOrders: 'تعداد سفارش در هر ماه',
+    insightsCumulative: 'خرید تجمعی',
+    insightsAverageOrderMonthly: 'میانگین سفارش در هر ماه',
+    insightsStatusBreakdown: 'وضعیت سفارش‌ها',
+    insightsCategorySpend: 'خرید بر اساس دسته',
+    insightsChartHint: 'برای دیدن مقدار هر نقطه، نشانگر را روی آن ببرید.',
+    insightsOrderValues: 'اندازهٔ سفارش‌ها',
+    insightsWeekdays: 'روزهای هفته',
+    insightsTopVendors: 'بیشترین خرید از فروشنده‌ها',
+    insightsTopBrands: 'بیشترین خرید از برندها',
+    insightsChartEmpty: 'داده‌ای در این بازه نیست',
+    insightsBucketUnder500: 'تا ۵۰۰ هزار',
+    insightsBucket500to1m: '۵۰۰ هزار تا ۱ میلیون',
+    insightsBucket1to2m: '۱ تا ۲ میلیون',
+    insightsBucket2to5m: '۲ تا ۵ میلیون',
+    insightsBucket5to10m: '۵ تا ۱۰ میلیون',
+    insightsBucketOver10m: 'بیش از ۱۰ میلیون',
+    insightsDaySat: 'شنبه',
+    insightsDaySun: 'یکشنبه',
+    insightsDayMon: 'دوشنبه',
+    insightsDayTue: 'سه‌شنبه',
+    insightsDayWed: 'چهارشنبه',
+    insightsDayThu: 'پنجشنبه',
+    insightsDayFri: 'جمعه',
+    insightsDeepTitle: 'تحلیل عمیق',
+    insightsDeepBody:
+      'برای هر سفارش یک بار جزئیات کالاها و فروشنده‌ها خوانده می‌شود؛ حداکثر ۳۰۰ سفارش در هر اجرا.',
+    insightsDeepCta: 'خواندن جزئیات سفارش‌ها',
+    insightsDeepCancel: 'توقف',
+    insightsDeepProgress: 'خواندن جزئیات {done} از {total}',
+    insightsDeepDone: 'جزئیات {n} سفارش خوانده شد.',
+    insightsDeepFailed: '{n} مورد ناموفق',
+    insightsDeepError: 'آخرین خطا: {message}',
+    insightsDeepBased: 'بر اساس {orders} سفارش؛ {details} سفارش با جزئیات',
+    insightsDeepAborted: 'متوقف شد؛ آنچه خوانده شد ذخیره شد.',
+    insightsRepeatProducts: 'کالاهای تکراری',
+    insightsRepeatRate: 'نرخ خرید دوباره',
+    insightsReorderGap: 'میانگین فاصلهٔ خرید دوباره',
+    insightsReturnRate: 'نرخ مرجوعی',
+    insightsItemDiscount: 'تخفیف کالاها',
+    insightsShipments: 'مرسوله‌ها',
+    insightsNoName: 'نامشخص',
+    insightsDays: '{n} روز',
+    personaNewcomer: 'تازه‌کار',
+    personaReplenisher: 'خریدار تکراری',
+    personaLoyalist: 'وفادار به فروشنده',
+    personaDevotee: 'دوست‌دار برند',
+    personaBargain: 'شکارچی تخفیف',
+    personaBulk: 'خریدار عمده',
+    personaWeekend: 'خریدار آخر هفته',
+    personaRegular: 'خریدار منظم',
+    insightsPersonaTitle: 'شما این‌گونه خرید می‌کنید',
+    insightsPersonaHint: 'این شخصیت فقط از روی داده‌های همین بازه و روی همین دستگاه ساخته می‌شود.',
+    insightsShareTitle: 'کارت اشتراک',
+    insightsShareBody: 'یک تصویر از خلاصه بسازید. به‌طور پیش‌فرض نام فروشنده‌ها در کارت نمی‌آید.',
+    insightsThemeLedger: 'دفتر',
+    insightsThemeNight: 'شب',
+    insightsThemeMarket: 'بازار',
+    insightsThemeMint: 'نعنایی',
+    insightsThemeRose: 'گل رز',
+    insightsThemeOcean: 'اقیانوس',
+    insightsThemeSunset: 'غروب',
+    insightsThemeMono: 'تک‌رنگ',
+    insightsStyleLabel: 'سبک کارت',
+    insightsStyleCards: 'کارتی',
+    insightsStyleStrip: 'نواری',
+    insightsStyleEditorial: 'ژورنالی',
+    insightsSizePortrait: 'عمودی',
+    insightsSizeLandscape: 'افقی',
+    insightsShowVendors: 'نمایش نام فروشنده‌ها در کارت',
+    insightsBuildCard: 'ساختن کارت',
+    insightsCopyImage: 'کپی تصویر',
+    insightsDownloadPng: 'دانلود PNG',
+    insightsShareX: 'ارسال به X',
+    insightsCopyCaption: 'کپی متن',
+    insightsCopied: 'کپی شد',
+    insightsCopyFailed: 'کپی نشد',
+    insightsCaption: '{persona} · {orders} سفارش · {amount} خرید از دیجی‌کالا',
+    insightsCaptionAll: 'خریدهای من از دیجی‌کالا',
+    insightsCardFooter: 'ساخته شده با افزونه بُزخَر',
+    insightsCardSubtitle: 'بر اساس {n} سفارش',
+    insightsCardRangeAll: 'از ابتدا تا امروز',
+    insightsCardRangeFrom: 'از {from}',
+    insightsCardRangeTo: 'تا {to}',
+    insightsCardRangeFromTo: 'از {from} تا {to}',
+    insightsCardTopVendor: '{share}٪ خرید از {vendor}',
+    insightsCardRepeat: '{n} کالا دوباره خریده شده',
+    insightsCardItems: '{n} کالا در {m} سفارش',
+    insightsCardOrders: '{n} سفارش در این بازه',
+    insightsShareHint: 'برای X فقط متن ارسال می‌شود؛ تصویر را خودتان پیوست کنید.',
+    insightsEmptyTitle: 'هنوز سفارشی خوانده نشده',
+    insightsEmptyBody:
+      'برای شروع، «خواندن تاریخچهٔ سفارش‌ها» را بزنید. هیچ‌چیز خودکار خوانده نمی‌شود.',
+    insightsLoading: 'در حال خواندن…',
+    insightsPartial: 'بخشی از داده‌ها خوانده شد؛ می‌توانید دوباره تلاش کنید.',
+    insightsAborted: 'متوقف شد؛ آنچه خوانده شد نگه داشته شد.',
+    insightsAuthError: 'برای خواندن سفارش‌ها باید در دیجی‌کالا وارد شده باشید.',
+    insightsNoTab: 'برای خواندن سفارش‌ها، دیجی‌کالا باید در یک زبانهٔ باز باشد.',
+    insightsNetworkError: 'خواندن سفارش‌ها انجام نشد. دوباره تلاش کنید.',
+    insightsNoRangeData: 'در این بازه سفارشی نیست.',
+    insightsClearCache: 'پاک کردن داده‌های سفارش‌ها',
+    insightsClearCacheConfirm: 'داده‌های ذخیره‌شدهٔ سفارش‌ها پاک شوند؟',
+    insightsClearCacheDone: 'داده‌های سفارش‌ها پاک شد.',
+    insightsCancelledExcluded: 'سفارش‌های لغوشده و اقلامشان در جمع‌های بالا حساب نمی‌شوند.',
+    insightsInProgressNote:
+      'سفارش‌های در جریان (تحویل‌های فعلی) به‌طور پیش‌فرض در جمع پرداخت خالص حساب می‌شوند.',
+    openInsights: 'خریدهای من',
+    openInsightsHint: 'خلاصهٔ همهٔ سفارش‌های دیجی‌کالا، فقط روی همین دستگاه.',
+    openInsightsFromOrders: 'خریدهای من با افزونه بُزخَر',
+    popupTitle: 'افزونه بُزخَر',
+    popupPrivacy: 'همه‌چیز روی همین دستگاه می‌ماند؛ هیچ داده‌ای به سرور نمی‌رود.',
+    popupNoData: 'هنوز سفارشی خوانده نشده است.',
+    popupOrders: 'سفارش',
+    popupNetPaid: 'پرداخت خالص',
+    popupLastSync: 'آخرین به‌روزرسانی: {time}',
+    popupInsights: 'خریدهای من',
+    popupInsightsHint: 'خلاصه، تحلیل عمیق و کارت اشتراک',
+    popupResults: 'نتیجهٔ بهینه‌سازی سبد',
+    popupResultsHint: 'آخرین مقایسه و پیشنهادهای سبد',
+    popupSettings: 'تنظیمات',
+    popupSettingsHint: 'زبان، پلاس و رفتار افزونه',
+    popupOpenOrders: 'باز کردن سفارش‌های دیجی‌کالا',
   },
   en: {
     optionsTitle: 'Digikala Cart Optimizer - Settings',
@@ -388,6 +779,19 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     languageEn: 'English',
     addToComparison: 'Add to comparison',
     inComparison: 'In comparison',
+    torobCta: 'Compare prices on Torob',
+    torobHint: 'See the cheapest sellers for this product on Torob.',
+    torobLoading: 'Fetching prices from Torob…',
+    torobOffersTitle: 'Cheapest Torob sellers',
+    torobNoMatch: 'No matching product was found on Torob.',
+    torobError: 'Could not fetch prices from Torob.',
+    torobNoOffers: 'No active seller was found for this product on Torob.',
+    torobSearchOnTorob: 'Search Torob',
+    torobViewOffer: 'View',
+    torobClose: 'Close',
+    torobCheapest: 'Lowest price',
+    torobShopCount: '{count} sellers',
+    torobPanelNote: 'Prices come from Torob; verify them there before buying.',
     capturing: 'Capturing…',
     captureFailed: 'Capture failed',
     tryAgain: 'Try again',
@@ -442,12 +846,12 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     reasonOutOfStock: 'all offers out of stock',
     reasonPinnedUnavailable: 'the pinned vendor is unavailable',
     // D-27 redesign — "the settled bill" copy deck (brief §9)
-    wordmark: 'Boz Khar',
+    wordmark: 'BozKhar extension',
     headerLabel: 'Suggested plan',
     heroTitle: 'You pay {saved} less with this plan',
     heroLine: '{items} items in {shipments} shipments, shipping included',
     barCurrent: 'Current cart',
-    barPlan: 'With the Boz Khar plan',
+    barPlan: 'With the BozKhar plan',
     pctLess: '{pct}% less',
     savedLabel: '{saved} saved',
     heroHintsLink: '{n} more saving suggestions',
@@ -477,7 +881,7 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     changeNone: 'No change',
     whyBtn: 'Why this seller?',
     openProduct: 'Open product page',
-    sellerAuto: 'Boz Khar suggestion',
+    sellerAuto: 'BozKhar suggestion',
     lockedChip: 'Locked',
     unlockBtn: 'Unlock',
     lockHelper: 'A locked item never changes and is skipped by the optimizer.',
@@ -543,6 +947,189 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     sellerOnlyNote:
       'This plan saves only by changing the seller, which must be applied by hand in your cart.',
     loadingCalc: 'Calculating…',
+    // Order Insights (D-39)
+    insightsTitle: 'My orders',
+    insightsPrivacy: 'Your order history is read only when you ask, and stays on this device.',
+    insightsReadCta: 'Read order history',
+    insightsRefreshCta: 'Refresh',
+    insightsOpenDigikala: 'Open Digikala',
+    insightsLastSynced: 'Last synced: {time}',
+    insightsNeverSynced: 'Not read yet',
+    insightsRange: 'Date range',
+    insightsRangeAll: 'All time',
+    insightsRange30: '30 days',
+    insightsRange90: '90 days',
+    insightsRange180: '180 days',
+    insightsRange365: 'One year',
+    insightsRangeCustom: 'Custom',
+    insightsFrom: 'From',
+    insightsTo: 'To',
+    insightsApplyRange: 'Apply',
+    insightsInvalidDate: 'That date is not valid; example: 1404/08/13',
+    insightsIncludeInProgress: 'Count in-progress orders in net paid',
+    insightsStatusAll: 'All',
+    insightsStatusSent: 'Delivered',
+    insightsStatusReturned: 'Returned',
+    insightsStatusInProgress: 'In progress',
+    insightsStatusCancelled: 'Cancelled',
+    insightsSummary: 'Summary',
+    insightsNetPaid: 'Net paid',
+    insightsOrders: 'Orders',
+    insightsAverageOrder: 'Average order',
+    insightsLargestOrder: 'Largest order',
+    insightsRefunds: 'Refunds',
+    insightsShipping: 'Shipping paid',
+    insightsDiscountRate: 'Discount rate',
+    insightsItems: 'Items',
+    insightsVendors: 'Vendors',
+    insightsCancelledAmount: 'Cancelled order amount',
+    insightsInProgressAmount: 'In progress',
+    insightsCancelledTitle: 'Cancelled orders',
+    insightsCancelledBody:
+      'These orders and their items are excluded from net paid, spend charts and item stats; they are listed here for transparency.',
+    insightsCancelledCount: '{n} orders',
+    insightsCancelledItems: '{n} items',
+    insightsCancelledPartial: 'Item details for {n} orders have not been read yet.',
+    insightsCancelledDeepHint: 'Run deep analysis to see the cancelled items.',
+    insightsCancelledNoItems: 'Details not read',
+    insightsInsights: 'Quick insights',
+    insightsInsightsBody: 'A few numbers that sketch your shopping.',
+    insightsMedianOrder: 'Median order',
+    insightsP90Order: '90th percentile order',
+    insightsAverageOrdersPerMonth: 'Orders per month',
+    insightsRefundRate: 'Refund rate',
+    insightsShippingShare: 'Shipping share',
+    insightsTopThreeVendors: 'Top 3 vendors share',
+    insightsBusiestMonth: 'Biggest month: {month} with {amount}',
+    insightsBusiestWeekday: 'Busiest day: {day} with {n} orders',
+    insightsCurrentDeliveries: 'Current deliveries',
+    insightsCurrentDeliveriesBody:
+      'These orders are still on the way; their amounts are shown separately and they are included in deep analysis.',
+    insightsOrderRef: 'Order {id}',
+    insightsUnknownRefunds: '{n} returned order(s) have no known refund amount.',
+    insightsCharts: 'Charts',
+    insightsMonthly: 'Net paid by month',
+    insightsMonthlyOrders: 'Orders per month',
+    insightsCumulative: 'Cumulative spend',
+    insightsAverageOrderMonthly: 'Average order by month',
+    insightsStatusBreakdown: 'Order status',
+    insightsCategorySpend: 'Spend by category',
+    insightsChartHint: 'Hover a point to see its value.',
+    insightsOrderValues: 'Order values',
+    insightsWeekdays: 'Days of the week',
+    insightsTopVendors: 'Top vendors',
+    insightsTopBrands: 'Top brands',
+    insightsChartEmpty: 'No data in this range',
+    insightsBucketUnder500: 'under 500k',
+    insightsBucket500to1m: '500k–1M',
+    insightsBucket1to2m: '1–2M',
+    insightsBucket2to5m: '2–5M',
+    insightsBucket5to10m: '5–10M',
+    insightsBucketOver10m: 'over 10M',
+    insightsDaySat: 'Saturday',
+    insightsDaySun: 'Sunday',
+    insightsDayMon: 'Monday',
+    insightsDayTue: 'Tuesday',
+    insightsDayWed: 'Wednesday',
+    insightsDayThu: 'Thursday',
+    insightsDayFri: 'Friday',
+    insightsDeepTitle: 'Deep analysis',
+    insightsDeepBody: 'Reads each order’s items and sellers once, up to 300 orders per run.',
+    insightsDeepCta: 'Read order details',
+    insightsDeepCancel: 'Stop',
+    insightsDeepProgress: 'Reading detail {done} of {total}',
+    insightsDeepDone: 'Read details for {n} orders.',
+    insightsDeepFailed: '{n} failed',
+    insightsDeepError: 'Last error: {message}',
+    insightsDeepBased: 'Based on {orders} orders; {details} with details',
+    insightsDeepAborted: 'Stopped; everything read was kept.',
+    insightsRepeatProducts: 'Repeat products',
+    insightsRepeatRate: 'Repeat rate',
+    insightsReorderGap: 'Average reorder gap',
+    insightsReturnRate: 'Return rate',
+    insightsItemDiscount: 'Item discount',
+    insightsShipments: 'Shipments',
+    insightsNoName: 'Unknown',
+    insightsDays: '{n} days',
+    personaNewcomer: 'Newcomer',
+    personaReplenisher: 'The replenisher',
+    personaLoyalist: 'Vendor loyalist',
+    personaDevotee: 'Brand devotee',
+    personaBargain: 'Bargain hunter',
+    personaBulk: 'Bulk buyer',
+    personaWeekend: 'Weekend shopper',
+    personaRegular: 'Regular shopper',
+    insightsPersonaTitle: 'How you shop',
+    insightsPersonaHint: 'Computed locally from this range; nothing leaves the device.',
+    insightsShareTitle: 'Share card',
+    insightsShareBody:
+      'Build an image of the summary. Vendor names are hidden on the card by default.',
+    insightsThemeLedger: 'Ledger',
+    insightsThemeNight: 'Night',
+    insightsThemeMarket: 'Market',
+    insightsThemeMint: 'Mint',
+    insightsThemeRose: 'Rose',
+    insightsThemeOcean: 'Ocean',
+    insightsThemeSunset: 'Sunset',
+    insightsThemeMono: 'Mono',
+    insightsStyleLabel: 'Card style',
+    insightsStyleCards: 'Cards',
+    insightsStyleStrip: 'Strip',
+    insightsStyleEditorial: 'Editorial',
+    insightsSizePortrait: 'Portrait',
+    insightsSizeLandscape: 'Landscape',
+    insightsShowVendors: 'Show vendor names on the card',
+    insightsBuildCard: 'Build card',
+    insightsCopyImage: 'Copy image',
+    insightsDownloadPng: 'Download PNG',
+    insightsShareX: 'Share to X',
+    insightsCopyCaption: 'Copy caption',
+    insightsCopied: 'Copied',
+    insightsCopyFailed: 'Copy failed',
+    insightsCaption: '{persona} · {orders} orders · {amount} on Digikala',
+    insightsCaptionAll: 'My Digikala order history',
+    insightsCardFooter: 'Made with the BozKhar extension',
+    insightsCardSubtitle: 'Based on {n} orders',
+    insightsCardRangeAll: 'From the beginning to today',
+    insightsCardRangeFrom: 'From {from}',
+    insightsCardRangeTo: 'to {to}',
+    insightsCardRangeFromTo: '{from} – {to}',
+    insightsCardTopVendor: '{share}% of spend at {vendor}',
+    insightsCardRepeat: '{n} product(s) bought again',
+    insightsCardItems: '{n} items across {m} orders',
+    insightsCardOrders: '{n} orders in this range',
+    insightsShareHint: 'X receives text only; attach the image yourself.',
+    insightsEmptyTitle: 'No order history read yet',
+    insightsEmptyBody: 'Press “Read order history” to start. Nothing is read automatically.',
+    insightsLoading: 'Reading…',
+    insightsPartial: 'Part of the data was read; you can try again.',
+    insightsAborted: 'Stopped; everything read was kept.',
+    insightsAuthError: 'Sign in to Digikala to read your orders.',
+    insightsNoTab: 'Digikala must be open in a tab to read your orders.',
+    insightsNetworkError: 'Could not read your orders. Try again.',
+    insightsNoRangeData: 'No orders in this range.',
+    insightsClearCache: 'Clear order data',
+    insightsClearCacheConfirm: 'Delete the cached order data?',
+    insightsClearCacheDone: 'Order data cleared.',
+    insightsCancelledExcluded: 'Cancelled orders and their items are not part of the totals above.',
+    insightsInProgressNote:
+      'In-progress orders (current deliveries) count toward net paid by default.',
+    openInsights: 'Order insights',
+    openInsightsHint: 'A summary of all your Digikala orders, only on this device.',
+    openInsightsFromOrders: 'My orders with the BozKhar extension',
+    popupTitle: 'BozKhar extension',
+    popupPrivacy: 'Everything stays on this device; no data is sent to a server.',
+    popupNoData: 'No order history read yet.',
+    popupOrders: 'orders',
+    popupNetPaid: 'net paid',
+    popupLastSync: 'Last synced: {time}',
+    popupInsights: 'My orders',
+    popupInsightsHint: 'Summary, deep analysis and share card',
+    popupResults: 'Cart optimization results',
+    popupResultsHint: 'Your latest comparison and suggestions',
+    popupSettings: 'Settings',
+    popupSettingsHint: 'Language, Plus and extension behavior',
+    popupOpenOrders: 'Open Digikala orders',
   },
 };
 
@@ -564,7 +1151,7 @@ export const crawlStartingLines: Record<'fa' | 'en', readonly string[]> = {
     'تخفیف‌های شرطی را دنبال می‌کنیم…',
     'قیمت‌ها را یکی‌یکی ثبت می‌کنیم…',
     'ترکیب‌های مختلف را روی کاغذ می‌آوریم…',
-    'بزخر دارد چانه می‌زند…',
+    'افزونه بُزخَر دارد چانه می‌زند…',
     'فروشنده‌ها یکی‌یکی مرور می‌شوند؛ کمی صبر…',
     'هر غرفه یک مرسوله است؛ همه را می‌شماریم…',
     'دنبال سقف ارسال رایگان می‌گردیم…',
@@ -579,7 +1166,7 @@ export const crawlStartingLines: Record<'fa' | 'en', readonly string[]> = {
     'کمی دیگر؛ چند غرفه مانده…',
     'قیمت‌های مشکوک را کنار می‌زنیم…',
     'جمع نهایی نزدیک است…',
-    'این حوصله‌ی بزخر است، نه کندی!',
+    'این حوصله‌ی افزونه بُزخَر است، نه کندی!',
     'داریم ارزان‌ترین راه را پیدا می‌کنیم…',
   ],
   en: [
@@ -592,7 +1179,7 @@ export const crawlStartingLines: Record<'fa' | 'en', readonly string[]> = {
     'Chasing the conditional discounts…',
     'Recording the prices one by one…',
     'Sketching the possible arrangements…',
-    'Boz Khar is haggling…',
+    'The BozKhar extension is haggling…',
     'Walking the sellers one at a time; one moment…',
     'Every seller is its own shipment; counting them all…',
     'Looking for the free-shipping threshold…',

@@ -219,13 +219,13 @@ describe('results page — the settled bill (D-27)', () => {
     await page.run();
 
     const btn = document.querySelector('.bk-seller-btn');
-    expect(btn?.textContent).toBe('پیشنهاد بز خر');
+    expect(btn?.textContent).toBe('پیشنهاد بُزخَر');
     btn?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     const options = [...document.querySelectorAll('.bk-popover-option')];
     // Automatic first, then sellers cheapest-first.
     expect(options).toHaveLength(3);
-    expect(options[0]?.textContent).toContain('پیشنهاد بز خر');
+    expect(options[0]?.textContent).toContain('پیشنهاد بُزخَر');
     // فروشنده ب (80) before فروشنده الف (100).
     expect(options[1]?.textContent).toContain('فروشنده ب');
     expect(options[1]?.textContent).toContain('۸۰');

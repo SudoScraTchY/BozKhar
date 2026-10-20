@@ -4,11 +4,12 @@
  * fake-indexeddb while production passes window.indexedDB.
  */
 import type { ComparisonItem, ItemId, ShipmentRecord, Snapshot, Promo } from '../types';
+import type { InsightMetaRecord, OrderCacheRecord } from '../../insights/types';
 
 export type DbFactory = IDBFactory;
 
 export const DB_NAME = 'digikala-cart-optimizer';
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export const STORE_ITEMS = 'items';
 export const STORE_SNAPSHOTS = 'snapshots';
@@ -16,6 +17,10 @@ export const STORE_PROMOS = 'promos';
 export const STORE_SHIPMENTS = 'shipments';
 /** D-26: the pre-apply cart snapshot (undo), one row. */
 export const STORE_CART_SNAPSHOTS = 'cartSnapshots';
+/** Order Insights: normalized orders (one row per order). */
+export const STORE_ORDER_CACHE = 'orderCache';
+/** Order Insights: the last sync's tab counts, one row ('sync'). */
+export const STORE_INSIGHT_META = 'insightMeta';
 
 const ALL_STORES = [
   STORE_ITEMS,
@@ -23,6 +28,8 @@ const ALL_STORES = [
   STORE_PROMOS,
   STORE_SHIPMENTS,
   STORE_CART_SNAPSHOTS,
+  STORE_ORDER_CACHE,
+  STORE_INSIGHT_META,
 ] as const;
 export type StoreName = (typeof ALL_STORES)[number];
 
@@ -58,6 +65,15 @@ function openDatabase(factory: DbFactory): Promise<IDBDatabase> {
         // D-26: the pre-apply cart snapshot for undo, one
         // row ('latest') replaced on every apply.
         db.createObjectStore(STORE_CART_SNAPSHOTS, { keyPath: 'key' });
+      }
+      if (!db.objectStoreNames.contains(STORE_ORDER_CACHE)) {
+        // Order Insights (D-39): normalized orders only - the
+        // reader strips address/payment/invoice fields before
+        // anything reaches this store.
+        db.createObjectStore(STORE_ORDER_CACHE, { keyPath: 'orderId' });
+      }
+      if (!db.objectStoreNames.contains(STORE_INSIGHT_META)) {
+        db.createObjectStore(STORE_INSIGHT_META, { keyPath: 'key' });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -290,6 +306,70 @@ export async function deleteCartSnapshot(factory: DbFactory): Promise<void> {
   });
 }
 
+// ---- order insights cache (D-39) ----
+
+/** Upserts normalized order rows in one transaction. */
+export async function putOrderCacheRecords(
+  factory: DbFactory,
+  records: readonly OrderCacheRecord[],
+): Promise<void> {
+  if (records.length === 0) return;
+  await withStore(factory, STORE_ORDER_CACHE, 'readwrite', (s) => {
+    for (const record of records) s.put(record);
+  });
+}
+
+export async function getAllOrderCacheRecords(factory: DbFactory): Promise<OrderCacheRecord[]> {
+  return withStore(factory, STORE_ORDER_CACHE, 'readonly', (s) => s.getAll());
+}
+
+export async function getOrderCacheRecord(
+  factory: DbFactory,
+  orderId: number,
+): Promise<OrderCacheRecord | undefined> {
+  return withStore<OrderCacheRecord | undefined>(factory, STORE_ORDER_CACHE, 'readonly', (s) =>
+    s.get(orderId),
+  );
+}
+
+export async function deleteOrderCacheRecords(
+  factory: DbFactory,
+  orderIds: readonly number[],
+): Promise<void> {
+  if (orderIds.length === 0) return;
+  await withStore(factory, STORE_ORDER_CACHE, 'readwrite', (s) => {
+    for (const id of orderIds) s.delete(id);
+  });
+}
+
+export async function clearOrderCacheStore(factory: DbFactory): Promise<void> {
+  await withStore(factory, STORE_ORDER_CACHE, 'readwrite', (s) => {
+    s.clear();
+  });
+}
+
+export async function putInsightMeta(factory: DbFactory, record: InsightMetaRecord): Promise<void> {
+  await withStore(factory, STORE_INSIGHT_META, 'readwrite', (s) => {
+    s.put(record);
+  });
+}
+
+export async function getInsightMeta(factory: DbFactory): Promise<InsightMetaRecord | null> {
+  const rec = await withStore<InsightMetaRecord | undefined>(
+    factory,
+    STORE_INSIGHT_META,
+    'readonly',
+    (s) => s.get('sync'),
+  );
+  return rec ?? null;
+}
+
+export async function clearInsightMetaStore(factory: DbFactory): Promise<void> {
+  await withStore(factory, STORE_INSIGHT_META, 'readwrite', (s) => {
+    s.clear();
+  });
+}
+
 // ---- danger zone ----
 
 /** FR-16 privacy gate: empties every store. Returns the count of deleted records. */
@@ -345,4 +425,5 @@ async function applyMigration(_factory: DbFactory, _version: number): Promise<vo
   // v1 = initial shape, nothing to transform. Future bumps add a guarded
   // step here (e.g. rewrite snapshot records) BEFORE the new code ships.
   // v3 added the cartSnapshots store (D-26); no data to transform.
+  // v4 adds orderCache + insightMeta (D-39); also no data to transform.
 }

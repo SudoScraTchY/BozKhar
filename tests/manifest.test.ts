@@ -1,6 +1,7 @@
 /**
  * NFR-06 permission audit as a test: the manifest must declare EXACTLY
- * storage + tabs + scripting + *.digikala.com. Anything more fails CI,
+ * storage + tabs + scripting + *.digikala.com, plus the Torob API host
+ * added by D-42 (the on-demand PDP comparison). Anything more fails CI,
  * not review. ("scripting" was added for D-16 - main-world fetch
  * execution via chrome.scripting.executeScript; see the decision log.)
  */
@@ -16,8 +17,11 @@ describe('manifest permissions (NFR-06)', () => {
     expect(manifestSource.permissions).toEqual(['storage', 'tabs', 'scripting']);
   });
 
-  it('declares only the digikala host permission', () => {
-    expect(manifestSource.host_permissions).toEqual(['https://*.digikala.com/*']);
+  it('declares only the reviewed host permissions', () => {
+    expect(manifestSource.host_permissions).toEqual([
+      'https://*.digikala.com/*',
+      'https://api.torob.com/*',
+    ]);
   });
 
   it('is manifest_version 3 with no remote code surface', () => {
@@ -75,6 +79,6 @@ describe('built artifact permission audit (runs when dist/ exists)', () => {
       host_permissions?: string[];
     };
     expect(built.permissions).toEqual(['storage', 'tabs', 'scripting']);
-    expect(built.host_permissions).toEqual(['https://*.digikala.com/*']);
+    expect(built.host_permissions).toEqual(['https://*.digikala.com/*', 'https://api.torob.com/*']);
   });
 });

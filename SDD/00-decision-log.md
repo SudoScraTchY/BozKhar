@@ -1150,3 +1150,240 @@ z-index 45; forcing the old 35 returns `.bk-actionbar`
 `popover-z-old.png`). Local, 2026-10-17: `tsc --noEmit`, `eslint src tests`,
 `prettier --check .` clean; `vitest run` 309 tests across 28 files; `vite build`
 and `scripts/audit-dist.mjs` clean.
+
+## D-39 — order insights are on-demand, local, and read-only (2026-10-19)
+
+**Problem (feature request):** the user asked for a summary of their entire
+Digikala order history — a date range, simple totals, an optional deep
+analysis of products and vendors, and a shareable image. The affiliate
+program (feature 1) is blocked on enrollment and the Torob button (feature 3)
+is parked, so this entry covers only the order summary.
+
+**Evidence (live, signed-in spike 2026-10-17):** the profile APIs are
+`GET /v1/profile/orders/tabs/`, `GET /v1/profile/orders/?page=N&status=…`
+(10 rows/page) and `GET /v1/order/{id}/`. List rows carry the Jalali date,
+status and `price_details`; completed rows carry no items or sellers, so any
+deep analysis needs one detail call per order. The detail payload also carries
+`address`, `payments`, `payment_method`, `invoice_url` and product images.
+`created_at` is Jalali text, never ISO.
+
+**Decision:** add a separate Order Insights page (`src/insights/`) that reads
+history only when the user presses a button. Every GET goes through the
+service worker's transport ladder — extension-origin fetch, then the open
+Digikala tab's main world, then the same main-world GET without the checkout
+routing headers — and is normalized through an allowlist reader before it
+leaves the worker. Raw payloads never persist; `address`, `payments`,
+`payment_method`, `invoice_url` and images are dropped in the worker. The
+normalized cache is IndexedDB v4 (`orderCache`, `insightMeta`), capped at 2000
+orders, cleared by the existing clear-all, and additionally by a page-local
+clear button; terminal statuses have a 24 h TTL, in-progress 10 min. Deep
+details are opt-in, sequential, capped at 300 per run, cancellable, and saved
+per order. The persona is a deterministic local rule set; the share card is
+Canvas-rendered locally in three fixed themes, with vendor names hidden by
+default. No new permission, host, server, telemetry or LLM call is introduced.
+
+**Alternatives:** background/scheduled sync (violates D-03 and the ToS posture);
+a remote LLM for the persona (D-02: nothing leaves the device); storing the raw
+payloads and filtering in the page (puts sensitive fields in the cache and the
+message channel); fetching Torob prices (new host permission, NFR-01, wrong-
+product risk); a direct-only fetch (the profile APIs can reject the extension
+origin); an affiliate ask on first run (blocked on program enrollment and a
+separate consent decision).
+
+**Consequences:** the page shows cached data on open and fetches nothing until
+asked; a signed-out user or a browser with no Digikala tab gets an explicit,
+actionable state and an "Open Digikala" button that the user must press. The
+summary is only as complete as the last sync and only as deep as the last
+detail run; unknown refunds are flagged rather than guessed. The undocumented
+APIs can drift, which the readers contain per page/order and surface as typed
+errors. The manifest is unchanged, so there is no new permission prompt.
+
+**Evidence:** `tests/insights-jalali.test.ts` (13), `insights-readers.test.ts`
+(12), `insights-cache.test.ts` (9), `insights-sw.test.ts` (11),
+`insights-client.test.ts` (6), `insights-sync.test.ts` (10),
+`insights-aggregate.test.ts` (14), `insights-charts.test.ts` (8),
+`insights-share.test.ts` (3), `insights-page.test.ts` (12). Local, 2026-10-19:
+`tsc --noEmit`, `eslint .`, `prettier --check .` clean; `vitest run` 407 tests
+across 38 files; `vite build` emits `dist/src/insights/index.html` and
+`scripts/audit-dist.mjs` reports the manifest unchanged and clean.
+
+## D-40 — insights discovery, current deliveries, and the live detail shape (2026-10-19)
+
+**Problem (field report):** deep scan failed for the user, current deliveries were
+missing, the feature was buried in the options page, and the share card offered
+only three themes. The branding also needed to settle on «افزونه بُزخَر».
+
+**Evidence (live, signed-in, 2026-10-19):** `GET /v1/order/{id}/` returns
+`{ data: { order: { order_items, shipments, price_details, … }, payments,
+payment_methods } }`. The D-39 reader looked for `data.order_items`, so every
+detail call ended in `STRUCTURE_UNRECOGNIZED`. Re-running the fixed reader
+against the live payload returned 8 items for a delivered order, 5 items and 4
+shipments for the in-progress order, and 8 items (all cancelled) for a cancelled
+order. Cancelled orders were also never requested by the old deep-target filter,
+which made the cancel-rate metric structurally zero.
+
+**Decision:** unwrap `data.order` (with the old flat `.data.*` shape kept as a
+fallback); make every status eligible for deep analysis; count in-progress
+orders in net paid by default and list them in a dedicated "current deliveries"
+section; expose the page from two new surfaces — a floating button on
+`/profile/orders` (content script asks the worker to open the page) and a
+toolbar popup with cached totals plus links to insights, results, settings and
+the orders tab. The share card gains eight palettes and three layouts (cards,
+strip, editorial). No permission, host, server or automatic fetch is added; the
+popup reads only the local cache. The affiliate and Torob features remain out of
+scope.
+
+**Alternatives:** keep deep analysis limited to delivered/returned orders (leaves
+the cancel rate and current deliveries empty); make the insights page
+`web_accessible` so a page link can navigate to it (exposes a personal-data page
+to web content); add a fourth manifest surface (more code for the same explicit
+click); ship one theme with color variants only (less structure, not what the
+user asked for).
+
+**Consequences:** a detail response from either payload shape now normalizes;
+the deep run covers all statuses but remains capped at 300 orders; current
+deliveries are visible and counted by default, with the existing checkbox able
+to exclude them; the toolbar icon now opens a real popup instead of the options
+page. The orders-tab button appears only on the orders route and disappears on
+SPA navigation away. Branding is «افزونه بُزخَر» in the wordmark, footer, crawl
+flavor lines and orders-tab button.
+
+**Evidence:** live reader checks on the three statuses above (delivered 8 items,
+in-progress 5 items/4 shipments, cancelled 8 items); `tests/insights-readers.test.ts`
+adds the `data.order` wrapper case; `tests/insights-cache.test.ts` now expects
+every status; `tests/insights-page.test.ts` covers default current deliveries and
+in-progress deep targets; `tests/insights-share.test.ts` covers the eight
+palettes; `tests/capture-content.test.ts` covers the orders-tab button. Local,
+2026-10-19: `tsc --noEmit`, `eslint .`, `prettier --check .` clean; full
+`vitest run`; `vite build` emits `dist/src/popup/index.html`;
+`scripts/audit-dist.mjs` reports the manifest unchanged.
+
+## D-41 — Torob is a link-out, not a scrape (2026-10-20)
+
+**Problem (feature 3):** the user wants a Torob (ترب) entry point on every
+Digikala product page, either linking to the Torob product page or listing the
+cheapest Torob vendors. The earlier proposal was parked because price scraping
+needs a new host permission and has wrong-product risk.
+
+**Decision:** ship the safe first step only. On a `dkp-` product page the
+content script mounts a secondary «مقایسه در ترب» link next to the existing
+comparison button. The link opens
+`https://torob.com/search/?query=<product title>` in a new tab with
+`noopener noreferrer`. The query comes from the page heading, then `og:title`,
+then the URL slug. Nothing is fetched, no host permission is added, and no data
+is sent until the user clicks the link. The manifest still declares exactly
+`storage`, `tabs`, `scripting` and `https://*.digikala.com/*`.
+
+**Alternatives:** fetch Torob search/product pages and render prices in the
+extension (new host permission, scraping/ToS risk, product matching risk);
+hard-code a Torob product id (Digikala and Torob ids do not match); open the
+Torob home page (one extra search for the user).
+
+**Consequences:** the user gets a one-click path to Torob without broadening
+the extension's permission or network surface. A true price comparison remains
+a separate decision: it needs a reviewed host permission, a product-matching
+strategy and a data-freshness policy. The link mounts once per product route
+and is removed on SPA route changes like the other content surfaces.
+
+**Evidence:** `tests/capture-content.test.ts` — URL encoding, heading/slug
+fallback, safe new-tab attributes, mount/destroy and off-page no-op. The link is
+pure DOM; no new API path is introduced.
+
+## D-42 — Torob comparison is an on-demand, credentialed-off read (2026-10-20)
+
+**Problem:** D-41 shipped a Torob search link, but the link never appeared on the
+current PDP: the live layout (2026-10-20) no longer renders
+`[data-testid="sellers-cta"]` or `[data-testid="buy-box"]`, so neither the
+comparison button nor the Torob trigger had a mount anchor. The user also asked
+for the actual cheapest-seller list, not only a link.
+
+**Evidence (live, 2026-10-20):** the current PDP exposes
+`[data-testid="add-to-cart"]` (the first instance is the visible desktop buy
+panel). Torob's public search API answers on
+`GET /v4/base-product/search/?q=<title>&page=0&size=10&source=next_desktop`;
+`query=` is accepted but returns a generic feed, so the parameter is `q`.
+The matching product's `random_key` feeds
+`GET /v4/base-product/details/?prk=<key>&source=next_desktop`, whose
+`products_info.result` array carries `shop_name`, `shop_name2` (city),
+`price` (Toman), `page_url`, `score_info.score_text` and `postage_fee`.
+For the live Poco X8 Pro 512/12 page the search returned the exact product and
+the details returned 96 sellers; the normalized top five were sorted by price
+(169,000,000 / 176,962,302 / 178,997,000 / 181,000,000 / 182,490,000 Toman)
+with five distinct shops after removing a same-shop/same-price duplicate.
+
+**Decision:** replace the link-only trigger with an on-demand comparison panel.
+A click sends only the public product title to the worker (`torob/compare`); the
+worker performs two GETs with `credentials: 'omit'` and
+`referrerPolicy: 'no-referrer'`, matches the product by distinctive model
+tokens, normalizes the five cheapest active sellers, and returns text rows -
+never raw payloads. Every Latin model token (poco/x8/pro) must be present, so
+X7/F8 siblings cannot win; among candidates within one token of the best score,
+the listing with the most sellers wins, so the canonical 96-seller product
+beats a one-seller color variant. The trigger waits for the hydrated `<h1>` and
+never uses `document.title` as a fallback: the first live build mounted before
+the heading and a stale title matched an unrelated website-design product. The
+trigger remains a real `<a>` to the Torob search page, so Ctrl/Cmd-click and the
+failure state still work. It mounts below the buy row as a full-width secondary
+action. The only new manifest capability is the host permission
+`https://api.torob.com/*`; content-script matches stay on Digikala. The
+add-to-cart test id becomes a PDP mount anchor (`SELECTORS_VERSION` 0.4.0-t03).
+
+**Alternatives:** keep the link-only surface (no prices, and the stale selector
+still hides it); fetch Torob from the page origin (CORS, page CSP, and the page
+would see the request); scrape the Torob HTML page (bot challenge, more fragile
+than the JSON endpoints); add `https://*.torob.com/*` (broader than the two API
+calls need).
+
+**Consequences:** the extension now makes a third-party request, but only after
+an explicit click, only to `api.torob.com`, and only with the public product
+title. Torob never receives Digikala cookies, order data or a referrer. A
+failed/mismatched lookup falls back to the search link. Seller links are
+accepted only from `https://*.torob.com`; `javascript:` and other schemes are
+dropped. The feature is best-effort: Torob can change its API shape, in which
+case the panel shows the generic error and the search link.
+
+**Evidence:** `tests/torob-api.test.ts` covers model matching, `q=` URL shape,
+price sorting, unavailable/duplicate/invalid-row filtering, the `javascript:`
+URL drop, the two-request worker flow, no-match short-circuit and HTTP/empty
+query failures; `tests/capture-content.test.ts` covers the new trigger, panel
+rows, failure fallback and mount/destroy; `tests/capture-selectors.test.ts`
+covers the add-to-cart anchor; `tests/manifest.test.ts` and
+`scripts/audit-dist.mjs` audit the new host permission.
+
+## D-43 — Cancelled orders are reported, never summed (2026-10-20)
+
+**Problem:** the summary already separated cancelled orders from net paid, but
+the page only showed them as an amount card and a same-colour status bar. The
+user asked to confirm that cancelled orders and cancelled item quantities never
+enter the totals, and to give them a visible place of their own.
+
+**Decision:** keep cancelled orders and cancelled item quantities out of every
+spend and item aggregate: net paid, average/median/p90/largest, shipping,
+discount, monthly/cumulative/average-order charts, value buckets, weekday
+distribution, item count, and vendor/brand/category totals. Cancelled orders
+never enter `contributing`; partial `cancelledQuantity` is subtracted from each
+item before it is counted or grouped. Make the exclusion visible with a
+dedicated "Cancelled orders" table (date, order ref, read item count, amount)
+and a per-status colour scheme on the status chart: sent teal, returned amber,
+in-progress blue, cancelled red. If an order's detail has not been read, the
+row says so and the section points to deep analysis instead of implying zero
+items.
+
+**Alternatives:** add cancelled spend back into a combined total (pollutes net
+paid); show cancelled rows in the same spend charts with a different colour
+(mixes spend and non-spend in one scale); hide cancelled orders entirely (the
+user loses the explanation for the missing orders).
+
+**Consequences:** the summary's cancelled amount stays informational and is
+labelled "cancelled order amount". The status chart remains count-based, so the
+red bar is a count, not money. The cancelled table follows the selected date
+range but ignores the status filter, so cancelled rows remain explainable while
+the user filters other statuses. Item counts depend on deep details; without
+them the table still shows the order and amount plus a clear hint.
+
+**Evidence:** `tests/insights-aggregate.test.ts` asserts a fully cancelled order
+and a partial cancelled quantity add nothing to net paid, item count, item
+value, vendors, monthly, value-bucket or weekday totals; `tests/insights-charts.test.ts`
+covers per-point colours and rejects invalid colour strings; `tests/insights-page.test.ts`
+covers the separate table, item count, exclusion from net paid, and the red
+cancelled bar.

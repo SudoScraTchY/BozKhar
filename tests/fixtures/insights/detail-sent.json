@@ -1,0 +1,97 @@
+{
+  "status": "ok",
+  "data": {
+    "id": 1001,
+    "created_at": "13 آبان 1404",
+    "status": "sent",
+    "status_fa": "تحویل شده",
+    "payable_price": 2450000,
+    "price_details": {
+      "total_cost": 2700000,
+      "shipping_cost": 100000,
+      "discount": 150000,
+      "gift_card": 0,
+      "voucher": 0,
+      "user_paid": 2450000,
+      "user_received": 0
+    },
+    "address": "SENSITIVE-ADDRESS-DETAIL",
+    "payments": [{ "gateway": "SENSITIVE-PAYMENT-DETAIL" }],
+    "payment_method": "SENSITIVE-METHOD-DETAIL",
+    "invoice_url": "https://example.test/SENSITIVE-INVOICE-DETAIL.pdf",
+    "order_items": [
+      {
+        "id": 11,
+        "quantity": 2,
+        "returned_quantity": 0,
+        "cancelled_quantity": 0,
+        "product": {
+          "id": 111,
+          "title_fa": "گوشی موبایل سامسونگ",
+          "data_layer": {
+            "brand": "سامسونگ",
+            "category": "موبایل",
+            "item_category2": "گوشی موبایل",
+            "item_category3": "",
+            "item_category4": null,
+            "item_category5": ""
+          },
+          "images": { "main": "https://cdn.example.test/SENSITIVE-IMAGE.jpg" }
+        },
+        "variant": {
+          "id": 1111,
+          "seller": {
+            "id": 501,
+            "title": "دیجی‌کالا",
+            "code": "DK",
+            "rating": 4.7,
+            "stars": 4.7
+          },
+          "price": {
+            "selling_price": 1200000,
+            "rrp_price": 1400000,
+            "discount_percent": 14,
+            "is_promotion": true
+          }
+        }
+      },
+      {
+        "id": 12,
+        "quantity": 1,
+        "returned_quantity": 0,
+        "cancelled_quantity": 0,
+        "product": {
+          "id": 222,
+          "title_fa": "کابل شارژ",
+          "data_layer": {
+            "brand": "انوکر",
+            "category": "لوازم جانبی",
+            "item_category2": "کابل"
+          }
+        },
+        "variant": {
+          "id": 2222,
+          "seller": {
+            "id": 502,
+            "title": "فروشنده دوم",
+            "rating": "4.2"
+          },
+          "price": {
+            "selling_price": 300000,
+            "rrp_price": 350000,
+            "discount_percent": 14
+          }
+        }
+      }
+    ],
+    "shipments": [
+      {
+        "id": 701,
+        "cost": 100000,
+        "date": "15 آبان 1404",
+        "status": "delivered",
+        "order_items": [11, 12]
+      }
+    ]
+  }
+}

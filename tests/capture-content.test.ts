@@ -8,6 +8,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountPdpSurface } from '../src/capture/content/pdp';
 import { mountCartSurface } from '../src/capture/content/cart';
+import { mountOrdersSurface } from '../src/capture/content/orders';
+import {
+  mountTorobSurface,
+  torobQueryFromPage,
+  torobSearchUrl,
+} from '../src/capture/content/torob';
+import type { TorobResponse } from '../src/torob/api';
 import type { CaptureProgressMessage, CaptureResponse } from '../src/capture/messaging';
 
 const PDP_LABELS = {
@@ -76,6 +83,9 @@ describe('PDP surface (T03.4)', () => {
     resolveMsg({ ok: true, kind: 'pdp', snapshotId: 's1', offerCount: 4, variantLabel: 'نسخه ۶۴' });
     await vi.waitFor(() => expect(btn.dataset.state).toBe('added'));
     expect(btn.textContent).toBe('در مقایسه');
+    // The icon is part of the button chrome; a state label change must not
+    // wipe it (setState updates only the label span).
+    expect(btn.querySelector('.dkopt-btn-icon svg')).not.toBeNull();
     const toast = document.querySelector('.dkopt-toast') as HTMLElement;
     // Toast names the variant and the offer count (D-05, 09 Surface 1).
     expect(toast.textContent).toContain('نسخه ۶۴');
@@ -505,6 +515,249 @@ describe('Cart surface (T03.5)', () => {
       labels: CART_LABELS,
       sendMessage: vi.fn(),
       onProgress: () => () => {},
+    });
+    expect(surface).toBeNull();
+  });
+});
+
+describe('Torob surface', () => {
+  const TOROB_LABELS = {
+    cta: 'مقایسه قیمت در ترب',
+    hint: 'ارزان‌ترین فروشنده‌ها را ببینید',
+    loading: 'در حال گرفتن قیمت‌ها…',
+    offersTitle: 'ارزان‌ترین فروشنده‌های ترب',
+    noMatch: 'محصولی پیدا نشد',
+    error: 'دریافت قیمت ناموفق بود',
+    noOffers: 'فروشندهٔ فعالی نیست',
+    searchOnTorob: 'جست‌وجو در ترب',
+    viewOffer: 'مشاهده',
+    close: 'بستن',
+    cheapest: 'کمترین قیمت',
+    shopCount: (count: number) => `${count} فروشنده`,
+    note: 'قیمت‌ها از ترب',
+  };
+
+  const COMPARISON = {
+    query: 'گوشی موبایل سامسونگ',
+    searchUrl: torobSearchUrl('گوشی موبایل سامسونگ'),
+    productName: 'گوشی سامسونگ',
+    productUrl: 'https://torob.com/p/product/',
+    offers: [
+      {
+        shopName: 'فروشگاه الف',
+        city: 'تهران',
+        priceToman: 1_000_000,
+        url: 'https://api.torob.com/v4/product-page/redirect/?prk=a',
+        scoreText: '★۵',
+        postage: null,
+      },
+      {
+        shopName: 'فروشگاه ب',
+        city: null,
+        priceToman: 2_000_000,
+        url: null,
+        scoreText: null,
+        postage: 'هزینه ارسال ۵۰٬۰۰۰ تومان',
+      },
+    ],
+    shopCount: 12,
+  };
+
+  function torobDeps(sendMessage: (req: unknown) => Promise<TorobResponse>) {
+    return {
+      doc: document,
+      location: currentLocation,
+      lang: 'fa' as const,
+      labels: TOROB_LABELS,
+      sendMessage,
+    };
+  }
+
+  beforeEach(() => {
+    document.body.innerHTML = '<h1>گوشی موبایل سامسونگ</h1><div data-testid="sellers-cta"></div>';
+    document.title = '';
+    setLocation(PDP_URL, PDP_PATH);
+  });
+
+  it('builds an encoded Torob search URL', () => {
+    expect(torobSearchUrl('گوشی سامسونگ')).toBe(
+      `https://torob.com/search/?query=${encodeURIComponent('گوشی سامسونگ')}`,
+    );
+  });
+
+  it('reads the heading first and falls back to the URL slug', () => {
+    expect(torobQueryFromPage(document, PDP_URL)).toBe('گوشی موبایل سامسونگ');
+    document.body.innerHTML = '';
+    document.title = 'عنوان نامطمئن صفحه';
+    expect(torobQueryFromPage(document, 'https://www.digikala.com/product/dkp-1/cool-phone/')).toBe(
+      'cool phone',
+    );
+    // A bare dkp path has no query; the trigger waits for the heading
+    // instead of trusting document.title.
+    expect(torobQueryFromPage(document, 'https://www.digikala.com/product/dkp-1/')).toBeNull();
+  });
+
+  it('waits for a late heading on a bare dkp URL before mounting', async () => {
+    document.body.innerHTML = '<div data-testid="sellers-cta"></div>';
+    setLocation('https://www.digikala.com/product/dkp-1001/', '/product/dkp-1001/');
+    const surface = mountTorobSurface(
+      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+    );
+    expect(surface).not.toBeNull();
+    expect(document.getElementById('dkopt-torob')).toBeNull();
+
+    const heading = document.createElement('h1');
+    heading.textContent = 'گوشی سامسونگ گلکسی';
+    document.body.appendChild(heading);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
+    expect(link).not.toBeNull();
+    expect(link.getAttribute('href')).toBe(torobSearchUrl('گوشی سامسونگ گلکسی'));
+    surface?.destroy();
+  });
+
+  it('mounts a safe trigger and renders the top Torob sellers on click', async () => {
+    const sendMessage = vi.fn(async (): Promise<TorobResponse> => ({
+      ok: true,
+      kind: 'torob/compare',
+      comparison: COMPARISON,
+    }));
+    const surface = mountTorobSurface(torobDeps(sendMessage));
+    expect(surface).not.toBeNull();
+
+    const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
+    expect(link.textContent).toBe('مقایسه قیمت در ترب');
+    expect(link.getAttribute('href')).toBe(torobSearchUrl('گوشی موبایل سامسونگ'));
+    expect(link.target).toBe('_blank');
+    expect(link.rel).toBe('noopener noreferrer');
+
+    link.click();
+    expect(sendMessage).toHaveBeenCalledWith({
+      kind: 'torob/compare',
+      query: 'گوشی موبایل سامسونگ',
+    });
+    await vi.waitFor(() => expect(document.querySelector('.dkopt-torob-panel')).not.toBeNull());
+
+    const panel = document.querySelector('.dkopt-torob-panel') as HTMLElement;
+    expect(panel.textContent).toContain('ارزان‌ترین فروشنده‌های ترب');
+    expect(panel.textContent).toContain('فروشگاه الف');
+    expect(panel.textContent).toContain('کمترین قیمت');
+    expect(panel.textContent).toContain('هزینه ارسال');
+    expect(panel.querySelectorAll('.dkopt-torob-offer')).toHaveLength(2);
+    expect(link.getAttribute('aria-expanded')).toBe('true');
+
+    surface?.destroy();
+    expect(document.getElementById('dkopt-torob')).toBeNull();
+    expect(document.querySelector('.dkopt-torob-panel')).toBeNull();
+  });
+
+  it('keeps the search link when the comparison fails', async () => {
+    const surface = mountTorobSurface(
+      torobDeps(async () => ({ ok: false, errorCode: 'NETWORK', message: 'offline' })),
+    );
+    (document.getElementById('dkopt-torob') as HTMLAnchorElement).click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('.dkopt-torob-panel')?.textContent).toContain(
+        'دریافت قیمت ناموفق بود',
+      ),
+    );
+    const search = document.querySelector('.dkopt-torob-search') as HTMLAnchorElement;
+    expect(search.href).toBe(torobSearchUrl('گوشی موبایل سامسونگ'));
+    surface?.destroy();
+  });
+
+  it('mounts below the buy row when the comparison button shares that row', () => {
+    document.body.innerHTML =
+      '<h1>گوشی موبایل سامسونگ</h1><div class="buy-row"><div data-testid="sellers-cta"></div><button class="dkopt-btn">مقایسه</button></div>';
+    const surface = mountTorobSurface(
+      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+    );
+    const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
+    const row = document.querySelector('.buy-row') as HTMLElement;
+    expect(link.previousElementSibling).toBe(row);
+    surface?.destroy();
+  });
+
+  it('stacks the compare button and Torob trigger below the buy row', () => {
+    document.body.innerHTML =
+      '<h1>گوشی موبایل سامسونگ</h1><div class="buy-row"><div data-testid="sellers-cta"></div></div>';
+    const pdp = mountPdpSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      labels: PDP_LABELS,
+      sendMessage: vi.fn(async (): Promise<CaptureResponse> => ({
+        ok: true,
+        kind: 'pdp',
+        snapshotId: 's',
+        offerCount: 1,
+        variantLabel: 'v',
+      })),
+    });
+    const torob = mountTorobSurface(
+      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+    );
+
+    const actions = document.querySelector('.dkopt-pdp-actions') as HTMLElement;
+    expect(actions).not.toBeNull();
+    const button = actions.querySelector('button.dkopt-btn') as HTMLButtonElement;
+    const link = actions.querySelector('#dkopt-torob') as HTMLAnchorElement;
+    expect(button).not.toBeNull();
+    expect(link).not.toBeNull();
+    expect(button.classList.contains('dkopt-btn-pdp')).toBe(true);
+    expect(button.querySelector('.dkopt-btn-icon svg')).not.toBeNull();
+    expect(button.nextElementSibling).toBe(link);
+    expect(actions.previousElementSibling).toBe(document.querySelector('.buy-row'));
+
+    pdp?.destroy();
+    torob?.destroy();
+  });
+
+  it('does not mount off a product page', () => {
+    setLocation(CART_URL, CART_PATH);
+    expect(
+      mountTorobSurface(
+        torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('orders surface', () => {
+  beforeEach(() => {
+    document.body.innerHTML = '<main></main>';
+    setLocation('https://www.digikala.com/profile/orders/', '/profile/orders/');
+  });
+
+  it('mounts a discovery button on the orders tab and asks the worker to open insights', async () => {
+    const sendMessage = vi.fn(async () => ({ ok: true }));
+    const surface = mountOrdersSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      label: 'خریدهای من با افزونه بُزخَر',
+      sendMessage,
+    });
+    expect(surface).not.toBeNull();
+
+    const button = document.getElementById('dkopt-insights-fab') as HTMLButtonElement;
+    expect(button.textContent).toBe('خریدهای من با افزونه بُزخَر');
+    button.click();
+    expect(sendMessage).toHaveBeenCalledWith({ kind: 'insights/open' });
+    await vi.waitFor(() => expect(button.disabled).toBe(false));
+
+    surface?.destroy();
+    expect(document.getElementById('dkopt-insights-fab')).toBeNull();
+  });
+
+  it('does not mount on other pages', () => {
+    setLocation(CART_URL, CART_PATH);
+    const surface = mountOrdersSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      label: 'x',
+      sendMessage: vi.fn(),
     });
     expect(surface).toBeNull();
   });

@@ -1,0 +1,48 @@
+{
+  "status": "ok",
+  "data": {
+    "id": 2001,
+    "created_at": "21 مهر 1404",
+    "status": "returned",
+    "status_fa": "مرجوع شده",
+    "payable_price": 500000,
+    "price_details": {
+      "total_cost": 500000,
+      "shipping_cost": 50000,
+      "discount": 0,
+      "user_paid": 500000,
+      "user_received": 200000
+    },
+    "order_items": [
+      {
+        "id": 21,
+        "quantity": 1,
+        "returned_quantity": 1,
+        "cancelled_quantity": 0,
+        "product": {
+          "id": 333,
+          "title_fa": "هدفون بلوتوثی",
+          "data_layer": {
+            "brand": "جی‌بی‌ال",
+            "category": "لوازم جانبی",
+            "item_category2": "هدفون"
+          }
+        },
+        "variant": {
+          "id": 3333,
+          "seller": {
+            "id": 503,
+            "title": "فروشنده سوم",
+            "rating": 3.9
+          },
+          "price": {
+            "selling_price": 450000,
+            "rrp_price": 500000,
+            "discount_percent": 10
+          }
+        }
+      }
+    ],
+    "shipments": []
+  }
+}

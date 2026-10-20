@@ -10,7 +10,7 @@
  * SELECTORS_VERSION on any change; fixture-tested, canary tests in T06.
  */
 
-export const SELECTORS_VERSION = '0.3.0-t03';
+export const SELECTORS_VERSION = '0.4.0-t03';
 
 /**
  * PDP seller/offer panel anchor (09-ui-spec Surface 1): the button mounts
@@ -22,6 +22,10 @@ export const PDP_SELLER_PANEL_CANDIDATES = [
   // Current Digikala PDP seller box (sticky buy panel).
   '[data-testid="sellers-cta"]',
   '[data-testid="buy-box"]',
+  // 2026-10-20 live layout: the seller box test ids were retired; the
+  // buy CTA is the stable anchor (the first instance is the visible
+  // desktop panel, later ones are mobile/inline duplicates).
+  '[data-testid="add-to-cart"]',
   // Legacy/themed layouts: the add-to-cart form container.
   'form[action*="cart"]',
   '[class*="seller"] [class*="add-to-cart"]',
@@ -67,6 +71,11 @@ export function isProductPage(pathname: string): boolean {
 /** True when the location is the cart page. */
 export function isCartPage(pathname: string): boolean {
   return /\/cart/.test(pathname);
+}
+
+/** True for the order-history tab and its individual order pages. */
+export function isOrderHistoryPage(pathname: string): boolean {
+  return /\/profile\/orders(?:\/|$)/.test(pathname);
 }
 
 /** First existing element among candidates; null when none matches. */

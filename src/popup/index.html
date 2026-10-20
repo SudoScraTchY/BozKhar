@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BozKhar</title>
+    <link rel="icon" type="image/png" href="/icons/icon-48.png" />
+    <link rel="stylesheet" href="./popup.css" />
+  </head>
+  <body>
+    <main class="popup" id="app">
+      <header class="popup-header">
+        <img class="brand-icon" src="/icons/icon-128.png" alt="" width="48" height="48" />
+        <div>
+          <h1 class="title" data-i18n="popupTitle"></h1>
+          <p class="privacy" data-i18n="popupPrivacy"></p>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="summary">
+        <div class="stat">
+          <span class="stat-label" data-i18n="popupOrders"></span>
+          <strong class="stat-value" id="ordersValue">—</strong>
+        </div>
+        <div class="stat">
+          <span class="stat-label" data-i18n="popupNetPaid"></span>
+          <strong class="stat-value" id="paidValue">—</strong>
+        </div>
+      </section>
+      <p class="meta" id="syncLine"></p>
+
+      <nav class="actions">
+        <button type="button" class="action primary" id="insightsBtn">
+          <span class="action-title" data-i18n="popupInsights"></span>
+          <span class="action-hint" data-i18n="popupInsightsHint"></span>
+        </button>
+        <button type="button" class="action" id="resultsBtn">
+          <span class="action-title" data-i18n="popupResults"></span>
+          <span class="action-hint" data-i18n="popupResultsHint"></span>
+        </button>
+        <button type="button" class="action" id="settingsBtn">
+          <span class="action-title" data-i18n="popupSettings"></span>
+          <span class="action-hint" data-i18n="popupSettingsHint"></span>
+        </button>
+        <button type="button" class="action quiet" id="ordersBtn">
+          <span class="action-title" data-i18n="popupOpenOrders"></span>
+        </button>
+      </nav>
+
+      <footer class="footer">
+        <span>BozKhar</span>
+        <span id="version">v—</span>
+      </footer>
+    </main>
+    <script type="module" src="./popup.ts"></script>
+  </body>
+</html>

@@ -37,8 +37,10 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
   // fetch execution via chrome.scripting.executeScript - see the
   // decision log; script-tag injection from the content script does
   // not execute in the current Chromium, live-verified 2026-10-08).
+  // D-42 adds the Torob API host: it is contacted only after an explicit
+  // PDP click, with the public product title, no credentials/referrer.
   permissions: ['storage', 'tabs', 'scripting'],
-  host_permissions: ['https://*.digikala.com/*'],
+  host_permissions: ['https://*.digikala.com/*', 'https://api.torob.com/*'],
   background: {
     service_worker: 'src/background/service-worker.ts',
     type: 'module',
@@ -58,8 +60,12 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
     },
   ],
   action: {
-    default_title: 'BozKhar',
+    default_title: 'BozKhar — افزونه بُزخَر',
     default_icon: { ...ICONS },
+    // The toolbar icon opens a real dashboard-style popup: order cache
+    // summary plus links to every surface. Settings stay reachable from
+    // there instead of hiding behind the extension details page.
+    default_popup: 'src/popup/index.html',
   },
 };
 

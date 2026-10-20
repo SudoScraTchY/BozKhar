@@ -374,14 +374,17 @@ async function awaitDelegateOutcome(tabId: number, nonce: string, what: string):
 }
 
 /**
- * Service-worker side: runs a delegated GET in the
- * requesting tab's main world and resolves with the
- * parsed JSON. Rejects with the same CaptureError
- * classes as digikalaFetchJson, so the crawl's
- * per-item containment is unchanged. D-02: guarded
- * here before the tab is touched.
+ * Shared sender for the delegated GET executors. The site routing
+ * header set is a checkout-cart-API requirement; some profile
+ * endpoints reject it at the CORS preflight, which is why the
+ * insights transport can retry the identical GET with no extra
+ * headers (delegateFetchJsonBare).
  */
-export async function delegateFetchJson(tabId: number, url: string): Promise<unknown> {
+async function delegateGetWithHeaders(
+  tabId: number,
+  url: string,
+  headers: Record<string, string>,
+): Promise<unknown> {
   assertDigikalaUrl(url);
 
   // One nonce per delegated fetch: the outcome
@@ -393,7 +396,7 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
     await executeMainWorld(
       tabId,
       mainWorldFetch,
-      [{ url, headers: SITE_API_HEADERS, nonce }],
+      [{ url, headers, nonce }],
       `mainWorldFetch ${url}`,
     );
   } catch {
@@ -404,6 +407,29 @@ export async function delegateFetchJson(tabId: number, url: string): Promise<unk
   }
 
   return awaitDelegateOutcome(tabId, nonce, url);
+}
+
+/**
+ * Service-worker side: runs a delegated GET in the
+ * requesting tab's main world and resolves with the
+ * parsed JSON. Rejects with the same CaptureError
+ * classes as digikalaFetchJson, so the crawl's
+ * per-item containment is unchanged. D-02: guarded
+ * here before the tab is touched.
+ */
+export async function delegateFetchJson(tabId: number, url: string): Promise<unknown> {
+  return delegateGetWithHeaders(tabId, url, SITE_API_HEADERS);
+}
+
+/**
+ * The same delegated GET with only the `Accept` header. Order-profile
+ * endpoints answer the header-less main-world request; a CORS
+ * preflight rejection of the routing headers surfaces here as a
+ * NETWORK failure, and the insights transport retries once with this.
+ * Still GET-only, session-credentialed and inside *.digikala.com.
+ */
+export async function delegateFetchJsonBare(tabId: number, url: string): Promise<unknown> {
+  return delegateGetWithHeaders(tabId, url, {});
 }
 
 /**

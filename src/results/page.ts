@@ -505,7 +505,10 @@ export function createReportPage(deps: ReportPageDeps): {
     const label = el('span', 'bk-header-label');
     label.textContent = t(lang, 'headerLabel');
     text.append(brand, label);
-    header.append(mark, text, renderExportMenu(plan));
+    const insights = el('a', 'bk-btn bk-btn-quiet');
+    insights.href = '../insights/index.html';
+    insights.textContent = t(lang, 'openInsights');
+    header.append(mark, text, insights, renderExportMenu(plan));
     return header;
   }
 

@@ -1,0 +1,11 @@
+{
+  "status": "ok",
+  "data": {
+    "tabs": {
+      "in_progress": { "count": 1, "title": "در حال پردازش" },
+      "sent": { "count": 3, "title": "تحویل شده" },
+      "cancelled": { "count": 1, "title": "لغو شده" },
+      "returned": { "count": 1, "title": "مرجوع شده" }
+    }
+  }
+}

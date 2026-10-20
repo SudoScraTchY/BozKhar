@@ -22,7 +22,9 @@ const DIST = process.argv[2] ?? join(ROOT, 'dist');
 /** The audited surface: exactly what SDD 06 / NFR-06 grants. */
 const EXPECTED_VERSION = 3;
 const EXPECTED_PERMISSIONS = ['storage', 'tabs', 'scripting'];
-const EXPECTED_ORIGINS = ['https://*.digikala.com/*'];
+const EXPECTED_HOST_PERMISSIONS = ['https://*.digikala.com/*', 'https://api.torob.com/*'];
+/** Content scripts and web-accessible assets stay on Digikala only. */
+const EXPECTED_CONTENT_ORIGINS = ['https://*.digikala.com/*'];
 /**
  * Every top-level key the manifest is allowed to carry. Anything new -
  * `optional_permissions`, `externally_connectable`, `commands` - lands
@@ -78,12 +80,16 @@ const { version } = readJson(join(ROOT, 'package.json'));
 check('manifest_version', manifest.manifest_version, EXPECTED_VERSION);
 check('version (package.json)', manifest.version, version);
 check('permissions', manifest.permissions, EXPECTED_PERMISSIONS);
-check('host_permissions', manifest.host_permissions, EXPECTED_ORIGINS);
-check('content_scripts matches', originsOf(manifest.content_scripts ?? []), EXPECTED_ORIGINS);
+check('host_permissions', manifest.host_permissions, EXPECTED_HOST_PERMISSIONS);
+check(
+  'content_scripts matches',
+  originsOf(manifest.content_scripts ?? []),
+  EXPECTED_CONTENT_ORIGINS,
+);
 check(
   'web_accessible_resources matches',
   originsOf(manifest.web_accessible_resources ?? []),
-  EXPECTED_ORIGINS,
+  EXPECTED_CONTENT_ORIGINS,
 );
 
 const unknown = Object.keys(manifest).filter((key) => !ALLOWED_KEYS.includes(key));

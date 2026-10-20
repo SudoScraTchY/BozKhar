@@ -7,6 +7,8 @@
 import { crawlStartingLines, messages } from '../../shared/i18n/messages';
 import { mountPdpSurface } from './pdp';
 import { mountCartSurface } from './cart';
+import { mountOrdersSurface } from './orders';
+import { mountTorobSurface } from './torob';
 import type { CaptureProgressMessage, CaptureResponse } from '../messaging';
 
 type Lang = 'fa' | 'en';
@@ -37,30 +39,43 @@ function labels(lang: Lang) {
     crawlAborted: m.crawlAborted,
     crawlFinished: (failed: number) => m.crawlFinished.replaceAll('{failed}', String(failed)),
     abort: m.abortCrawl,
+    openInsightsFromOrders: m.openInsightsFromOrders,
+    torobCta: m.torobCta,
+    torobHint: m.torobHint,
+    torobLoading: m.torobLoading,
+    torobOffersTitle: m.torobOffersTitle,
+    torobNoMatch: m.torobNoMatch,
+    torobError: m.torobError,
+    torobNoOffers: m.torobNoOffers,
+    torobSearchOnTorob: m.torobSearchOnTorob,
+    torobViewOffer: m.torobViewOffer,
+    torobClose: m.torobClose,
+    torobCheapest: m.torobCheapest,
+    torobShopCount: (count: number) => m.torobShopCount.replaceAll('{count}', String(count)),
+    torobPanelNote: m.torobPanelNote,
   };
 }
 
-function sendMessage(req: unknown): Promise<CaptureResponse> {
+function sendMessage<T = CaptureResponse>(req: unknown): Promise<T> {
   // Sentry-style void: runtime.sendMessage with a callback returns the
   // response; wrapped so errors become { ok:false } shapes, never throws.
   return new Promise((resolve) => {
     try {
       chrome.runtime.sendMessage(req, (res: unknown) => {
         void chrome.runtime.lastError; // checked implicitly by shape below
-        resolve(
-          (res as CaptureResponse) ?? {
-            ok: false,
-            errorCode: 'UNKNOWN',
-            message: 'no response from service worker',
-          },
-        );
+        const fallback = {
+          ok: false,
+          errorCode: 'UNKNOWN',
+          message: 'no response from service worker',
+        };
+        resolve((res as T) ?? (fallback as T));
       });
     } catch (e) {
       resolve({
         ok: false,
         errorCode: 'UNKNOWN',
         message: e instanceof Error ? e.message : String(e),
-      });
+      } as T);
     }
   });
 }
@@ -71,6 +86,28 @@ function mount(): void {
   // Track mounted surfaces so SPA route changes can destroy them.
   const mounted: Array<{ destroy(): void } | null> = [];
   mounted.push(mountPdpSurface(deps));
+  mounted.push(
+    mountTorobSurface({
+      doc: document,
+      lang,
+      labels: {
+        cta: deps.labels.torobCta,
+        hint: deps.labels.torobHint,
+        loading: deps.labels.torobLoading,
+        offersTitle: deps.labels.torobOffersTitle,
+        noMatch: deps.labels.torobNoMatch,
+        error: deps.labels.torobError,
+        noOffers: deps.labels.torobNoOffers,
+        searchOnTorob: deps.labels.torobSearchOnTorob,
+        viewOffer: deps.labels.torobViewOffer,
+        close: deps.labels.torobClose,
+        cheapest: deps.labels.torobCheapest,
+        shopCount: deps.labels.torobShopCount,
+        note: deps.labels.torobPanelNote,
+      },
+      sendMessage: deps.sendMessage,
+    }),
+  );
   mounted.push(
     mountCartSurface({
       ...deps,
@@ -87,6 +124,14 @@ function mount(): void {
         chrome.runtime.onMessage.addListener(listener);
         return () => chrome.runtime.onMessage.removeListener(listener);
       },
+    }),
+  );
+  mounted.push(
+    mountOrdersSurface({
+      doc: document,
+      lang,
+      label: deps.labels.openInsightsFromOrders,
+      sendMessage,
     }),
   );
   surfaces = mounted;

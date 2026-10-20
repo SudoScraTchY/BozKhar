@@ -15,7 +15,10 @@ export default defineConfig({
     // (web_accessible_resources alone would only copy the raw
     // file, leaving ./index.ts un-bundled).
     rollupOptions: {
-      input: { results: 'src/results/index.html' },
+      input: {
+        results: 'src/results/index.html',
+        insights: 'src/insights/index.html',
+      },
     },
   },
 });

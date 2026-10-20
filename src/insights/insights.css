@@ -1,0 +1,583 @@
+/*
+ * Order Insights page (D-39). Same "settled bill" palette as the
+ * results page; logical properties keep fa/RTL and en/LTR identical.
+ * Fonts are bundled locally (extension CSP, offline, no requests).
+ */
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../results/fonts/vazirmatn-arabic.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Vazirmatn';
+  src: url('../results/fonts/vazirmatn-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Lalezar';
+  src: url('../results/fonts/lalezar.ttf') format('truetype');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:root {
+  --ink: #1b2b5b;
+  --paper: #f6f7f9;
+  --surface: #ffffff;
+  --saving: #067a6b;
+  --saving-bg: #ddf3ef;
+  --caution: #b26a00;
+  --caution-bg: #fff1d6;
+  --danger: #b42318;
+  --danger-bg: #fde8e6;
+  --line: #dde1e8;
+  --muted: #5b6579;
+  --radius: 14px;
+  --control: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font:
+    15px/1.75 'Vazirmatn',
+    system-ui,
+    sans-serif;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+img {
+  display: block;
+  max-inline-size: 100%;
+}
+
+.bk-page {
+  max-inline-size: 1120px;
+  margin-inline: auto;
+  padding: 32px 20px 64px;
+}
+
+.bk-content {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.bk-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.bk-brand-icon {
+  inline-size: 72px;
+  block-size: 72px;
+  object-fit: contain;
+}
+
+.bk-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 320px;
+}
+
+.bk-title {
+  font:
+    400 34px/1.2 'Lalezar',
+    'Vazirmatn',
+    system-ui,
+    sans-serif;
+  letter-spacing: 0.2px;
+}
+
+.bk-muted {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.bk-header-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.bk-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px;
+}
+
+.bk-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin-block-end: 14px;
+}
+
+.bk-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.bk-toolbar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.bk-toolbar-actions,
+.bk-error-actions,
+.bk-share-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-btn {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--control);
+  padding: 9px 16px;
+  cursor: pointer;
+  font-weight: 600;
+  transition:
+    background 120ms ease,
+    border-color 120ms ease,
+    transform 120ms ease;
+}
+
+.bk-btn:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+.bk-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.bk-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.bk-btn-primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #fff;
+}
+
+.bk-btn-small {
+  padding: 7px 13px;
+  font-size: 14px;
+}
+
+.bk-btn-quiet {
+  background: transparent;
+  color: var(--muted);
+}
+
+.bk-chip-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.bk-chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 13px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bk-chip-label {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  margin-inline-end: 2px;
+}
+
+.bk-chip.is-active,
+.bk-chip[aria-pressed='true'] {
+  background: var(--saving-bg);
+  border-color: var(--saving);
+  color: var(--saving);
+  font-weight: 700;
+}
+
+.bk-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.bk-date-row {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.bk-date-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.bk-date-input {
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  padding: 8px 10px;
+  font: inherit;
+  inline-size: 140px;
+}
+
+.bk-progress {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.bk-error {
+  border: 1px solid var(--danger);
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bk-error-text {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.bk-notice {
+  border: 1px solid var(--caution);
+  background: var(--caution-bg);
+  color: var(--caution);
+  border-radius: var(--control);
+  padding: 10px 14px;
+  font-size: 14px;
+}
+
+.bk-note {
+  color: var(--muted);
+  font-size: 13px;
+  margin-block-start: 10px;
+}
+
+.bk-empty {
+  text-align: start;
+}
+
+.bk-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+}
+
+.bk-stat {
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--paper);
+}
+
+.bk-stat-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.bk-stat-value {
+  font-weight: 700;
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-order-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bk-order-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  padding: 12px 14px;
+  background: var(--paper);
+}
+
+.bk-order-when,
+.bk-order-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bk-order-amount {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-order-amount strong {
+  font-size: 16px;
+}
+
+.bk-order-when strong {
+  font-size: 14px;
+}
+
+.bk-cancelled-summary {
+  margin: 10px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.bk-order-row.is-cancelled {
+  border-color: #f0c2bd;
+  background: var(--danger-bg);
+}
+
+.bk-order-row.is-cancelled .bk-order-amount strong {
+  color: var(--danger);
+}
+
+.bk-cancel-tag {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 1px 8px;
+  border: 1px solid #f0c2bd;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--danger);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.bk-order-items {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.bk-order-items strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.bk-chart-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  margin-block-start: 16px;
+}
+
+.bk-chart-block {
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  padding: 18px 20px;
+  background: var(--paper);
+}
+
+.bk-chart-title {
+  font-size: 16px;
+  font-weight: 700;
+  margin-block-end: 12px;
+}
+
+.bk-chart {
+  inline-size: 100%;
+  block-size: auto;
+  display: block;
+  overflow: visible;
+}
+
+.bk-grid {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.bk-bar {
+  fill: var(--saving);
+  opacity: 0.9;
+}
+
+.bk-bar:hover {
+  opacity: 1;
+}
+
+.bk-bar-value,
+.bk-bar-label,
+.bk-axis-label,
+.bk-chart-empty {
+  font:
+    12px 'Vazirmatn',
+    system-ui,
+    sans-serif;
+  fill: var(--muted);
+}
+
+.bk-bar-label {
+  font-size: 11px;
+}
+
+.bk-axis-label {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.bk-chart-empty {
+  font-size: 13px;
+}
+
+.bk-line {
+  fill: none;
+  stroke: var(--saving);
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.bk-line-area {
+  fill: var(--saving-bg);
+  opacity: 0.7;
+}
+
+.bk-dot {
+  fill: var(--surface);
+  stroke: var(--saving);
+  stroke-width: 3;
+}
+
+.bk-dot:hover {
+  fill: var(--saving);
+}
+
+.bk-persona-card {
+  border: 1px solid var(--saving);
+  background: var(--saving-bg);
+  border-radius: var(--control);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bk-persona-name {
+  font:
+    400 24px 'Lalezar',
+    'Vazirmatn',
+    system-ui,
+    sans-serif;
+  color: var(--saving);
+}
+
+.bk-share-canvas {
+  inline-size: 100%;
+  max-inline-size: 540px;
+  block-size: auto;
+  margin-block: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--control);
+  background: var(--paper);
+}
+
+.bk-share-actions {
+  margin-block-start: 8px;
+}
+
+.bk-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-block-start: 8px;
+}
+
+.bk-toast {
+  position: fixed;
+  inset-block-end: 24px;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+  padding: 9px 18px;
+  font-size: 14px;
+  box-shadow: 0 8px 24px rgb(27 43 91 / 22%);
+  z-index: 10;
+}
+
+@media (max-width: 640px) {
+  .bk-page {
+    padding: 20px 14px 48px;
+  }
+
+  .bk-title {
+    font-size: 28px;
+  }
+
+  .bk-stat-value {
+    font-size: 18px;
+  }
+}
