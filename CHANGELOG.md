@@ -4,6 +4,41 @@ All notable changes to BozKhar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.1] - 2026-10-20
+
+### Added
+
+- A small GitHub star icon in the toolbar popup, opening the BozKhar
+  repository in a new tab.
+- A quiet update pill in the popup footer. Opening the popup asks GitHub's
+  public releases API for the latest tag; when it is newer than the running
+  version, the pill links to the release page. There is no polling, no
+  background timer, and no user data in the request.
+
+### Changed
+
+- The cancelled-order amount card uses an order's total when no payment was
+  recorded, instead of summing zero for cancelled orders.
+
+### Removed
+
+- The cancelled-orders list section. Cancelled orders still stay out of every
+  spend and item total and remain visible in the red status-chart bar; the
+  list itself showed zero amounts for orders that were cancelled before
+  payment.
+
+### Security and privacy
+
+- The manifest adds `https://api.github.com/*`, used only by the popup's
+  release check (`credentials: 'omit'`, `no-referrer`, 8 s timeout). Only the
+  latest tag name is read, and the download URL is built locally rather than
+  taken from the response.
+
+### Tests
+
+- 453 tests across 41 files, plus typecheck, ESLint, Prettier, production
+  build and the built-manifest audit.
+
 ## [0.6.0] - 2026-10-20
 
 ### Added
@@ -74,4 +109,5 @@ All notable changes to BozKhar are documented here. The format follows
 - 438 tests across 39 files, plus typecheck, ESLint, Prettier, production
   build and the built-manifest audit.
 
+[0.6.1]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.1
 [0.6.0]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.0

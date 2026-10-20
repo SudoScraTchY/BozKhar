@@ -3,7 +3,8 @@
 Where this extension can ship, what each store costs, and exactly what to put
 in front of a reviewer. Written 2026-10-16 against the 0.4.0 package, updated
 the same day for 0.5.0 (the stable download alias, D-37), and again on
-2026-10-20 for 0.6.0 (Order Insights and the Torob host permission, D-42).
+2026-10-20 for 0.6.0 (Order Insights and the Torob host permission, D-42) and
+0.6.1 (the popup release check that adds `api.github.com`, D-44).
 
 ## The answer in one table
 
@@ -61,8 +62,8 @@ the tag, and writes the SHA-256 into the run's step summary.
 To verify a download before you upload it:
 
 ```bash
-sha256sum -c bozkhar-0.6.0.zip.sha256                       # or shasum -a 256 -c
-gh attestation verify bozkhar-0.6.0.zip --repo SudoScraTchY/BozKhar
+sha256sum -c bozkhar-0.6.1.zip.sha256                       # or shasum -a 256 -c
+gh attestation verify bozkhar-0.6.1.zip --repo SudoScraTchY/BozKhar
 gh attestation verify bozkhar-latest.zip --repo SudoScraTchY/BozKhar
 ```
 
@@ -82,7 +83,7 @@ python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256
 Two ways, and both refuse a version that does not match `package.json`:
 
 **From the Actions tab** (nothing to install): *Actions → Release → Run
-workflow*, and type the version — `0.6.0` or `v0.6.0`. The tag is created at
+workflow*, and type the version — `0.6.1` or `v0.6.1`. The tag is created at
 the commit the run verified, so the zip, the tag and the commit always agree.
 
 **From your machine**, if you prefer the tag to come first:
@@ -90,15 +91,14 @@ the commit the run verified, so the zip, the tag and the commit always agree.
 ```bash
 # 1. bump the version in package.json (the manifest and the tag both read it)
 # 2. commit that bump and push it to main
-git tag -a v0.6.0 -m "BozKhar 0.6.0"
-git push origin v0.6.0
+git tag -a v0.6.1 -m "BozKhar 0.6.1"
+git push origin v0.6.1
 ```
 
-v0.4.0 and v0.5.0 were published this way; v0.6.0 is cut the same way.
-Re-running a release for a tag that already exists is allowed only when that
-tag points at the commit the run just built — otherwise the run stops and says
-so, because a release built from one tree must never be filed under a tag that
-names another.
+v0.4.0 through v0.6.1 were published this way. Re-running a release for a
+tag that already exists is allowed only when that tag points at the commit
+the run just built — otherwise the run stops and says so, because a release
+built from one tree must never be filed under a tag that names another.
 
 Stores require the version to increase on every upload — that is what the
 bump is.
@@ -112,7 +112,7 @@ bump is.
 | Small promo tile | 440×280 (Chrome, optional but recommended) | crop the badge + wordmark onto a flat background |
 | Marquee | 1400×560 (Chrome, only needed for featuring) | optional |
 | Homepage / support URL | — | `https://sudoscratchy.github.io/BozKhar/` (already set as the repo homepage) |
-| Privacy policy URL | — | **now recommended**: the explicit Torob lookup sends the public product title to a third party, so say so. The landing page can serve as the policy if it names Torob and the click-only trigger. |
+| Privacy policy URL | — | **now recommended**: the explicit Torob lookup sends the public product title to a third party, and the popup asks GitHub for the latest tag. The landing page can serve as the policy if it names both recipients and when each request happens. |
 
 Screenshot hygiene: the panel shows **your** cart. Use a demo cart you do not
 mind publishing, and check that no order number, address or phone number is
@@ -121,7 +121,7 @@ on screen before you upload.
 ## The answers a reviewer will ask for
 
 Have these ready; they are the difference between "in review for a week" and
-a rejection. They are all true of this codebase as of 0.6.0 — keep them true
+a rejection. They are all true of this codebase as of 0.6.1 — keep them true
 if that changes.
 
 **Single purpose.** "BozKhar helps a shopper pay less on digikala.com. It
@@ -154,6 +154,12 @@ only when the user presses Apply."
   five cheapest sellers. The request carries no cookies, no referrer, no
   account and no cart data, and is made with credentials omitted
   (D-42)."
+- `https://api.github.com/*` — "Used only while the extension popup is
+  open, to compare the running version with the latest release tag on the
+  project's public GitHub repository, so the user learns a newer build
+  exists. It is one unauthenticated GET; no user data, account or browsing
+  information is sent, and there is no polling or background timer
+  (D-44)."
 
 **Data usage.** Declare that the extension does **not** collect user data for
 the developer and does not transmit user data to any server of ours. That is
@@ -169,11 +175,17 @@ honestly if a form asks:
    Torob lookup, which sends the public product title and nothing else. No
    user identity or browsing history is included, and no lookup happens
    without a click.
+3. Opening the toolbar popup asks GitHub's public releases API for the latest
+   tag. That request contains no user data at all — no identifier, no order
+   or cart content — and GitHub necessarily sees the request's IP address, as
+   it would for any visit to the repository. It runs only while the popup is
+   open; there is no polling, alarm or scheduled task.
 
-Because of point 2, attach a privacy policy rather than declaring "no
-third-party requests". The landing page doubles as one; it should say exactly
-the two paragraphs above, name Torob as the recipient, and state that the
-lookup is click-only.
+Because of points 2 and 3, attach a privacy policy rather than declaring "no
+third-party requests". The landing page doubles as one; it should name Torob
+and GitHub as recipients, describe what each receives, and state that the
+Torob lookup is click-only while the release check runs only while the popup
+is open.
 
 **Remote code.** None. Every line is bundled into the package; there is no
 `eval`, no `new Function`, and no remotely loaded script (verified by grep
@@ -237,7 +249,7 @@ answer to any "is this a scraper?" question.
 
 ## Firefox: a port, not an upload (T06.6)
 
-Firefox is free to publish on, but the 0.6.0 package will not run there
+Firefox is free to publish on, but the 0.6.1 package will not run there
 unmodified:
 
 - **No `background.service_worker` in Firefox MV3.** Firefox runs an *event

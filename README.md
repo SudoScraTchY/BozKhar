@@ -61,14 +61,16 @@ Four surfaces, all user-triggered:
 4. **Order Insights (خریدهای من).** Reads your own order history on request —
    from the orders page or the toolbar popup — and keeps a local, all-time
    summary: spend, item and vendor breakdowns, monthly/value/weekday charts,
-   current deliveries, a separate cancelled-orders table (never added to
-   totals), an optional deep analysis with persona-styled suggestions, and a
-   shareable card image.
+   current deliveries, a status breakdown that counts cancelled orders without
+   adding them to totals, an optional deep analysis with persona-styled
+   suggestions, and a shareable card image. The popup also carries a GitHub
+   star link and, when a newer release exists, a one-line update pill.
 
 Digikala data is captured from the site's own JSON payloads (read-only GETs
 with your existing session), normalized into a local model, and stored **only
-in your browser** (IndexedDB). Torob is the single external request, and only
-after an explicit click. No server of ours. No account. No telemetry.
+in your browser** (IndexedDB). Two external requests exist, both minimal: the
+Torob lookup after an explicit click, and a GitHub release check when you open
+the popup. No server of ours. No account. No telemetry.
 
 ## Use cases we accounted for
 
@@ -126,21 +128,21 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
   English in both UI languages; the exported table is English-headed so a
   file reads the same whoever you send it to. (FR-16)
 - **Privacy: your shopping list stays in your browser.** Local-only storage,
-  no telemetry, no remote code, and no network request of our own. The only
-  request that ever leaves Digikala is the Torob lookup you explicitly trigger,
-  and it carries nothing but the public product title. Export your data as
-  JSON or wipe all stored data from the options page at any time. (NFR-01,
-  FR-16)
+  no telemetry, no remote code, and no server of ours. Two requests ever leave
+  Digikala: the Torob lookup you explicitly trigger, which carries the public
+  product title, and a GitHub release check when the popup opens, which sends
+  nothing and reads only the latest tag. Export your data as JSON or wipe all
+  stored data from the options page at any time. (NFR-01, FR-16)
 - **Polite crawling.** Sequential item fetches with a configurable delay
   (default 1.5s), bounded retries, abort button mid-crawl, user-initiated
   only — no scheduled or background visits, ever. (NFR-07, NFR-02)
 - **Persian-first, bilingual.** UI is Persian (RTL) by default with English
   available; both are first-class, not an afterthought. (NFR-08)
 - **Small and auditable.** Zero runtime dependencies, minimal permissions
-  (`storage`, `tabs`, `scripting`; hosts `https://*.digikala.com/*` and
-  `https://api.torob.com/*`), and the whole engine (solver + capture pipeline
-  + insights + Torob matching) is pure, typed TypeScript under test (438 tests
-  at the time of writing). (NFR-06, NFR-09, D-15)
+  (`storage`, `tabs`, `scripting`; hosts `https://*.digikala.com/*`,
+  `https://api.torob.com/*` and `https://api.github.com/*`), and the whole
+  engine (solver + capture pipeline + insights + Torob matching) is pure,
+  typed TypeScript under test. (NFR-06, NFR-09, D-15)
 
 ### A worked example (from the test fixtures)
 
@@ -155,11 +157,12 @@ committed fixture in `tests/fixtures/solver/`.
 
 ## What it deliberately does NOT do
 
-- No background fetching, scheduling, or auto-refresh (NFR-02).
+- No background fetching, scheduling, or auto-refresh (NFR-02). The release
+  check runs only while the popup is open.
 - No cart writes, no auto-checkout, no payment interaction (FR-15).
 - No data collection and no server of ours. Your cart, orders and settings
   never leave the browser; the Torob lookup sends only the public product
-  title, only when you click it (D-04, D-42).
+  title, and the GitHub check sends nothing at all (D-04, D-42, D-44).
 - No content scripts, capture or page access on any site other than
   digikala.com.
 
@@ -207,11 +210,13 @@ to a commit SHA and the pipelines hold no secrets. What to do with the zip is in
 ## Etiquette & fairness
 
 Boz Khar reads only pages/APIs you are already browsing, at human-ish pace,
-only when you click. The one exception is the Torob lookup, which happens only
-when you press the compare button and asks Torob's public API for the product
-you are already viewing. It adds no load beyond a careful user's own browsing.
-Please keep the crawl delay at its default or higher; this tool is meant to
-be a good citizen of Digikala, not a scraper.
+only when you click. The Torob lookup happens only when you press the compare
+button and asks Torob's public API for the product you are already viewing.
+The GitHub release check runs only when you open the popup, sends nothing, and
+asks a single unauthenticated question: what is the latest tag? It adds no
+load beyond a careful user's own browsing. Please keep the crawl delay at its
+default or higher; this tool is meant to be a good citizen of Digikala, not a
+scraper.
 
 ---
 
