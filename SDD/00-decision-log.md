@@ -1437,3 +1437,49 @@ ignored), and typed HTTP/parse/network failures; `tests/popup.test.ts` asserts
 the star href, its accessible-label hook, the hidden update pill, its
 permalink and the absence of a version-pinned release link;
 `tests/manifest.test.ts` and `scripts/audit-dist.mjs` audit the added host.
+
+## D-45 — Item spend never exceeds what the order paid (2026-10-22)
+
+**Problem:** the user reported a single 4,000,000-Toman SSD showing up as
+18,200,000 Toman in "spend by category", and asked whether the report was
+summing cancelled orders. The item rows carry per-unit list prices; an
+order-level coupon, a refund, or a price change between purchase and detail
+read can make the sum of those prices exceed the amount actually paid.
+Separately, `readDetailPayload` let a detail response's `status` overwrite the
+list's status, so a detail payload using different status vocabulary could
+move a cancelled order back into the contributing set.
+
+**Decision:** two guards.
+
+1. A terminal status from the list (`cancelled` or `returned`) always wins over
+   the detail response's status. The list status tabs are the authority; a
+   detail read may not resurrect a cancelled order into spend. The detail's
+   localized status label is cleared when the status is overridden, so the UI
+   falls back to the translated label instead of showing a contradiction.
+2. Per order, item line values are summed and, when that sum exceeds the
+   order's net paid amount, each line is scaled down proportionally so the
+   categories, vendors and brands add up to at most what the user actually
+   paid. Values are never scaled up, so shipping and other non-item charges
+   are not attributed to a product category.
+
+Cancelled orders remain excluded from the item loop entirely, and
+`netRialOf('cancelled')` remains `0`, so both guards independently keep their
+money out of spend.
+
+**Alternatives:** keep using list prices for category spend (reproduces the
+4M → 18.2M report); show only order totals (loses the category breakdown);
+trust the detail status over the list (can reclassify a cancelled order);
+allocate paid amounts across items including shipping (inflates categories
+with fees).
+
+**Consequences:** "spend by category", top vendors and top brands now describe
+out-of-pocket spend rather than list value. The sum of all category values is
+at most net paid for the same range. Item counts, return/cancel rates and the
+RRP-based discount rate are unchanged. A partial refund scales the surviving
+items proportionally; a fully cancelled item still contributes nothing.
+
+**Evidence:** `tests/insights-aggregate.test.ts` caps a 182,000,000-Rial list
+price to a 40,000,000-Rial payment (4,000,000 Toman) without scaling up an
+order that paid more than its lines, and asserts a cancelled order's category
+does not appear; `tests/insights-readers.test.ts` keeps a list-cancelled order
+cancelled when its detail payload says `sent`.

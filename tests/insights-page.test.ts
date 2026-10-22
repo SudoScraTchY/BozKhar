@@ -224,6 +224,53 @@ describe('boot and empty state', () => {
   });
 });
 
+describe('analytics integrity', () => {
+  it('reports a 4,000,000-Toman SSD as 4,000,000, not its 18,200,000 list price', async () => {
+    const paidRial = 40_000_000; // 4,000,000 Toman
+    const listRial = 182_000_000; // 18,200,000 Toman
+    const storage = (productId: number) =>
+      item({
+        productId,
+        categories: ['استوریج'],
+        brand: 'Samsung',
+        sellerName: 'فروشنده',
+        unitRial: listRial,
+        quantity: 1,
+      });
+
+    const orders = [
+      order(1, { paidRial, totalCostRial: listRial }),
+      ...[2, 3, 4, 5, 6].map((id) =>
+        order(id, { status: 'cancelled', paidRial: 0, totalCostRial: 0 }),
+      ),
+    ];
+    const itemsByOrder: Record<number, InsightItem[]> = {
+      1: [storage(9)],
+      2: [storage(10)],
+      3: [storage(11)],
+      4: [storage(12)],
+      5: [storage(13)],
+      6: [storage(14)],
+    };
+
+    const deps = makeDeps(snapshot(orders, { itemsByOrder }), fakeClient());
+    await mount(deps);
+
+    expect(statValue('سفارش‌ها')).toBe('۱');
+    expect(statValue('پرداخت خالص')).toBe('۴٬۰۰۰٬۰۰۰ تومان');
+
+    const categoryChart = [...document.querySelectorAll<HTMLElement>('.bk-chart-block')].find(
+      (block) => block.querySelector('h3')?.textContent === 'خرید بر اساس دسته',
+    );
+    expect(categoryChart).toBeDefined();
+    expect(
+      [...(categoryChart?.querySelectorAll('.bk-bar-value') ?? [])].map((n) => n.textContent),
+    ).toEqual(['۴٬۰۰۰٬۰۰۰ تومان']);
+    expect(categoryChart?.innerHTML).not.toContain('۱۸٬۲۰۰٬۰۰۰');
+    expect(document.body.textContent).not.toContain('۱۸٬۲۰۰٬۰۰۰ تومان');
+  });
+});
+
 describe('reading history', () => {
   it('reads on click and renders the summary and charts', async () => {
     const client = fakeClient({

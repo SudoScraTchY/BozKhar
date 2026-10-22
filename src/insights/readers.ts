@@ -254,6 +254,15 @@ export function readDetailPayload(
   const detail = asRecord(data.order) ?? data;
   const order = readOrderRow(detail, fallback);
 
+  // The list's status tab is the authority for terminal states. A detail
+  // payload with a different vocabulary must never turn a cancelled or
+  // returned order into spend (D-45).
+  const status =
+    fallback.status === 'cancelled' || fallback.status === 'returned'
+      ? fallback.status
+      : order.status;
+  const statusFa = status === order.status ? order.statusFa : '';
+
   const itemRows = asArray(detail.order_items) ?? asArray(detail.orderItems);
   if (!itemRows) throw structureUnrecognized('the order detail has no order_items array');
   const items: InsightItem[] = [];
@@ -269,5 +278,9 @@ export function readDetailPayload(
     if (shipment) shipments.push(shipment);
   });
 
-  return { order: { ...order, detailFetchedAt: fetchedAt }, items, shipments };
+  return {
+    order: { ...order, status, statusFa, detailFetchedAt: fetchedAt },
+    items,
+    shipments,
+  };
 }

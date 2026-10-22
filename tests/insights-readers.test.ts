@@ -209,6 +209,24 @@ describe('readDetailPayload', () => {
     expect(result.order.detailFetchedAt).toBe(99);
   });
 
+  it('keeps a cancelled order cancelled when the detail payload disagrees', () => {
+    const result = readDetailPayload(
+      {
+        data: {
+          id: 7,
+          status: 'sent',
+          status_fa: 'تحویل شده',
+          order_items: [],
+          shipments: [],
+        },
+      },
+      { orderId: 7, status: 'cancelled' },
+      1,
+    );
+    expect(result.order.status).toBe('cancelled');
+    expect(result.order.statusFa).toBe('');
+  });
+
   it('rejects a detail without an items array', () => {
     expect(() => readDetailPayload({ data: { id: 1 } }, { orderId: 1, status: 'sent' }, 1)).toThrow(
       /no order_items array/,

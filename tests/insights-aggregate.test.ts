@@ -192,10 +192,31 @@ describe('cancelled exclusion', () => {
     expect(agg.vendors.map((vendor) => vendor.name)).toEqual(['A']);
     expect(agg.vendors[0]?.quantity).toBe(2);
     expect(agg.cancelRate).toBeCloseTo(1 / 3);
+    expect(agg.categories).toEqual([{ name: 'C', valueToman: 20_000, quantity: 2 }]);
     // Time/value charts contain only the contributing order.
     expect(agg.monthly).toEqual([{ year: 1404, month: 1, orders: 1, valueToman: 100_000 }]);
     expect(agg.valueBuckets.reduce((sum, bucket) => sum + bucket.orders, 0)).toBe(1);
     expect(agg.weekdays.reduce((sum, bucket) => sum + bucket.orders, 0)).toBe(1);
+  });
+
+  it('caps item and category spend at what the order actually paid', () => {
+    const orders = [
+      // A list price far above the paid amount must not inflate a category.
+      order(301, { paidRial: 40_000_000 }),
+      // A paid amount above the line sum must not be spread onto the items.
+      order(302, { paidRial: 50_000_000 }),
+    ];
+    const items: Record<number, InsightItem[]> = {
+      301: [item({ productId: 9, categories: ['استوریج'], brand: 'X', unitRial: 182_000_000 })],
+      302: [item({ productId: 10, categories: ['استوریج'], brand: 'X', unitRial: 40_000_000 })],
+    };
+    const agg = aggregate(snapshot(orders, items));
+
+    // Raw line prices would total 22,200,000 Toman; the first order is capped
+    // at its 4,000,000-Toman payment, and the second is left untouched.
+    expect(agg.itemValueToman).toBe(8_000_000);
+    expect(agg.categories).toEqual([{ name: 'استوریج', valueToman: 8_000_000, quantity: 2 }]);
+    expect(agg.categories[0]?.valueToman).toBeLessThanOrEqual(agg.netPaidToman);
   });
 
   it('values a cancelled order by its total when no payment was recorded', () => {
@@ -209,8 +230,8 @@ describe('cancelled exclusion', () => {
 
 describe('deep metrics', () => {
   const orders = [
-    order(101, { createdDay: day(1404, 1, 1) }),
-    order(102, { createdDay: day(1404, 1, 11) }),
+    order(101, { createdDay: day(1404, 1, 1), paidRial: 2_500 }),
+    order(102, { createdDay: day(1404, 1, 11), paidRial: 2_000 }),
   ];
   const items: Record<number, InsightItem[]> = {
     101: [

@@ -14,10 +14,14 @@
  *  - cancelled: counted and valued, never spend; cancelled item quantities
  *    are subtracted from item/vendor totals and cancelled orders never enter
  *    the monthly, weekday or value buckets.
+ *
+ * Item-level spend is capped at what the order actually paid (D-45): item
+ * rows carry list prices, so an order-level coupon, a refund or a later price
+ * change could otherwise make one product claim more than the whole order.
  */
 import { rialToToman } from '../capture/normalize';
 import { dayOfWeek, dayIndexToJalali } from './jalali';
-import type { InsightOrder, InsightSnapshot, OrderStatus } from './types';
+import type { InsightItem, InsightOrder, InsightSnapshot, OrderStatus } from './types';
 
 export type StatusFilter = OrderStatus | 'all';
 
@@ -358,6 +362,7 @@ export function aggregate(snapshot: InsightSnapshot, options: AggregateOptions =
       shipmentCostRial += shipment.costRial ?? 0;
     }
 
+    const lines: { item: InsightItem; quantity: number; valueRial: number }[] = [];
     for (const item of items) {
       itemRows += 1;
       grossQty += item.quantity;
@@ -374,17 +379,7 @@ export function aggregate(snapshot: InsightSnapshot, options: AggregateOptions =
       itemCount += quantity;
       if (quantity === 0) continue;
 
-      const valueRial = (item.unitRial ?? 0) * quantity;
-      itemValueRial += valueRial;
-      addGroup(
-        vendors,
-        item.sellerId !== null ? `id:${item.sellerId}` : `name:${item.sellerName ?? ''}`,
-        item.sellerName ?? (item.sellerId !== null ? `#${item.sellerId}` : ''),
-        valueRial,
-        quantity,
-      );
-      addGroup(brands, item.brand ?? '', item.brand ?? '', valueRial, quantity);
-      addGroup(categories, item.categories[0] ?? '', item.categories[0] ?? '', valueRial, quantity);
+      lines.push({ item, quantity, valueRial: (item.unitRial ?? 0) * quantity });
 
       const set = productOrders.get(item.productId) ?? new Set<number>();
       set.add(order.orderId);
@@ -394,6 +389,28 @@ export function aggregate(snapshot: InsightSnapshot, options: AggregateOptions =
         days.add(order.createdDay);
         productDays.set(item.productId, days);
       }
+    }
+
+    // Item prices are list prices at read time, and order-level coupons,
+    // refunds or a later price change can make their sum exceed what the
+    // user actually paid. Allocate net paid across the lines so a category
+    // can never claim more than the order cost (D-45).
+    const lineTotalRial = lines.reduce((sum, line) => sum + line.valueRial, 0);
+    const paidRial = netRialOf(order);
+    const scale = lineTotalRial > paidRial ? paidRial / lineTotalRial : 1;
+
+    for (const { item, quantity, valueRial } of lines) {
+      const shareRial = valueRial * scale;
+      itemValueRial += shareRial;
+      addGroup(
+        vendors,
+        item.sellerId !== null ? `id:${item.sellerId}` : `name:${item.sellerName ?? ''}`,
+        item.sellerName ?? (item.sellerId !== null ? `#${item.sellerId}` : ''),
+        shareRial,
+        quantity,
+      );
+      addGroup(brands, item.brand ?? '', item.brand ?? '', shareRial, quantity);
+      addGroup(categories, item.categories[0] ?? '', item.categories[0] ?? '', shareRial, quantity);
     }
   }
 
