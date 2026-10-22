@@ -3,526 +3,674 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>بزخر — دستیار متن‌باز و هوشمند کاهش هزینه خرید از دیجی‌کالا</title>
-  <meta name="description" content="افزونه مرورگر متن‌باز بزخر (BozKhar)؛ پیدا کردن ارزان‌ترین ترکیب خرید سبد دیجی‌کالا میان فروشندگان مختلف با احتساب هزینه‌های ارسال و تخفیف‌های شرطی.">
-  <meta name="keywords" content="دیجی کالا, بهینه سازی سبد خرید, بزخر, کاهش هزینه ارسال, دیجی پلاس, خرید ارزان, BozKhar">
-  
-  <!-- Open Graph -->
-  <meta property="og:title" content="بزخر — خرید هوشمندانه و ارزان از دیجی‌کالا">
-  <meta property="og:description" content="سبد خریدت را ارزان‌تر بخر؛ چانه‌زنی با محاسبات ریاضی. کاملاً رایگان و ۱۰۰٪ متن‌باز.">
-  <meta property="og:image" content="assets/logo.png">
+  <title>بُزخَر | همان سبد، صورتحساب کمتر</title>
+  <meta name="description" content="بُزخَر یک افزونه متن‌باز Chrome است که سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. محلی، بدون سرور، با اجازه‌ی خودتان.">
+  <meta name="keywords" content="دیجی کالا, بهینه سازی سبد خرید, بُزخَر, BozKhar, کاهش هزینه ارسال, دیجی پلاس, خرید ارزان, Torob, ترب">
+  <meta name="author" content="SudoScraTchY">
+  <meta name="robots" content="index,follow">
+  <meta name="theme-color" content="#1a1024">
+  <link rel="canonical" href="https://sudoscratchy.github.io/BozKhar/">
+
+  <meta property="og:locale" content="fa_IR">
   <meta property="og:type" content="website">
-  
-  <link rel="icon" type="image/png" href="assets/logo.png">
+  <meta property="og:site_name" content="بُزخَر">
+  <meta property="og:title" content="بُزخَر | همان سبد، صورتحساب کمتر">
+  <meta property="og:description" content="سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. متن‌باز، محلی و بدون سرور.">
+  <meta property="og:url" content="https://sudoscratchy.github.io/BozKhar/">
+  <meta property="og:image" content="https://sudoscratchy.github.io/BozKhar/assets/logo.png">
+  <meta property="og:image:alt" content="لوگوی بُزخَر، بز با عینک آفتابی و رسید خرید">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="بُزخَر | همان سبد، صورتحساب کمتر">
+  <meta name="twitter:description" content="سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند.">
+  <meta name="twitter:image" content="https://sudoscratchy.github.io/BozKhar/assets/logo.png">
+
+  <link rel="icon" type="image/png" href="assets/logo-64.png">
+  <link rel="apple-touch-icon" href="assets/logo-128.png">
+  <link rel="preload" href="assets/fonts/vazirmatn-arabic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/lalezar.ttf" as="font" type="font/ttf" crossorigin>
   <link rel="stylesheet" href="styles.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "بُزخَر",
+    "alternateName": "BozKhar",
+    "description": "افزونه متن‌باز Chrome برای پیدا کردن کمترین مجموع قیمت کالا و ارسال در سبد دیجی‌کالا.",
+    "applicationCategory": "BrowserApplication",
+    "operatingSystem": "Chrome, Edge, Brave",
+    "softwareVersion": "0.6.2",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "IRR" },
+    "downloadUrl": "https://github.com/SudoScraTchY/BozKhar/releases/latest",
+    "url": "https://sudoscratchy.github.io/BozKhar/",
+    "author": {
+      "@type": "Person",
+      "name": "SudoScraTchY",
+      "url": "https://github.com/SudoScraTchY"
+    }
+  }
+  </script>
 </head>
 <body>
+  <a class="skip-link" href="#main">پرش به محتوا</a>
 
-  <!-- Background decorative pattern -->
-  <div class="bg-pattern" aria-hidden="true"></div>
+  <svg class="svg-sprite" aria-hidden="true" focusable="false">
+    <symbol id="i-github" viewBox="0 0 16 16">
+      <path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/>
+    </symbol>
+    <symbol id="i-download" viewBox="0 0 24 24">
+      <path d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14"/>
+    </symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24">
+      <path d="M20 12H4m0 0 6-6m-6 6 6 6"/>
+    </symbol>
+    <symbol id="i-external" viewBox="0 0 24 24">
+      <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>
+    </symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24">
+      <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/>
+      <path d="M9 8h6M9 12h6M9 16h3"/>
+    </symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>
+    </symbol>
+    <symbol id="i-scales" viewBox="0 0 24 24">
+      <path d="M12 3v18M7 21h10M5 7h14M5 7l-3 6h6L5 7Zm14 0-3 6h6l-3-6Z"/>
+    </symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="m14 3 7 7-3 1-4 4-1 5-2-2-2 3-2-2 3-2-2-2 5-1 4-4 1-3Z"/>
+    </symbol>
+    <symbol id="i-ban" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/>
+      <path d="m5.6 5.6 12.8 12.8"/>
+    </symbol>
+    <symbol id="i-export" viewBox="0 0 24 24">
+      <path d="M12 15V3m0 0 4 4m-4-4L8 7M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>
+    </symbol>
+    <symbol id="i-star" viewBox="0 0 24 24">
+      <path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24">
+      <path d="m5 12 4 4L19 6"/>
+    </symbol>
+    <symbol id="i-search" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="7"/>
+      <path d="m20 20-4-4"/>
+    </symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24">
+      <path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z"/>
+      <path d="m8.5 12 2.2 2.2 4.8-5"/>
+    </symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24">
+      <path d="M20 11a8 8 0 1 0-2.3 6.7M20 4v7h-7"/>
+    </symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24">
+      <path d="M4 7h16M4 12h16M4 17h16"/>
+    </symbol>
+    <symbol id="i-close" viewBox="0 0 24 24">
+      <path d="m6 6 12 12M18 6 6 18"/>
+    </symbol>
+    <symbol id="i-bulb" viewBox="0 0 24 24">
+      <path d="M9 18h6M10 21h4M8.5 14.5A6 6 0 1 1 15.5 14.5C14.5 15.3 14 16 14 18h-4c0-2-.5-2.7-1.5-3.5Z"/>
+    </symbol>
+    <symbol id="i-headphone" viewBox="0 0 24 24">
+      <path d="M4 14v-2a8 8 0 0 1 16 0v2"/>
+      <path d="M4 14h3v5H5a1 1 0 0 1-1-1v-4Zm16 0h-3v5h2a1 1 0 0 0 1-1v-4Z"/>
+    </symbol>
+    <symbol id="i-mouse" viewBox="0 0 24 24">
+      <rect x="7" y="2" width="10" height="20" rx="5"/>
+      <path d="M12 6v4"/>
+    </symbol>
+    <symbol id="i-battery" viewBox="0 0 24 24">
+      <rect x="3" y="7" width="16" height="10" rx="2"/>
+      <path d="M21 10v4M7 10v4M11 10v4"/>
+    </symbol>
+    <symbol id="i-hub" viewBox="0 0 24 24">
+      <rect x="3" y="9" width="18" height="8" rx="2"/>
+      <path d="M7 13h.01M11 13h.01M15 13h.01M7 6V4M12 6V4M17 6V4"/>
+    </symbol>
+    <symbol id="i-truck" viewBox="0 0 24 24">
+      <path d="M3 6h11v11H3zM14 10h4l3 3v4h-7z"/>
+      <circle cx="7" cy="19" r="2"/><circle cx="18" cy="19" r="2"/>
+    </symbol>
+    <symbol id="i-spark" viewBox="0 0 24 24">
+      <path d="m12 2 1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2Z"/>
+      <path d="m19 16 .8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>
+    </symbol>
+    <symbol id="i-copy" viewBox="0 0 24 24">
+      <rect x="8" y="8" width="12" height="12" rx="2"/>
+      <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>
+    </symbol>
+  </svg>
 
-  <!-- Header -->
-  <header class="site-header">
-    <div class="container header-inner">
-      <div class="brand">
-        <img src="assets/logo.png" alt="لوگوی بزخر" class="brand-logo" width="48" height="48">
-        <div class="brand-text">
-          <span class="brand-name">بُزخَر</span>
-          <span class="brand-en">Boz Khar</span>
-        </div>
-      </div>
+  <header class="site-header" id="siteHeader">
+    <div class="wrap header-row">
+      <a class="brand" href="#top" aria-label="بُزخَر، صفحه‌ی اصلی">
+        <img class="brand-logo" src="assets/logo-128.png" alt="" width="44" height="44">
+        <span class="brand-name">بُزخَر</span>
+        <span class="brand-version">v0.6.2</span>
+      </a>
 
-      <nav class="site-nav">
-        <a href="#simulator">شبیه‌ساز زنده</a>
-        <a href="#how-it-works">نحوه کارکرد</a>
-        <a href="#privacy">امنیت و حریم خصوصی</a>
-        <a href="#install">راهنمای نصب</a>
+      <nav class="site-nav" id="siteNav" aria-label="بخش‌های صفحه">
+        <a href="#lab">آزمایشگاه قیمت</a>
+        <a href="#features">تازه‌ها</a>
+        <a href="#privacy">حریم خصوصی</a>
+        <a href="#install">نصب</a>
         <a href="#faq">پرسش‌ها</a>
       </nav>
 
       <div class="header-actions">
-        <a href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer" class="btn btn-github">
-          <svg class="icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-          </svg>
-          <span>مخزن گیت‌هاب</span>
+        <a class="github-link" href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">
+          <svg class="icon icon-github" aria-hidden="true"><use href="#i-github"/></svg>
+          <span>GitHub</span>
+        </a>
+        <a class="btn btn-lime btn-small" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+          <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+          <span>دانلود</span>
         </a>
       </div>
+
+      <button class="menu-toggle" id="menuToggle" type="button" aria-expanded="false" aria-controls="siteNav" aria-label="باز کردن منو">
+        <svg class="icon menu-open-icon" aria-hidden="true"><use href="#i-menu"/></svg>
+        <svg class="icon menu-close-icon" aria-hidden="true"><use href="#i-close"/></svg>
+      </button>
     </div>
   </header>
 
-  <!-- Hero Section -->
-  <section class="hero-section">
-    <div class="container hero-inner">
-      <div class="hero-badge">
-        <span class="badge-dot"></span>
-        <span>۱۰۰٪ متن‌باز • بدون سرور و تبلیغات • در حال آماده‌سازی برای استور</span>
-      </div>
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="hero-glow" aria-hidden="true"></div>
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="hero-kicker"><span class="kicker-mark" aria-hidden="true"></span>افزونه‌ی متن‌باز Chrome، نسخه ۰.۶.۲</p>
+          <h1 class="hero-title">همان سبد.<br><span class="hero-tag">صورتحساب کمتر.</span></h1>
+          <p class="hero-lede">بُزخَر سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. خودش چیزی نمی‌خرد و سبد را دست نمی‌زند. فقط حساب می‌کند و نقشه‌ی خرید را می‌سازد.</p>
 
-      <h1 class="hero-title">
-        سبد خریدت را ارزان‌تر بخر؛<br>
-        <span class="text-accent">چانه‌زنی با محاسبات ریاضی</span>
-      </h1>
-
-      <p class="hero-desc">
-        دیجی‌کالا یک بازارچه با صدها فروشنده برای هر کالاست. انتخاب ساده‌ی ارزان‌ترین فروشنده کالا، شما را به دام هزینه‌های چندگانه ارسال می‌اندازد. <strong>بزخر</strong> افزونه‌ای کاملاً محلی و بدون سرور است که با در نظر گرفتن هزینه ارسال تک‌تک فروشنده‌ها، تخفیف‌های شرطی و سقف‌های ارسال رایگان، کم‌هزینه‌ترین ترکیب ممکن را برای شما حل می‌کند.
-      </p>
-
-      <div class="hero-buttons">
-        <a href="#simulator" class="btn btn-primary">
-          <span>⚡ تست شبیه‌ساز زنده</span>
-        </a>
-        <a href="#install" class="btn btn-outline">
-          <span>📦 راهنمای نصب افزونه</span>
-        </a>
-      </div>
-
-      <!-- Quick Trust Indicators -->
-      <div class="trust-grid">
-        <div class="trust-card reveal">
-          <div class="trust-icon">🛡️</div>
-          <div class="trust-title">فقط مشاوره (Advise-Only)</div>
-          <div class="trust-detail">هیچ تغییری در سبد اعمال نمی‌شود؛ شما فرمانده خریدید.</div>
-        </div>
-        <div class="trust-card reveal">
-          <div class="trust-icon">🔒</div>
-          <div class="trust-title">۱۰۰٪ آفلاین و محلی</div>
-          <div class="trust-detail">بدون ارسال داده، بدون ساخت اکانت و ذخیره امن در مرورگر.</div>
-        </div>
-        <div class="trust-card reveal">
-          <div class="trust-icon">💰</div>
-          <div class="trust-title">کاملاً رایگان</div>
-          <div class="trust-detail">بدون پلن اشتراکی، بدون پرداخت و بدون محدودیت استفاده.</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Interactive Simulator Section -->
-  <section id="simulator" class="simulator-section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">دموی زنده و تعاملی</span>
-        <h2 class="section-title">بزخر در عمل چطور معجزه می‌کند؟</h2>
-        <p class="section-subtitle">
-          یک سبد خرید واقعی دیجی‌کالا را با هم بررسی کنیم؛ ببینید بدون حذف حتی یک قلم جنس، چگونه با مهندسی غرفه‌ها هزینه نهایی کاهش می‌یابد:
-        </p>
-      </div>
-
-      <div class="sim-container">
-        <!-- Simulator Controls -->
-        <div class="sim-toolbar">
-          <div class="sim-toolbar-title">
-            <span class="sim-chip">سبد نمونه ۴ قلمی</span>
-            <span class="sim-cart-meta">تجهیزات جانبی موبایل</span>
+          <div class="hero-actions">
+            <a class="btn btn-lime" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+              <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+              <span>دانلود نسخه ۰.۶.۲</span>
+            </a>
+            <a class="btn btn-ghost" href="#lab">
+              <span>دیدن آزمایشگاه قیمت</span>
+              <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg>
+            </a>
           </div>
-          <div class="sim-options">
-            <label class="toggle-control" title="شبیه‌سازی شرایط عضویت دیجی‌پلاس">
+
+          <ul class="hero-facts" aria-label="وضعیت حریم خصوصی و زیرساخت">
+            <li><strong>۰</strong><span>سرور</span></li>
+            <li><strong>۰</strong><span>تلمتری</span></li>
+            <li><strong>۲</strong><span>درخواست خارجی، هر دو با اجازه‌ی شما</span></li>
+          </ul>
+
+          <p class="hero-note">قیمت‌های نمونه‌ی این صفحه در ۳۰ مهر ۱۴۰۵ به‌روز شده‌اند. قیمت لحظه‌ی خرید را خود دیجی‌کالا تعیین می‌کند.</p>
+        </div>
+
+        <aside class="hero-receipt-wrap" aria-label="نمونه‌ی صورتحساب بهینه‌شده">
+          <div class="hero-receipt">
+            <div class="receipt-head">
+              <span class="receipt-wordmark">بُزخَر</span>
+              <span class="receipt-code">BK-۱۴۰۵-۰۷۳۰</span>
+            </div>
+            <div class="receipt-dash" aria-hidden="true"></div>
+            <p class="receipt-caption">صورتحساب نمونه، ۴ قلم</p>
+
+            <div class="receipt-items">
+              <div class="receipt-item"><span>هدفون انکر R50i NC</span><b>۴٬۱۰۹٬۰۰۰</b></div>
+              <div class="receipt-item"><span>ماوس لاجیتک M185</span><b>۲٬۸۱۹٬۰۰۰</b></div>
+              <div class="receipt-item"><span>پاوربانک شیائومی ۲۰٬۰۰۰</span><b>۳٬۱۵۹٬۰۰۰</b></div>
+              <div class="receipt-item"><span>هاب USB-C یوگرین</span><b>۳٬۰۴۰٬۰۰۰</b></div>
+            </div>
+
+            <div class="receipt-dash" aria-hidden="true"></div>
+            <div class="receipt-row"><span>کالاها</span><b>۱۳٬۱۲۷٬۰۰۰</b></div>
+            <div class="receipt-row"><span>ارسال</span><b>۱۵۹٬۰۰۰</b></div>
+            <div class="receipt-row receipt-total"><span>مبلغ نهایی</span><b>۱۳٬۲۸۶٬۰۰۰</b></div>
+            <div class="receipt-saving"><strong>۹۷۰٬۰۰۰ تومان</strong><span>کمتر از سبد فعلی</span></div>
+            <div class="receipt-barcode" aria-hidden="true"></div>
+            <p class="receipt-foot">قیمت‌های نمونه: ۳۰ مهر ۱۴۰۵</p>
+          </div>
+
+          <div class="goat-stamp" aria-hidden="true">
+            <img src="assets/logo-256.png" alt="" width="88" height="88">
+          </div>
+          <span class="hero-sticker" aria-hidden="true">حسابش با بُزخَر است</span>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section lab" id="lab">
+      <div class="wrap">
+        <div class="lab-head">
+          <div class="section-head">
+            <p class="kicker">آزمایشگاه قیمت</p>
+            <h2 class="section-title">چهار قلم از چهار غرفه. بُزخَر دو غرفه پیدا می‌کند.</h2>
+            <p class="section-lede">سبد نمونه را ببینید. دکمه را بزنید تا ببینید قیمت کالا، هزینه‌ی ارسال و سقف ارسال رایگان چطور با هم حساب می‌شوند. قیمت‌های پایه از آگهی‌های عمومی دیجی‌کالا در ۳۰ مهر ۱۴۰۵ گرفته شده‌اند.</p>
+          </div>
+
+          <div class="lab-controls">
+            <label class="plus-switch" for="plusToggle">
               <input type="checkbox" id="plusToggle">
-              <span class="toggle-slider"></span>
-              <span class="toggle-label">عضو دیجی‌پلاس هستم</span>
+              <span class="switch-track" aria-hidden="true"><span class="switch-thumb"></span></span>
+              <span class="switch-label">عضو دیجی‌پلاس هستم</span>
             </label>
-          </div>
-        </div>
-
-        <!-- Before & After Comparison Board -->
-        <div class="sim-board">
-          
-          <!-- Column 1: Unoptimized Cart -->
-          <div class="sim-column" id="unoptimizedCol">
-            <div class="sim-col-header">
-              <div class="col-title-wrap">
-                <span class="status-indicator status-warn"></span>
-                <h3 class="col-title">حالت عادی (انتخاب پیش‌فرض کالاها)</h3>
-              </div>
-              <span class="badge badge-muted">۴ مرسوله پستی مجزا</span>
-            </div>
-
-            <div class="cart-items-list" id="unoptimizedItems">
-              <!-- Rendered via JS -->
-            </div>
-
-            <div class="bill-receipt">
-              <div class="bill-row">
-                <span>مجموع قیمت کالاها:</span>
-                <span class="num-val" id="rawItemsTotal">۱٬۰۹۰٬۰۰۰ تومان</span>
-              </div>
-              <div class="bill-row bill-fee">
-                <span>هزینه ارسال مرسوله‌ها (۴ غرفه):</span>
-                <span class="num-val" id="rawShipTotal">۲۷۵٬۰۰۰ تومان</span>
-              </div>
-              <div class="bill-divider"></div>
-              <div class="bill-row bill-total">
-                <span>مبلغ پرداختی شما:</span>
-                <span class="num-val text-warn" id="rawGrandTotal">۱٬۳۶۵٬۰۰۰ تومان</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Mid Action Button -->
-          <div class="sim-action-center">
-            <button id="optimizeBtn" class="btn btn-magic" aria-label="اجرای الگوریتم بهینه‌سازی">
-              <span class="btn-spinner" id="btnSpinner" aria-hidden="true"></span>
-              <span class="btn-sparkle" id="btnSparkle">✨</span>
-              <span class="btn-text">بزخری کن!</span>
-              <span class="btn-subtext">اجرای الگوریتم تجمیع</span>
+            <button class="btn btn-ghost btn-small" id="replayBtn" type="button">
+              <svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg>
+              <span>پخش دوباره</span>
             </button>
-            <div class="sim-status" id="simStatus">
-              <span class="sim-status-dot"></span>
-              <span class="sim-status-text" id="simStatusText">آماده برای بهینه‌سازی</span>
+          </div>
+        </div>
+
+        <div class="lab-shell" id="labShell" aria-busy="false">
+          <div class="lab-topline">
+            <p class="lab-status" id="labStatus" role="status" aria-live="polite">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="labStatusText">آماده</span>
+            </p>
+            <p class="lab-date">قیمت‌های نمونه: ۳۰ مهر ۱۴۰۵</p>
+          </div>
+
+          <div class="lab-grid">
+            <section class="stage stage-cart" aria-labelledby="cartTitle">
+              <header class="stage-head">
+                <div class="stage-title">
+                  <span class="stage-no" aria-hidden="true">۱</span>
+                  <h3 id="cartTitle">سبد فعلی</h3>
+                </div>
+                <span class="stage-badge" id="cartBadge">۴ غرفه</span>
+              </header>
+
+              <div class="cart-list" id="cartList">
+                <noscript>
+                  <p class="noscript-note">این بخش با JavaScript کار می‌کند. نتیجه‌ی نهایی در صورتحساب بالای صفحه دیده می‌شود.</p>
+                </noscript>
+              </div>
+
+              <footer class="stage-foot">
+                <div class="mini-total"><span>مبلغ فعلی</span><strong id="rawTotal">۱۴٬۲۵۶٬۰۰۰ تومان</strong></div>
+                <p>هر غرفه یک مرسوله و یک هزینه‌ی ارسال جدا دارد.</p>
+              </footer>
+            </section>
+
+            <section class="stage stage-solver" aria-label="مراحل محاسبه">
+              <div class="solver-core" id="solverCore">
+                <div class="solver-rings" aria-hidden="true"><span></span><span></span><span></span></div>
+                <div class="solver-count">
+                  <strong id="comboCount">۰</strong>
+                  <span>ترکیب بررسی‌شده</span>
+                </div>
+              </div>
+
+              <ol class="solver-log" id="solverLog">
+                <li data-step="1"><span class="log-dot" aria-hidden="true"></span><span>خواندن ۴ قلم و پیشنهادهای هر غرفه</span></li>
+                <li data-step="2"><span class="log-dot" aria-hidden="true"></span><span>حذف غرفه‌های گران‌تر و بررسی سقف ارسال</span></li>
+                <li data-step="3"><span class="log-dot" aria-hidden="true"></span><span>حل دقیق ۲۵۶ ترکیب</span></li>
+                <li data-step="4"><span class="log-dot" aria-hidden="true"></span><span>چاپ صورتحساب نهایی</span></li>
+              </ol>
+
+              <div class="offer-matrix" id="offerMatrix" aria-hidden="true"></div>
+            </section>
+
+            <section class="stage stage-receipt" aria-labelledby="receiptTitle">
+              <header class="stage-head">
+                <div class="stage-title">
+                  <span class="stage-no" aria-hidden="true">۲</span>
+                  <h3 id="receiptTitle">صورتحساب بُزخَر</h3>
+                </div>
+                <span class="stage-badge badge-lime" id="optBadge">۲ غرفه</span>
+              </header>
+
+              <div class="vendor-groups" id="vendorGroups">
+                <noscript>
+                  <p class="noscript-note">برای دیدن نتیجه‌ی تعاملی، JavaScript را روشن کنید.</p>
+                </noscript>
+              </div>
+
+              <div class="receipt-summary">
+                <div class="summary-row"><span>کالاها</span><b id="optItems">…</b></div>
+                <div class="summary-row"><span>ارسال</span><b id="optShip">…</b></div>
+                <div class="summary-row summary-total"><span>مبلغ نهایی</span><b id="optTotal">…</b></div>
+                <div class="summary-saving"><span>صرفه‌جویی</span><strong id="savingAmount">…</strong></div>
+              </div>
+
+              <div class="receipt-stamp" id="receiptStamp" aria-hidden="true">تأیید شد</div>
+              <p class="receipt-foot">BozKhar، ۳۰ مهر ۱۴۰۵</p>
+            </section>
+          </div>
+
+          <div class="lab-note" id="labNote" aria-live="polite">
+            <svg class="icon note-icon" aria-hidden="true"><use href="#i-bulb"/></svg>
+            <p><strong>چه اتفاقی افتاد؟</strong> در سبد فعلی، هر چهار قلم از یک غرفه‌ی جدا آمده‌اند: ۶۱۶٬۰۰۰ تومان ارسال. بُزخَر سه قلم را به «تکمیل» برد؛ جمع آن غرفه از سقف ۱۰٬۰۰۰٬۰۰۰ تومان گذشت و ارسالش صفر شد. ماوس به «گجت‌سرا» رفت، چون ۱۳۱٬۰۰۰ تومان ارزان‌تر بود. خالص: ۹۷۰٬۰۰۰ تومان کمتر.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section features" id="features">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">تازه‌ها در نسخه ۰.۶</p>
+          <h2 class="section-title">از سبد خرید تا تاریخچه‌ی خریدهای شما.</h2>
+          <p class="section-lede">بُزخَر دیگر فقط سبد را بهینه نمی‌کند. سفارش‌های گذشته را روی همین مرورگر خلاصه می‌کند، فروشنده‌های Torob را نشان می‌دهد و نتیجه را برای فرستادن به دیگران آماده می‌کند.</p>
+        </div>
+
+        <div class="feature-ledger">
+          <article class="feature-card feature-insights">
+            <div class="feature-copy">
+              <span class="feature-label">خریدهای من</span>
+              <h3>همه‌ی خریدها، یک خلاصه‌ی محلی.</h3>
+              <p>سفارش‌های دیجی‌کالا را از حساب خودتان می‌خواند و روی همین مرورگر خلاصه می‌کند: خرج خالص، فروشنده‌ها، برندها، ماه‌ها و وضعیت سفارش‌ها. سفارش لغوشده در هیچ جمعی نمی‌آید و فقط در نمودار وضعیت دیده می‌شود.</p>
+              <p class="feature-fineprint">خرید هر قلم هم از مبلغ پرداختی همان سفارش بیشتر نمی‌شود؛ حتی اگر قیمت درج‌شده در صفحه چیز دیگری بگوید.</p>
+              <a class="text-link" href="https://github.com/SudoScraTchY/BozKhar#what-it-does" target="_blank" rel="noopener noreferrer">جزئیات در README <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a>
             </div>
-            <div class="action-arrow">⬇️</div>
-          </div>
 
-          <!-- Column 2: Optimized Plan -->
-          <div class="sim-column sim-column-optimized" id="optimizedCol">
-            <div class="sim-col-header">
-              <div class="col-title-wrap">
-                <span class="status-indicator status-success"></span>
-                <h3 class="col-title">پیشنهاد بزخر (بهینه‌سازی ریاضی)</h3>
+            <div class="mock-window" aria-hidden="true">
+              <div class="mock-bar"><span></span><span></span><span></span><b>خریدهای من، نمونه‌ی نمایشی</b></div>
+              <div class="mock-stats">
+                <div><small>خرج خالص</small><strong>۴۸٬۲۵۰٬۰۰۰</strong></div>
+                <div><small>سفارش‌ها</small><strong>۳۷</strong></div>
+                <div><small>میانه</small><strong>۱٬۲۴۰٬۰۰۰</strong></div>
               </div>
-              <span class="badge badge-success" id="optShipBadge">تجمیع در ۲ غرفه + ارسال رایگان</span>
-            </div>
-
-            <div class="cart-items-list" id="optimizedItems">
-              <!-- Rendered via JS -->
-            </div>
-
-            <div class="bill-receipt bill-receipt-saving">
-              <div class="bill-row">
-                <span>مجموع قیمت کالاها:</span>
-                <span class="num-val" id="optItemsTotal">۱٬۱۱۰٬۰۰۰ تومان</span>
+              <div class="mock-chart" data-chart>
+                <span style="--h:42%"></span><span style="--h:66%"></span><span style="--h:38%"></span><span style="--h:78%"></span><span style="--h:54%"></span><span style="--h:90%"></span><span style="--h:48%"></span><span style="--h:72%"></span><span style="--h:60%"></span><span style="--h:84%"></span><span style="--h:46%"></span><span style="--h:68%"></span>
               </div>
-              <div class="bill-row bill-fee">
-                <span>هزینه ارسال (تخفیف شرطی اعمال شد):</span>
-                <span class="num-val" id="optShipTotal">۷۵٬۰۰۰ تومان</span>
-              </div>
-              <div class="bill-divider"></div>
-              <div class="bill-row bill-total">
-                <span>مبلغ نهایی با بزخر:</span>
-                <span class="num-val text-success" id="optGrandTotal">۱٬۱۸۵٬۰۰۰ تومان</span>
-              </div>
-              <div class="bill-saving-banner" id="savingBanner">
-                <span class="saving-icon">🎉</span>
-                <span>سود قطعی شما: <strong id="savingAmount">۱۸۰٬۰۰۰ تومان</strong> صرفه‌جویی در همین سبد!</span>
+              <div class="mock-status"><span class="st-delivered"></span><span class="st-progress"></span><span class="st-returned"></span><span class="st-cancelled"></span></div>
+              <div class="mock-share">
+                <span class="mock-share-brand">بُزخَر</span>
+                <strong>۱۴۰۵، خریدهای من</strong>
+                <small>۳۷ سفارش، ۴۸٬۲۵۰٬۰۰۰ تومان</small>
+                <div class="mock-share-line"></div>
+                <div class="mock-share-line short"></div>
               </div>
             </div>
-          </div>
+          </article>
 
-        </div>
+          <article class="feature-card feature-torob">
+            <div class="feature-copy">
+              <span class="feature-label">مقایسه در ترب</span>
+              <h3>فروشنده‌های ارزان‌تر، بیرون از دیجی‌کالا.</h3>
+              <p>روی صفحه‌ی کالا، دکمه‌ی «مقایسه در ترب» را بزنید. بُزخَر عنوان عمومی کالا را به Torob می‌فرستد و تا پنج فروشنده‌ی ارزان‌تر را با قیمت، شهر، امتیاز و لینک نشان می‌دهد. حساب، سبد و نشست دیجی‌کالا فرستاده نمی‌شوند.</p>
+              <a class="text-link" href="https://github.com/SudoScraTchY/BozKhar/blob/main/README.md" target="_blank" rel="noopener noreferrer">کد و تست‌ها در GitHub <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a>
+            </div>
 
-        <div class="sim-hint-card">
-          <div class="hint-icon">💡</div>
-          <div class="hint-text">
-            <strong>نکته هوشمند:</strong> با اینکه قیمت تک‌تک اجناس در غرفه پیشنهادی ۲۰ هزار تومان بیشتر بود، اما با تجمیع اقلام در یک فروشگاه، شرط <em>«ارسال رایگان بالای ۵۰۰ هزار تومان»</em> فعال شد و ۳ هزینه ارسال سنگین کاملاً صفر شدند!
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
+            <div class="torob-trigger" aria-hidden="true">
+              <span class="torob-trigger-icon"><svg class="icon"><use href="#i-scales"/></svg></span>
+              <span class="torob-trigger-copy"><strong>مقایسه در ترب</strong><small>فقط با کلیک، فقط عنوان عمومی</small></span>
+              <span class="torob-trigger-arrow"><svg class="icon"><use href="#i-arrow"/></svg></span>
+            </div>
 
-  <!-- How It Works Section -->
-  <section id="how-it-works" class="features-section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">مهندسی دقیق</span>
-        <h2 class="section-title">چرا چشم انسان از حل این معادله عاجز است؟</h2>
-        <p class="section-subtitle">
-          هنگامی که ۵ قلم کالا در سبد دارید و هر کدام ۱۰ فروشنده دارند، بیش از ۱۰۰٬۰۰۰ ترکیب مختلف پیش روی شماست! بزخر چطور بهترین مسیر را محاسبه می‌کند؟
-        </p>
-      </div>
+            <div class="torob-card" aria-hidden="true">
+              <div class="torob-head"><span class="torob-word">Torob</span><span>۵ فروشنده</span></div>
+              <div class="torob-row is-best">
+                <span><b>فروشگاه آ</b><small>تهران، امتیاز ۴.۸</small></span>
+                <span><b>۴٬۲۹۰٬۰۰۰</b><small>ارسال ۷۹٬۰۰۰</small></span>
+              </div>
+              <div class="torob-row">
+                <span><b>فروشگاه ب</b><small>اصفهان، امتیاز ۴.۶</small></span>
+                <span><b>۴٬۳۵۰٬۰۰۰</b><small>ارسال ۸۹٬۰۰۰</small></span>
+              </div>
+              <div class="torob-row">
+                <span><b>فروشگاه ج</b><small>تهران، امتیاز ۴.۴</small></span>
+                <span><b>۴٬۴۱۰٬۰۰۰</b><small>ارسال رایگان</small></span>
+              </div>
+              <div class="torob-foot">قیمت‌ها و موجودی را در صفحه‌ی ترب ببینید.</div>
+            </div>
+          </article>
 
-      <div class="features-grid">
-        <div class="feature-item reveal">
-          <div class="feature-icon">🧮</div>
-          <h3 class="feature-title">حل دقیق چندفروشندگی (Exact Solver)</h3>
-          <p class="feature-desc">
-            موتور محاسباتی افزونه تمامی فروشندگان، موجودی، قیمت پایه و هزینه ارسال اختصاصی هر مرسوله را استخراج کرده و کمینه‌ترین هزینه کل سبد را با الگوریتم‌های دقیق ترکیباتی پیدا می‌کند.
-          </p>
-        </div>
+          <article class="feature-card feature-controls">
+            <div class="feature-copy">
+              <span class="feature-label">قید و کنترل</span>
+              <h3>غرفه را قفل کنید، یا تحریمش کنید.</h3>
+              <p>به یک غرفه اعتماد ندارید؟ تحریمش کنید. از یک غرفه خوشتان می‌آید؟ قفلش کنید تا در حل، همان غرفه بماند. بُزخَر این قیدها را در محاسبه لحاظ می‌کند و بعد هم فقط با کلیک شما نتیجه را به سبد می‌برد.</p>
+            </div>
 
-        <div class="feature-item reveal">
-          <div class="feature-icon">🎁</div>
-          <h3 class="feature-title">کشف پروموشن‌های مخفی و آستانه‌ها</h3>
-          <p class="feature-desc">
-            طرح‌های «ارسال رایگان در صورت خرید ۲ عدد از این کالا» یا «ارسال رایگان غرفه در خریدهای بالای سقف مشخص» شناسایی شده و در محاسبه لحاظ می‌شوند.
-          </p>
-        </div>
+            <div class="vendor-chips" aria-hidden="true">
+              <span class="vendor-chip is-pinned"><svg class="icon"><use href="#i-pin"/></svg>غرفه‌ی الف</span>
+              <span class="vendor-chip is-banned"><svg class="icon"><use href="#i-ban"/></svg>غرفه‌ی ب</span>
+              <span class="vendor-chip">غرفه‌ی ج</span>
+            </div>
 
-        <div class="feature-item reveal">
-          <div class="feature-icon">🎯</div>
-          <h3 class="feature-title">پیشنهاد هوشمند «یک قلم تا ارسال رایگان»</h3>
-          <p class="feature-desc">
-            اگر با اضافه کردن یک واحد بیشتر از کالایی ارزان، سقف تخفیف پر شود و سود حاصل از حذف هزینه پست بیشتر از بهای آن کالا باشد، بزخر بلافاصله به شما هشدار می‌دهد.
-          </p>
-        </div>
+            <div class="apply-line" aria-hidden="true">
+              <span class="apply-dot"></span>
+              <span>اعمال در سبد فقط با کلیک شما</span>
+            </div>
+          </article>
 
-        <div class="feature-item reveal">
-          <div class="feature-icon">📦</div>
-          <h3 class="feature-title">پشتیبانی از کالاهای سنگین و حجیم</h3>
-          <p class="feature-desc">
-            مرسولات سنگین (یخچال، ماشین لباس‌شویی و...) که دارای کرایه باربری ثابت هستند فریبنده نیستند؛ بزخر آنها را مجزا شمرده و وعده واهی تخفیف پلاس به آنها نمی‌دهد.
-          </p>
-        </div>
-
-        <div class="feature-item reveal">
-          <div class="feature-icon">📌</div>
-          <h3 class="feature-title">قفل یا تحریم فروشنده (Pin / Ban)</h3>
-          <p class="feature-desc">
-            به غرفه خاصی اعتماد ندارید؟ آن را تحریم (Ban) کنید. غرفه بخصوصی را ترجیح میدهید؟ آن قفل (Pin) کنید.
-          </p>
-        </div>
-
-        <div class="feature-item reveal">
-          <div class="feature-icon">⏱️</div>
-          <h3 class="feature-title">شفافیت سن قیمت‌ها</h3>
-          <p class="feature-desc">
-            بازار آنلاین نوسان دارد. در بزخر هر قیمت دارای برچسب زمانی دقیق است تا هرگز بر اساس قیمت‌های منقضی تصمیم‌گیری نکنید.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Ethical & Privacy Section -->
-  <section id="privacy" class="privacy-section">
-    <div class="container">
-      <div class="privacy-box">
-        <div class="privacy-header">
-          <span class="privacy-badge">تعهد به اخلاق و حریم خصوصی</span>
-          <h2 class="privacy-title">خرید شفاف، بدون ردیاب و بدون دخالت دست</h2>
-          <p class="privacy-desc">
-            بزخر برای احترام به کاربر و حفظ سلامت وب طراحی شده است. ما معتقدیم یک ابزار کاربردی نباید داده‌های کاربر را مصادره کند:
-          </p>
-        </div>
-
-        <div class="privacy-grid">
-          <div class="privacy-card reveal">
-            <div class="p-icon">🚫</div>
-            <h4>هیچ سروری وجود ندارد</h4>
-            <p>تمام اطلاعات کالاها، قیمت‌ها و سبد خرید صرفاً درون پایگاه داده محلی مرورگر شما (IndexedDB) نگهداری می‌شود و به هیچ سرور خارجی ارسال نمی‌گردد.</p>
-          </div>
-
-          <div class="privacy-card reveal">
-            <div class="p-icon">✋</div>
-            <h4>هرگز سبد شما را لمس نمی‌کند</h4>
-            <p>معماری افزونه به صورت Advise-Only است؛ هیچ دکمه خریدی خودکار زده نمی‌شود و هیچ تغییری بدون تأیید و کلیک مستقیم خود شما روی دیجی‌کالا اعمال نخواهد شد.</p>
-          </div>
-
-          <div class="privacy-card reveal">
-            <div class="p-icon">🐢</div>
-            <h4>خزش مؤدبانه (Polite Crawling)</h4>
-            <p>ارتباط با دیجی‌کالا منحصراً با درخواست‌های ترتیبی و با وقفه انسانی (حداقل ۱.۵ ثانیه) انجام می‌شود تا بار ترافیکی نامتعارف به سایت تحمیل نشود.</p>
-          </div>
-
-          <div class="privacy-card reveal">
-            <div class="p-icon">🔓</div>
-            <h4>کد منبع کاملاً باز و بازرسی‌پذیر</h4>
-            <p>سورس کد کامل با تست‌های خودکار در گیت‌هاب عمومی است. هر کسی می‌تواند خط به خط رفتار امنیتی و محاسباتی کد را ارزیابی کند.</p>
+          <div class="feature-strip">
+            <div class="strip-item">
+              <span class="strip-icon"><svg class="icon" aria-hidden="true"><use href="#i-export"/></svg></span>
+              <div><h4>خروجی قابل استفاده</h4><p>Markdown، متن ساده، PDF، CSV یا XLSX. هر ردیف با لینک همان کالا.</p><div class="format-chips"><span>Markdown</span><span>PDF</span><span>CSV</span><span>XLSX</span></div></div>
+            </div>
+            <div class="strip-item">
+              <span class="strip-icon"><svg class="icon" aria-hidden="true"><use href="#i-receipt"/></svg></span>
+              <div><h4>کارت اشتراک</h4><p>یک تصویر آماده برای X یا اینستاگرام، با هشت پالت و سه چیدمان.</p></div>
+            </div>
+            <div class="strip-item">
+              <span class="strip-icon"><svg class="icon" aria-hidden="true"><use href="#i-star"/></svg></span>
+              <div><h4>ستاره و نسخه‌ی تازه</h4><p>در GitHub ستاره بدهید. وقتی پنجره‌ی افزونه را باز می‌کنید، اگر نسخه‌ی تازه‌تر باشد یک نوار کوچک نشان داده می‌شود.</p></div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Installation Guide Section -->
-  <section id="install" class="install-section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">راه‌اندازی و استفاده</span>
-        <h2 class="section-title">نحوه نصب و استفاده از افزونه</h2>
-        <p class="section-subtitle">
-          افزونه در حال حاضر مراحل تست و ارزیابی نهایی را طی می‌کند و به زودی در کروم وب‌استور قرار می‌گیرد. تا آن زمان می‌توانید در ۲ دقیقه آن را به صورت دستی روی مرورگر خود فعال کنید:
-        </p>
+    <section class="section privacy" id="privacy">
+      <div class="wrap">
+        <div class="privacy-panel">
+          <div class="privacy-head">
+            <p class="kicker kicker-lime">حریم خصوصی</p>
+            <h2 class="section-title">داده‌ها کجا می‌روند؟</h2>
+            <p class="section-lede">برای بیشتر کارها، هیچ‌جا. سبد، سفارش‌ها و تنظیمات در IndexedDB همان مرورگر می‌مانند. دو درخواست خارجی وجود دارد و هر دو را خودتان راه می‌اندازید.</p>
+          </div>
+
+          <div class="privacy-flow" aria-label="نمودار مسیر داده‌ها">
+            <div class="flow-box flow-source">
+              <span class="flow-label">دیجی‌کالا</span>
+              <small>GET با نشست خودتان</small>
+            </div>
+            <div class="flow-arrow" aria-hidden="true"><svg class="icon"><use href="#i-arrow"/></svg></div>
+            <div class="flow-browser">
+              <span class="flow-boundary">مرز مرورگر</span>
+              <div class="flow-browser-inner">
+                <span class="flow-label">مرورگر شما</span>
+                <div class="flow-chips"><span>IndexedDB</span><span>Solver</span><span>Insights</span></div>
+                <small>هیچ سرور و حسابی از طرف ما وجود ندارد.</small>
+              </div>
+            </div>
+            <div class="flow-arrow flow-arrow-out" aria-hidden="true"><svg class="icon"><use href="#i-arrow"/></svg></div>
+            <div class="flow-exceptions">
+              <div class="flow-exception">
+                <span class="flow-label">Torob</span>
+                <small>فقط با کلیک، فقط عنوان عمومی کالا</small>
+              </div>
+              <div class="flow-exception">
+                <span class="flow-label">GitHub</span>
+                <small>فقط با باز شدن popup، فقط آخرین tag</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="privacy-facts">
+            <dl>
+              <div><dt>ذخیره می‌شود</dt><dd>سبد، سفارش‌ها و تنظیمات، فقط در مرورگر شما</dd></div>
+              <div><dt>فرستاده نمی‌شود</dt><dd>حساب، سبد، سفارش‌ها، کوکی‌ها و نشست دیجی‌کالا</dd></div>
+              <div><dt>مجوزها</dt><dd><code>storage</code>، <code>tabs</code>، <code>scripting</code></dd></div>
+              <div><dt>میزبان‌ها</dt><dd><code class="code-line" dir="ltr">*.digikala.com, api.torob.com, api.github.com</code></dd></div>
+            </dl>
+            <p class="privacy-link"><a class="text-link text-link-light" href="https://github.com/SudoScraTchY/BozKhar/blob/main/agent/PUBLISHING.md" target="_blank" rel="noopener noreferrer">توضیح کامل مجوزها و داده‌ها <svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a></p>
+          </div>
+        </div>
       </div>
+    </section>
 
-      <!-- Installation Tabs -->
-      <div class="tab-wrapper">
-        <div class="tab-buttons" role="tablist">
-          <button class="tab-btn active" data-tab="tab-user" role="tab">نصب سریع (کاربران)</button>
-          <button class="tab-btn" data-tab="tab-dev" role="tab">نصب از سورس کد (توسعه‌دهندگان)</button>
+    <section class="section install" id="install">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">نصب</p>
+          <h2 class="section-title">نصب در دو دقیقه.</h2>
+          <p class="section-lede">افزونه هنوز در Chrome Web Store نیست. بسته‌ی نسخه ۰.۶.۲ را دانلود کنید و به‌صورت unpacked در مرورگر بارگذاری کنید. این روش روی Chrome، Edge و Brave کار می‌کند.</p>
         </div>
 
-        <!-- User Tab -->
-        <div id="tab-user" class="tab-content active" role="tabpanel">
-          <div class="steps-grid">
-            <div class="step-card reveal">
-              <div class="step-num">۱</div>
-              <h4 class="step-title">دانلود آخرین نسخه‌ی افزونه</h4>
-              <p class="step-desc">
-                بسته‌ی نهایی افزونه را دانلود کرده و در یک پوشه‌ی دلخواه استخراج (Extract) کنید. این لینک همیشه به آخرین انتشار رسمی اشاره می‌کند:
-              </p>
-              <a href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip" class="btn btn-sm btn-outline">
-                <span>⬇️ دانلود آخرین نسخه</span>
+        <div class="install-grid">
+          <aside class="download-ticket">
+            <div class="ticket-head"><span>نسخه‌ی پایدار</span><strong>۰.۶.۲</strong></div>
+            <div class="ticket-body">
+              <p class="ticket-platform">Chrome، Edge، Brave</p>
+              <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+                <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+                <span>دانلود bozkhar-latest.zip</span>
               </a>
-              <p class="step-note">
-                نسخه‌های پیشین و چک‌سام SHA-256 در
-                <a href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">صفحه‌ی انتشار</a>
-                است. می‌خواهید خودتان بسازید؟ تب «نصب از سورس کد» را ببینید.
-              </p>
+              <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">صفحه‌ی انتشار و SHA-256</a>
+              <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
+            </div>
+            <div class="ticket-barcode" aria-hidden="true"></div>
+            <p class="ticket-note">بعد از دانلود، فایل را در یک پوشه‌ی خالی استخراج کنید. پوشه‌ای که <code>manifest.json</code> در ریشه‌اش است را بارگذاری می‌کنید.</p>
+          </aside>
+
+          <div class="install-steps">
+            <div class="tabs" role="tablist" aria-label="روش نصب">
+              <button class="tab-btn is-active" id="tabUserBtn" type="button" role="tab" aria-selected="true" aria-controls="tabUser" data-tab="tabUser">نصب سریع</button>
+              <button class="tab-btn" id="tabDevBtn" type="button" role="tab" aria-selected="false" aria-controls="tabDev" data-tab="tabDev">از سورس کد</button>
             </div>
 
-            <div class="step-card reveal">
-              <div class="step-num">۲</div>
-              <h4 class="step-title">ورود به مدیریت افزونه‌ها</h4>
-              <p class="step-desc">
-                در مرورگر کروم، اج یا بریو، به آدرس زیر بروید یا از منوی تنظیمات وارد Extensions شوید:
-              </p>
-              <div class="code-box">
-                <code>chrome://extensions</code>
-                <button class="btn-copy" data-copy="chrome://extensions" title="کپی آدرس">کپی</button>
-              </div>
+            <div class="tab-panel is-active" id="tabUser" role="tabpanel" aria-labelledby="tabUserBtn">
+              <ol class="step-list">
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۱</span>
+                  <div><h3>دانلود و استخراج</h3><p>بسته‌ی نهایی را دانلود کنید و در یک پوشه‌ی خالی استخراج کنید. اگر از صفحه‌ی انتشار دانلود می‌کنید، فایل <code>.sha256</code> را هم بردارید تا بتوانید checksum را بررسی کنید.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۲</span>
+                  <div><h3>رفتن به مدیریت افزونه‌ها</h3><p>در نوار آدرس مرورگر، آدرس زیر را باز کنید:</p><div class="code-box"><code>chrome://extensions</code><button class="copy-btn" type="button" data-copy="chrome://extensions">کپی</button></div></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۳</span>
+                  <div><h3>روشن کردن Developer mode</h3><p>کلید <strong>Developer mode</strong> را در گوشه‌ی بالای صفحه روشن کنید. دکمه‌ی <strong>Load unpacked</strong> ظاهر می‌شود.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۴</span>
+                  <div><h3>بارگذاری پوشه</h3><p>روی <strong>Load unpacked</strong> کلیک کنید و همان پوشه‌ی استخراج‌شده را انتخاب کنید. آیکون بُزخَر در نوار ابزار مرورگر ظاهر می‌شود.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۵</span>
+                  <div><h3>باز کردن دیجی‌کالا</h3><p>صفحه‌ی کالا یا سبد خرید را باز کنید. دکمه‌های «افزودن به مقایسه» و «بهینه‌سازی سبد خرید» کنار صفحه ظاهر می‌شوند. از پنجره‌ی افزونه هم می‌توانید خریدهای من را باز کنید.</p></div>
+                </li>
+              </ol>
             </div>
 
-            <div class="step-card reveal">
-              <div class="step-num">۳</div>
-              <h4 class="step-title">فعال‌سازی Developer Mode</h4>
-              <p class="step-desc">
-                کلید «حالت توسعه‌دهنده» (Developer mode) را در گوشه سمت راست بالای صفحه روشن کنید.
-              </p>
-            </div>
-
-            <div class="step-card reveal">
-              <div class="step-num">۴</div>
-              <h4 class="step-title">بارگذاری افزونه</h4>
-              <p class="step-desc">
-                روی دکمه <strong>Load unpacked</strong> (بارگذاری بازنشده) کلیک کنید و <strong>همان پوشه‌ی استخراج‌شده</strong> را انتخاب کنید — پوشه‌ای که فایل <code>manifest.json</code> در ریشه‌ی آن است. آیکون بزخر در تولبار ظاهر خواهد شد!
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Dev Tab -->
-        <div id="tab-dev" class="tab-content" role="tabpanel">
-          <div class="dev-box">
-            <p class="dev-intro">پیش‌نیاز: نصب بودن Node.js نسخه ۲۰ یا بالاتر:</p>
-            
-            <div class="code-block-wrapper">
-              <div class="code-header">
-                <span>دستورات ترمینال</span>
-                <button class="btn-copy" data-copy="git clone https://github.com/SudoScraTchY/BozKhar.git
+            <div class="tab-panel" id="tabDev" role="tabpanel" aria-labelledby="tabDevBtn" hidden>
+              <div class="dev-box">
+                <p class="dev-intro">پیش‌نیاز: Node.js نسخه ۲۲ یا بالاتر و npm. هیچ وابستگی runtime وجود ندارد.</p>
+                <div class="code-block">
+                  <div class="code-head"><span>ترمینال</span><button class="copy-btn" type="button" data-copy="git clone https://github.com/SudoScraTchY/BozKhar.git
 cd BozKhar
 npm install
-npm run build">کپی همه</button>
-              </div>
-              <pre><code><span class="c-comment"># ۱. کلون کردن مخزن گیت‌هاب</span>
+npm run build">کپی همه</button></div>
+                  <pre><code><span class="c-comment"># ۱. گرفتن سورس</span>
 <span class="c-cmd">git clone https://github.com/SudoScraTchY/BozKhar.git</span>
 <span class="c-cmd">cd BozKhar</span>
 
-<span class="c-comment"># ۲. نصب وابستگی‌های توسعه (بدون هیچ وابستگی Runtime)</span>
+<span class="c-comment"># ۲. نصب وابستگی‌های توسعه</span>
 <span class="c-cmd">npm install</span>
 
-<span class="c-comment"># ۳. کامپایل و بیلد افزونه برای فولدر dist</span>
+<span class="c-comment"># ۳. ساخت بسته در پوشه‌ی dist</span>
 <span class="c-cmd">npm run build</span>
 
-<span class="c-comment"># ۴. اجرای آزمون‌های خودکار (اختیاری)</span>
-<span class="c-cmd">npm run test</span></code></pre>
+<span class="c-comment"># ۴. اجرای تست‌ها و بررسی‌ها</span>
+<span class="c-cmd">npm run verify</span></code></pre>
+                </div>
+                <p class="dev-note">بعد از build، پوشه‌ی <code>dist</code> را با <strong>Load unpacked</strong> بارگذاری کنید. تست‌ها با Vitest اجرا می‌شوند و CI همان چهار گیت typecheck، lint، format و test را روی هر push اجرا می‌کند.</p>
+              </div>
             </div>
-            <p class="dev-footer-note">پس از دستور <code>npm run build</code>، پوشه <code>dist</code> را در <code>chrome://extensions</code> بارگذاری فرمایید.</p>
           </div>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- FAQ Section -->
-  <section id="faq" class="faq-section">
-    <div class="container">
-      <div class="section-header">
-        <span class="section-tag">پاسخ به سوالات</span>
-        <h2 class="section-title">پرسش‌های متداول</h2>
+    <section class="section faq" id="faq">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="kicker">پرسش‌های متداول</p>
+          <h2 class="section-title">چیزهایی که معمولاً پرسیده می‌شود.</h2>
+        </div>
+
+        <div class="faq-list">
+          <details class="faq-item" open>
+            <summary>آیا بُزخَر حساب دیجی‌کالای من را به خطر می‌اندازد؟</summary>
+            <div class="faq-answer"><p>نه. بُزخَر همان صفحات و APIهایی را می‌خواند که خودتان در مرورگر باز کرده‌اید، با نشست خودتان و فقط زمانی که دکمه‌ای را بزنید. هیچ درخواست مخفی، اسپم یا خرید خودکاری انجام نمی‌دهد. درخواست‌ها ترتیبی و با فاصله‌ی پیش‌فرض ۱.۵ ثانیه اجرا می‌شوند.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>چرا اسمش «بُزخَر» است؟</summary>
+            <div class="faq-answer"><p>در فارسی عامیانه، بُزخَر به کسی می‌گویند که با سرسختی دنبال کمترین قیمت است. این ابزار همان کار را با حساب و کتاب انجام می‌دهد: قیمت کالا، هزینه‌ی ارسال هر غرفه و سقف‌های ارسال رایگان را با هم می‌بیند.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>با داشتن دیجی‌پلاس، بُزخَر لازم نیست؟</summary>
+            <div class="faq-answer"><p>دیجی‌پلاس هزینه‌ی ارسال عادی را پوشش می‌دهد، اما کرایه‌ی کالاهای سنگین و حجیم را نه. علاوه بر این، قیمت خود کالا بین غرفه‌ها متفاوت است. در شبیه‌ساز، کلید «عضو دیجی‌پلاس هستم» را بزنید تا ببینید با صفر شدن ارسال، چه چیزی از صرفه‌جویی باقی می‌ماند.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>چه داده‌ای از مرورگر بیرون می‌رود؟</summary>
+            <div class="faq-answer"><p>دو درخواست خارجی وجود دارد. یکی Torob، فقط وقتی روی «مقایسه در ترب» کلیک کنید و فقط عنوان عمومی کالا را می‌فرستد. دیگری GitHub، فقط وقتی پنجره‌ی افزونه را باز کنید و فقط آخرین tag نسخه را می‌خواند. حساب، سبد، سفارش‌ها، کوکی‌ها و نشست دیجی‌کالا هیچ‌وقت فرستاده نمی‌شوند.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>خرج خریدهای من چطور حساب می‌شود؟</summary>
+            <div class="faq-answer"><p>همه‌چیز روی همین مرورگر و در IndexedDB ذخیره می‌شود. سفارش لغوشده در جمع خرج نمی‌آید. سفارش برگشتی با مبلغ خالص بعد از کسر مبلغ برگشتی حساب می‌شود؛ اگر مبلغ برگشتی ثبت نشده باشد، کنارش هشدار می‌آید. مبلغ هر قلم هم به مبلغ پرداختی همان سفارش محدود می‌شود تا قیمت درج‌شده در صفحه، عددی بزرگ‌تر از پولی که واقعاً داده‌اید نشان ندهد.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>چطور در توسعه مشارکت کنم؟</summary>
+            <div class="faq-answer"><p>با ستاره دادن به مخزن، باز کردن Issue برای گزارش خطا یا فرستادن Pull Request. کارهای بعدی و وضعیت فعلی پروژه در <a href="https://github.com/SudoScraTchY/BozKhar/blob/main/agent/HANDOFF.md" target="_blank" rel="noopener noreferrer">HANDOFF</a> آمده است.</p></div>
+          </details>
+        </div>
       </div>
+    </section>
 
-      <div class="faq-list">
-        <details class="faq-item" open>
-          <summary class="faq-question">آیا استفاده از بزخر باعث مسدود شدن حساب دیجی‌کالای من می‌شود؟</summary>
-          <div class="faq-answer">
-            <p>
-              خیر، به هیچ وجه. بزخر دقیقاً همان رفتاری را دارد که شما خودتان دستی انجام می‌دهید: باز کردن صفحات کالاها و دیدن قیمت غرفه‌ها. افزونه هیچ درخواست مخفی، اسپم یا عملیات خودکاری انجام نمی‌دهد و تنها زمانی کار می‌کند که خودتان دکمه بررسی را کلیک کنید.
-            </p>
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-question">چرا نام این پروژه «بزخر» انتخاب شده است؟</summary>
-          <div class="faq-answer">
-            <p>
-              در اصطلاح عامیانه فارسی، «بزخر» به کسی گفته می‌شود که با سرسختی دنبال خرید با کمترین قیمت ممکن است. ما این مفهوم را به عنوان نمادی از هوش محاسباتی و چانه‌زنی ریاضی در برابر سیستم‌های چندفروشندگی برگزیده‌ایم — به دور از روش‌های غیرشفاف، بلکه با تکیه بر آمار و ارقام صادقانه.
-            </p>
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-question">آیا داشتن اشتراک دیجی‌پلاس من را از این افزونه بی‌نیاز می‌کند؟</summary>
-          <div class="faq-answer">
-            <p>
-              خیر! دیجی‌پلاس فقط هزینه ارسال مرسوله‌های عادی دیجی‌کالا را پوشش می‌دهد، اما اولاً کالاهای سنگین و حجیم مشمول پلاس نمی‌شوند و هزینه باربری دارند، ثانیاً ارسال غرفه‌ها قوانین متفاوتی دارند، و ثالثاً اختلاف قیمت خود کالاها میان غرفه‌ها گاهی از هزینه پست بسیار بیشتر است. بزخر وضعیت پلاس شما را دریافت کرده و هزینه را با مدل اختصاصی پلاس بهینه‌سازی می‌کند.
-            </p>
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-question">آیا این پروژه هزینه‌ای دارد یا پلن پولی در آینده اضافه می‌شود؟</summary>
-          <div class="faq-answer">
-            <p>
-              خیر. بزخر یک پروژه ۱۰۰٪ متن‌باز تحت مدیریت جامعه کاربری است. هیچ پلن ویژه، حق اشتراک یا سیستم پرداختی در کار نیست و همواره رایگان خواهد ماند.
-            </p>
-          </div>
-        </details>
-
-        <details class="faq-item">
-          <summary class="faq-question">چگونه می‌توانم در توسعه بزخر مشارکت کنم؟</summary>
-          <div class="faq-answer">
-            <p>
-              ما مشتاقانه از مشارکت توسعه‌دهندگان استقبال می‌کنیم! شما می‌توانید با ستاره دادن به پروژه در گیت‌هاب، باز کردن Issue برای گزارش خطاها، یا ارسال Pull Request برای بهبود الگوریتم یا رابط کاربری در این مسیر همراه ما باشید.
-            </p>
-          </div>
-        </details>
-      </div>
-    </div>
-  </section>
-
-  <!-- CTA Bottom -->
-  <section class="cta-bottom">
-    <div class="container cta-box">
-      <h2 class="cta-title">آماده‌اید هوشمندانه‌تر خرید کنید؟</h2>
-      <p class="cta-desc">مخزن بزخر در گیت‌هاب در دسترس شماست. همین حالا آن را آزمایش کنید و در توسعه مشارکت داشته باشید.</p>
-      <div class="cta-actions">
-        <a href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer" class="btn btn-light">
-          <span>⭐️ ستاره دادن در GitHub</span>
-        </a>
-        <a href="#install" class="btn btn-outline-white">
-          <span>نحوه نصب و استفاده</span>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <!-- Footer -->
-  <footer class="site-footer">
-    <div class="container footer-inner">
-      <div class="footer-brand">
-        <img src="assets/logo.png" alt="بزخر" class="footer-logo" width="36" height="36">
+    <section class="cta">
+      <div class="wrap cta-box">
         <div>
-          <span class="footer-name">پروژه متن‌باز بُزخَر</span>
-          <p class="footer-tagline">سبد خرید یکسان، ریال کمتر، بدون الگوهای تاریک.</p>
+          <p class="kicker">سبد بعدی</p>
+          <h2 class="cta-title">سفارش بعدیت رو بُزخَری&nbsp;کن</h2>
+          <p class="cta-lede">افزونه را نصب کنید، سبدتان را باز کنید و ببینید چند تومان از ارسال و قیمت کالا کم می‌شود. نتیجه را می‌توانید نگه دارید یا به سبد خودتان اعمال کنید.</p>
+        </div>
+        <div class="cta-actions">
+          <a class="btn btn-dark" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+            <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+            <span>دانلود نسخه ۰.۶.۲</span>
+          </a>
+          <a class="btn btn-outline-dark" href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">
+            <svg class="icon icon-github" aria-hidden="true"><use href="#i-github"/></svg>
+            <span>ستاره در GitHub</span>
+          </a>
         </div>
       </div>
+    </section>
+  </main>
 
-      <div class="footer-links">
-        <a href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">گیت‌هاب</a>
-        <a href="https://github.com/SudoScraTchY/BozKhar/blob/main/README.md" target="_blank" rel="noopener noreferrer">مستندات README</a>
-        <a href="https://github.com/SudoScraTchY/BozKhar/issues" target="_blank" rel="noopener noreferrer">گزارش مشکل</a>
+  <footer class="site-footer">
+    <div class="wrap footer-top">
+      <div class="footer-brand">
+        <img src="assets/logo-128.png" alt="" width="40" height="40">
+        <div><strong>بُزخَر</strong><span>همان سبد، صورتحساب کمتر.</span></div>
       </div>
+      <nav class="footer-nav" aria-label="لینک‌های پایین صفحه">
+        <a href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/SudoScraTchY/BozKhar/blob/main/README.md" target="_blank" rel="noopener noreferrer">README</a>
+        <a href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">انتشارها</a>
+        <a href="https://github.com/SudoScraTchY/BozKhar/issues" target="_blank" rel="noopener noreferrer">گزارش مشکل</a>
+      </nav>
+      <div class="footer-version"><span>نسخه ۰.۶.۲</span><span>۳۰ مهر ۱۴۰۵</span></div>
     </div>
-    <div class="container footer-copy">
-      <span>توسعه‌داده‌شده برای جامعه متن‌باز فارسی زبان • پاییز ۱۴۰۵</span>
+    <div class="wrap footer-bottom">
+      <p>پروژه‌ی متن‌باز برای خرید شفاف‌تر از دیجی‌کالا. بدون سرور، بدون تلمتری، بدون حساب.</p>
+      <div class="footer-barcode" aria-hidden="true"></div>
     </div>
   </footer>
 
-  <!-- Toast for Copy notifications -->
-  <div id="toast" class="toast" role="status" aria-live="polite">کپی شد!</div>
+  <div class="toast" id="toast" role="status" aria-live="polite">کپی شد</div>
 
-  <script src="app.js"></script>
+  <script src="app.js" defer></script>
 </body>
 </html>
