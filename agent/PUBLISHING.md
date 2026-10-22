@@ -4,7 +4,8 @@ Where this extension can ship, what each store costs, and exactly what to put
 in front of a reviewer. Written 2026-10-16 against the 0.4.0 package, updated
 the same day for 0.5.0 (the stable download alias, D-37), and again on
 2026-10-20 for 0.6.0 (Order Insights and the Torob host permission, D-42) and
-0.6.1 (the popup release check that adds `api.github.com`, D-44).
+0.6.1 (the popup release check that adds `api.github.com`, D-44); 0.6.2 adds
+no permission and corrects the analytics math (D-45).
 
 ## The answer in one table
 
@@ -62,8 +63,8 @@ the tag, and writes the SHA-256 into the run's step summary.
 To verify a download before you upload it:
 
 ```bash
-sha256sum -c bozkhar-0.6.1.zip.sha256                       # or shasum -a 256 -c
-gh attestation verify bozkhar-0.6.1.zip --repo SudoScraTchY/BozKhar
+sha256sum -c bozkhar-0.6.2.zip.sha256                       # or shasum -a 256 -c
+gh attestation verify bozkhar-0.6.2.zip --repo SudoScraTchY/BozKhar
 gh attestation verify bozkhar-latest.zip --repo SudoScraTchY/BozKhar
 ```
 
@@ -83,7 +84,7 @@ python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256
 Two ways, and both refuse a version that does not match `package.json`:
 
 **From the Actions tab** (nothing to install): *Actions → Release → Run
-workflow*, and type the version — `0.6.1` or `v0.6.1`. The tag is created at
+workflow*, and type the version — `0.6.2` or `v0.6.2`. The tag is created at
 the commit the run verified, so the zip, the tag and the commit always agree.
 
 **From your machine**, if you prefer the tag to come first:
@@ -91,11 +92,11 @@ the commit the run verified, so the zip, the tag and the commit always agree.
 ```bash
 # 1. bump the version in package.json (the manifest and the tag both read it)
 # 2. commit that bump and push it to main
-git tag -a v0.6.1 -m "BozKhar 0.6.1"
-git push origin v0.6.1
+git tag -a v0.6.2 -m "BozKhar 0.6.2"
+git push origin v0.6.2
 ```
 
-v0.4.0 through v0.6.1 were published this way. Re-running a release for a
+v0.4.0 through v0.6.2 were published this way. Re-running a release for a
 tag that already exists is allowed only when that tag points at the commit
 the run just built — otherwise the run stops and says so, because a release
 built from one tree must never be filed under a tag that names another.
@@ -121,7 +122,7 @@ on screen before you upload.
 ## The answers a reviewer will ask for
 
 Have these ready; they are the difference between "in review for a week" and
-a rejection. They are all true of this codebase as of 0.6.1 — keep them true
+a rejection. They are all true of this codebase as of 0.6.2 — keep them true
 if that changes.
 
 **Single purpose.** "BozKhar helps a shopper pay less on digikala.com. It
@@ -249,7 +250,7 @@ answer to any "is this a scraper?" question.
 
 ## Firefox: a port, not an upload (T06.6)
 
-Firefox is free to publish on, but the 0.6.1 package will not run there
+Firefox is free to publish on, but the 0.6.2 package will not run there
 unmodified:
 
 - **No `background.service_worker` in Firefox MV3.** Firefox runs an *event

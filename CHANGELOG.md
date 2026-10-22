@@ -4,6 +4,24 @@ All notable changes to BozKhar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-10-22
+
+### Fixed
+
+- Spend by category, vendor and brand is capped at each order's actual net
+  paid amount. Item rows carry list prices, so an order-level coupon, refund
+  or later price change could make a single 4,000,000-Toman product appear as
+  18,200,000 Toman. Values are never scaled up, and cancelled orders still
+  contribute nothing.
+- A detail response can no longer overwrite a list status of `cancelled` or
+  `returned`, so a deep scan cannot move a cancelled order back into spend.
+
+### Tests
+
+- 456 tests across 41 files, including an end-to-end page test with one
+  4,000,000-Toman SSD at an 18,200,000 list price and five cancelled storage
+  orders.
+
 ## [0.6.1] - 2026-10-20
 
 ### Added
@@ -109,5 +127,6 @@ All notable changes to BozKhar are documented here. The format follows
 - 438 tests across 39 files, plus typecheck, ESLint, Prettier, production
   build and the built-manifest audit.
 
+[0.6.2]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.2
 [0.6.1]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.1
 [0.6.0]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.0
