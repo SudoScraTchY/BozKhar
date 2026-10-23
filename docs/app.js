@@ -721,6 +721,7 @@
     Array.prototype.forEach.call(buttons, function (button) {
       button.addEventListener('click', function () {
         var targetId = button.getAttribute('data-tab');
+        var ticket = button.getAttribute('data-ticket');
         Array.prototype.forEach.call(buttons, function (other) {
           var isActive = other === button;
           other.classList.toggle('is-active', isActive);
@@ -731,6 +732,12 @@
           panel.classList.toggle('is-active', isActive);
           panel.hidden = !isActive;
         });
+        if (ticket) {
+          Array.prototype.forEach.call(document.querySelectorAll('.download-ticket'), function (card) {
+            var isActive = card.getAttribute('data-ticket') === ticket;
+            card.hidden = !isActive;
+          });
+        }
       });
     });
   }

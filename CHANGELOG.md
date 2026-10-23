@@ -6,6 +6,16 @@ All notable changes to BozKhar are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The landing page install ticket now follows the selected browser family:
+  choosing Chromium shows the Chromium package, choosing Firefox shows the
+  Firefox package, and the source tab shows the source card. All three use the
+  same primary button style.
+- Browser support copy now names the Chromium-based family (Chrome, Edge,
+  Brave, Opera, Vivaldi, Yandex) and the Firefox-based family (Firefox 140+,
+  Zen, Waterfox, Floorp), including the per-browser extensions page.
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

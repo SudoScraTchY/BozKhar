@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>بُزخَر | همان سبد، صورتحساب کمتر</title>
-  <meta name="description" content="بُزخَر یک افزونه متن‌باز Chrome و Firefox است که سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. محلی، بدون سرور، با اجازه‌ی خودتان.">
+  <meta name="description" content="بُزخَر یک افزونه متن‌باز برای مرورگرهای مبتنی بر Chromium (Chrome، Edge، Brave، Opera، Vivaldi، Yandex) و مبتنی بر Firefox (Firefox ۱۴۰+، Zen، Waterfox، Floorp) است که سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. محلی، بدون سرور، با اجازه‌ی خودتان.">
   <meta name="keywords" content="دیجی کالا, بهینه سازی سبد خرید, بُزخَر, BozKhar, کاهش هزینه ارسال, دیجی پلاس, خرید ارزان, Torob, ترب">
   <meta name="author" content="SudoScraTchY">
   <meta name="robots" content="index,follow">
@@ -36,9 +36,9 @@
     "@type": "SoftwareApplication",
     "name": "بُزخَر",
     "alternateName": "BozKhar",
-    "description": "افزونه متن‌باز Chrome و Firefox برای پیدا کردن کمترین مجموع قیمت کالا و ارسال در سبد دیجی‌کالا.",
+    "description": "افزونه متن‌باز برای مرورگرهای Chromium و Firefox که کمترین مجموع قیمت کالا و ارسال در سبد دیجی‌کالا را پیدا می‌کند.",
     "applicationCategory": "BrowserApplication",
-    "operatingSystem": "Chrome, Edge, Brave, Firefox",
+    "operatingSystem": "Chrome, Edge, Brave, Opera, Vivaldi, Yandex, Firefox, Zen, Waterfox, Floorp",
     "softwareVersion": "0.7.0",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "IRR" },
     "downloadUrl": "https://github.com/SudoScraTchY/BozKhar/releases/latest",
@@ -182,7 +182,7 @@
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="hero-kicker"><span class="kicker-mark" aria-hidden="true"></span>افزونه‌ی متن‌باز Chrome و Firefox، نسخه ۰.۷.۰</p>
+          <p class="hero-kicker"><span class="kicker-mark" aria-hidden="true"></span>افزونه‌ی متن‌باز برای مرورگرهای Chromium و Firefox، نسخه ۰.۷.۰</p>
           <h1 class="hero-title">همان سبد.<br><span class="hero-tag">صورتحساب کمتر.</span></h1>
           <p class="hero-lede">بُزخَر سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. خودش چیزی نمی‌خرد و سبد را دست نمی‌زند. فقط حساب می‌کند و نقشه‌ی خرید را می‌سازد.</p>
 
@@ -508,15 +508,15 @@
         <div class="section-head">
           <p class="kicker">نصب</p>
           <h2 class="section-title">نصب در دو دقیقه.</h2>
-          <p class="section-lede">افزونه هنوز در Chrome Web Store و AMO نیست. برای Chrome، Edge و Brave بسته‌ی unpacked را بارگذاری می‌کنید. برای Firefox 140+ (و مرورگرهای مبتنی بر آن مثل Floorp و Zen) یک بسته‌ی جدا هست که فعلاً به‌صورت افزونه‌ی موقت نصب می‌شود.</p>
+          <p class="section-lede">افزونه هنوز در Chrome Web Store و AMO نیست. برای مرورگرهای مبتنی بر Chromium (Chrome، Edge، Brave، Opera، Vivaldi، Yandex) بسته‌ی unpacked را بارگذاری می‌کنید. برای مرورگرهای مبتنی بر Firefox (Firefox 140+، Zen، Waterfox، Floorp) یک بسته‌ی جدا هست که فعلاً به‌صورت افزونه‌ی موقت نصب می‌شود.</p>
         </div>
 
         <div class="install-grid">
-          <div class="download-stack">
-            <aside class="download-ticket">
+          <div class="download-stack" aria-live="polite">
+            <aside class="download-ticket" data-ticket="chrome">
               <div class="ticket-head"><span>نسخه‌ی پایدار</span><strong>۰.۷.۰</strong></div>
               <div class="ticket-body">
-                <p class="ticket-platform">Chrome، Edge، Brave</p>
+                <p class="ticket-platform">Chromium-based: Chrome، Edge، Brave، Opera، Vivaldi، Yandex</p>
                 <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
                   <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
                   <span>دانلود bozkhar-latest.zip</span>
@@ -525,40 +525,55 @@
                 <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
               </div>
               <div class="ticket-barcode" aria-hidden="true"></div>
-              <p class="ticket-note">بعد از دانلود، فایل را در یک پوشه‌ی خالی استخراج کنید. پوشه‌ای که <code>manifest.json</code> در ریشه‌اش است را بارگذاری می‌کنید.</p>
+              <p class="ticket-note">بعد از دانلود، فایل را در یک پوشه‌ی خالی استخراج کنید. در هر کدام از مرورگرهای Chromium، پوشه‌ای که <code>manifest.json</code> در ریشه‌اش است را با <strong>Load unpacked</strong> بارگذاری می‌کنید.</p>
             </aside>
 
-            <aside class="download-ticket">
-              <div class="ticket-head"><span>بسته‌ی Firefox</span><strong>۰.۷.۰</strong></div>
+            <aside class="download-ticket" data-ticket="firefox" hidden>
+              <div class="ticket-head"><span>نسخه‌ی Firefox</span><strong>۰.۷.۰</strong></div>
               <div class="ticket-body">
-                <p class="ticket-platform">Firefox ۱۴۰+ دسکتاپ، Floorp، Zen</p>
-                <a class="btn btn-outline-dark btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">
+                <p class="ticket-platform">Firefox-based: Firefox ۱۴۰+، Zen، Waterfox، Floorp</p>
+                <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">
                   <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
                   <span>دریافت بسته‌ی Firefox</span>
                 </a>
+                <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">صفحه‌ی انتشار و SHA-256</a>
                 <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
               </div>
               <div class="ticket-barcode" aria-hidden="true"></div>
               <p class="ticket-note">این بسته هنوز امضای AMO ندارد و فقط به‌صورت <strong>افزونه‌ی موقت</strong> نصب می‌شود؛ با راه‌اندازی دوباره‌ی مرورگر پاک می‌شود. نسخه‌ی پایدار بعد از انتشار در AMO از همان‌جا نصب می‌شود.</p>
             </aside>
+
+            <aside class="download-ticket" data-ticket="source" hidden>
+              <div class="ticket-head"><span>از سورس کد</span><strong>۲ بسته</strong></div>
+              <div class="ticket-body">
+                <p class="ticket-platform">Node.js ۲۲+، یک کدبیس برای هر دو خانواده</p>
+                <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">
+                  <svg class="icon" aria-hidden="true"><use href="#i-github"/></svg>
+                  <span>باز کردن مخزن در GitHub</span>
+                </a>
+                <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/blob/main/README.md" target="_blank" rel="noopener noreferrer">راهنمای ساخت و توسعه</a>
+              </div>
+              <div class="ticket-barcode" aria-hidden="true"></div>
+              <p class="ticket-note">بعد از <code>npm run build</code> پوشه‌ی <code>dist</code> برای Chromium و بعد از <code>npm run build:firefox</code> پوشه‌ی <code>dist-firefox</code> برای Firefox آماده می‌شود.</p>
+            </aside>
           </div>
 
           <div class="install-steps">
             <div class="tabs" role="tablist" aria-label="روش نصب">
-              <button class="tab-btn is-active" id="tabChromeBtn" type="button" role="tab" aria-selected="true" aria-controls="tabChrome" data-tab="tabChrome">Chrome و Edge</button>
-              <button class="tab-btn" id="tabFirefoxBtn" type="button" role="tab" aria-selected="false" aria-controls="tabFirefox" data-tab="tabFirefox">Firefox</button>
-              <button class="tab-btn" id="tabDevBtn" type="button" role="tab" aria-selected="false" aria-controls="tabDev" data-tab="tabDev">از سورس کد</button>
+              <button class="tab-btn is-active" id="tabChromeBtn" type="button" role="tab" aria-selected="true" aria-controls="tabChrome" data-tab="tabChrome" data-ticket="chrome">Chromium</button>
+              <button class="tab-btn" id="tabFirefoxBtn" type="button" role="tab" aria-selected="false" aria-controls="tabFirefox" data-tab="tabFirefox" data-ticket="firefox">Firefox</button>
+              <button class="tab-btn" id="tabDevBtn" type="button" role="tab" aria-selected="false" aria-controls="tabDev" data-tab="tabDev" data-ticket="source">از سورس کد</button>
             </div>
 
             <div class="tab-panel is-active" id="tabChrome" role="tabpanel" aria-labelledby="tabChromeBtn">
               <ol class="step-list">
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۱</span>
-                  <div><h3>دانلود و استخراج</h3><p>بسته‌ی نهایی را دانلود کنید و در یک پوشه‌ی خالی استخراج کنید. اگر از صفحه‌ی انتشار دانلود می‌کنید، فایل <code>.sha256</code> را هم بردارید تا بتوانید checksum را بررسی کنید.</p></div>
+                  <div><h3>دانلود و استخراج</h3><p>بسته‌ی Chromium را دانلود کنید و در یک پوشه‌ی خالی استخراج کنید. اگر از صفحه‌ی انتشار دانلود می‌کنید، فایل <code>.sha256</code> را هم بردارید تا بتوانید checksum را بررسی کنید.</p></div>
                 </li>
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۲</span>
-                  <div><h3>رفتن به مدیریت افزونه‌ها</h3><p>در نوار آدرس مرورگر، آدرس زیر را باز کنید:</p><div class="code-box"><code>chrome://extensions</code><button class="copy-btn" type="button" data-copy="chrome://extensions">کپی</button></div></div>
+                  <div><h3>رفتن به مدیریت افزونه‌ها</h3><p>در Chrome آدرس زیر را باز کنید:</p><div class="code-box"><code>chrome://extensions</code><button class="copy-btn" type="button" data-copy="chrome://extensions">کپی</button></div><p>در Edge: <code>edge://extensions</code> · Opera: <code>opera://extensions</code> · Vivaldi: <code>vivaldi://extensions</code> · Yandex: <code>browser://extensions</code></p></div>
                 </li>
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۳</span>
@@ -583,7 +598,7 @@
                 </li>
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۲</span>
-                  <div><h3>باز کردن about:debugging</h3><p>در نوار آدرس Firefox این آدرس را باز کنید:</p><div class="code-box"><code>about:debugging#/runtime/this-firefox</code><button class="copy-btn" type="button" data-copy="about:debugging#/runtime/this-firefox">کپی</button></div></div>
+                  <div><h3>باز کردن about:debugging</h3><p>در نوار آدرس Firefox این آدرس را باز کنید. همین صفحه در Zen، Waterfox و Floorp هم در دسترس است:</p><div class="code-box"><code>about:debugging#/runtime/this-firefox</code><button class="copy-btn" type="button" data-copy="about:debugging#/runtime/this-firefox">کپی</button></div></div>
                 </li>
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۳</span>
@@ -595,7 +610,7 @@
                 </li>
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۵</span>
-                  <div><h3>باز کردن دیجی‌کالا</h3><p>صفحه‌ی کالا یا سبد خرید را باز کنید؛ همان دکمه‌ها و پنجره‌ی افزونه در دسترس‌اند. این نصب موقتی است: با بستن کامل Firefox پاک می‌شود و باید همین چند قدم را تکرار کنید تا نسخه‌ی AMO منتشر شود.</p></div>
+                  <div><h3>باز کردن دیجی‌کالا</h3><p>صفحه‌ی کالا یا سبد خرید را باز کنید؛ همان دکمه‌ها و پنجره‌ی افزونه در دسترس‌اند. این نصب موقتی است: با بستن کامل مرورگر پاک می‌شود و باید همین چند قدم را تکرار کنید تا نسخه‌ی AMO منتشر شود.</p></div>
                 </li>
               </ol>
             </div>
@@ -616,7 +631,7 @@ npm run build:firefox">کپی همه</button></div>
 <span class="c-comment"># ۲. نصب وابستگی‌های توسعه</span>
 <span class="c-cmd">npm install</span>
 
-<span class="c-comment"># ۳. ساخت بسته‌ی Chrome در پوشه‌ی dist</span>
+<span class="c-comment"># ۳. ساخت بسته‌ی Chromium در پوشه‌ی dist</span>
 <span class="c-cmd">npm run build</span>
 
 <span class="c-comment"># ۴. ساخت بسته‌ی Firefox در پوشه‌ی dist-firefox</span>
@@ -625,7 +640,7 @@ npm run build:firefox">کپی همه</button></div>
 <span class="c-comment"># ۵. اجرای تست‌ها و بررسی‌ها</span>
 <span class="c-cmd">npm run verify</span></code></pre>
                 </div>
-                <p class="dev-note">بعد از build، پوشه‌ی <code>dist</code> را در <code>chrome://extensions</code> با <strong>Load unpacked</strong> بارگذاری کنید، یا <code>dist-firefox/manifest.json</code> را در <code>about:debugging#/runtime/this-firefox</code> به‌عنوان افزونه‌ی موقت. بسته‌ی Firefox همان خروجی Chrome است با manifest مخصوص Firefox؛ تست‌ها با Vitest اجرا می‌شوند و CI همان گیت‌های typecheck، lint، format و test را روی هر push اجرا می‌کند.</p>
+                <p class="dev-note">بعد از build، پوشه‌ی <code>dist</code> را در صفحه‌ی افزونه‌های یکی از مرورگرهای Chromium (<code>chrome://extensions</code>، <code>edge://extensions</code> و…) با <strong>Load unpacked</strong> بارگذاری کنید، یا <code>dist-firefox/manifest.json</code> را در <code>about:debugging#/runtime/this-firefox</code> به‌عنوان افزونه‌ی موقت. بسته‌ی Firefox همان خروجی Chromium است با manifest مخصوص Firefox؛ تست‌ها با Vitest اجرا می‌شوند و CI همان گیت‌های typecheck، lint، format و test را روی هر push اجرا می‌کند.</p>
               </div>
             </div>
           </div>
@@ -647,8 +662,13 @@ npm run build:firefox">کپی همه</button></div>
           </details>
 
           <details class="faq-item">
-            <summary>روی Firefox چطور نصب می‌شود؟</summary>
-            <div class="faq-answer"><p>Firefox 140+ و مرورگرهای مبتنی بر آن مثل Floorp و Zen همان نسخه را اجرا می‌کنند. بسته‌ی <code>bozkhar-firefox-0.7.0.zip</code> را از صفحه‌ی انتشار دانلود و استخراج کنید، در Firefox آدرس <code>about:debugging#/runtime/this-firefox</code> را باز کنید، روی <strong>Load Temporary Add-on…</strong> بزنید و فایل <code>manifest.json</code> را انتخاب کنید. این بسته هنوز امضای AMO ندارد، پس موقتی است و با راه‌اندازی دوباره‌ی مرورگر پاک می‌شود؛ نسخه‌ی پایدار بعد از انتشار در AMO از همان‌جا نصب می‌شود.</p></div>
+            <summary>روی مرورگرهای Chromium دیگر چطور نصب می‌شود؟</summary>
+            <div class="faq-answer"><p>همان بسته‌ی Chromium روی Chrome، Edge، Brave، Opera، Vivaldi و Yandex نصب می‌شود. فقط صفحه‌ی مدیریت افزونه‌ها فرق می‌کند: <code>chrome://extensions</code>، <code>edge://extensions</code>، <code>opera://extensions</code>، <code>vivaldi://extensions</code> یا <code>browser://extensions</code>. بقیه‌ی مراحل یکی است: Developer mode را روشن کنید و پوشه را با Load unpacked بارگذاری کنید.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>روی Firefox و مرورگرهای مبتنی بر آن چطور نصب می‌شود؟</summary>
+            <div class="faq-answer"><p>Firefox 140+ و مرورگرهای مبتنی بر آن (Zen، Waterfox، Floorp) همان نسخه را اجرا می‌کنند. بسته‌ی <code>bozkhar-firefox-0.7.0.zip</code> را از صفحه‌ی انتشار دانلود و استخراج کنید، در مرورگر آدرس <code>about:debugging#/runtime/this-firefox</code> را باز کنید، روی <strong>Load Temporary Add-on…</strong> بزنید و فایل <code>manifest.json</code> را انتخاب کنید. این بسته هنوز امضای AMO ندارد، پس موقتی است و با راه‌اندازی دوباره‌ی مرورگر پاک می‌شود؛ نسخه‌ی پایدار بعد از انتشار در AMO از همان‌جا نصب می‌شود.</p></div>
           </details>
 
           <details class="faq-item">

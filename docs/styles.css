@@ -2482,6 +2482,17 @@ section[id] {
   margin-bottom: 0;
 }
 
+.step p code {
+  display: inline-block;
+  padding: 0.05rem 0.25rem;
+  border-radius: 3px;
+  background: var(--paper-2);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
 .code-box {
   display: flex;
   align-items: center;

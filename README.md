@@ -7,8 +7,10 @@
 hunts bargains relentlessly: a person who buys things **very cheap**. That is
 exactly what this tool does for you on [Digikala](https://www.digikala.com).
 
-**Boz Khar** is an advise-first browser extension (MV3) for Chrome and Firefox
-140+ that finds the **cheapest way to buy your Digikala cart across marketplace
+**Boz Khar** is an advise-first browser extension (MV3) for Chromium-based
+browsers (Chrome, Edge, Brave, Opera, Vivaldi, Yandex) and Firefox-based
+browsers (Firefox 140+, Zen, Waterfox, Floorp). It finds the
+**cheapest way to buy your Digikala cart across marketplace
 vendors** — item prices **and** per-vendor delivery fees together, with
 promotions, Digikala Plus benefits, large-item fees, and your own vendor locks
 (pin/ban) factored in. It also summarizes your own order history **on-device** and, on request,
@@ -26,10 +28,13 @@ own cart for you (D-26/D-30). Nothing else ever writes to your cart.
   packages every push; a `v*` tag publishes an attested release
   (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
 - Install:
-  - **Chrome, Edge, Brave** — take `bozkhar-<version>.zip` (or the stable
-    `bozkhar-latest.zip`) from the [latest release](https://github.com/SudoScraTchY/BozKhar/releases),
-    extract it, then load the folder from `chrome://extensions` → **Load unpacked**.
-  - **Firefox 140+** (including Floorp and Zen) — take
+  - **Chromium-based (Chrome, Edge, Brave, Opera, Vivaldi, Yandex)** — take
+    `bozkhar-<version>.zip` (or the stable `bozkhar-latest.zip`) from the
+    [latest release](https://github.com/SudoScraTchY/BozKhar/releases), extract
+    it, then open the browser's extensions page (`chrome://extensions`,
+    `edge://extensions`, `opera://extensions`, `vivaldi://extensions` or
+    `browser://extensions`) → **Load unpacked**.
+  - **Firefox-based (Firefox 140+, Zen, Waterfox, Floorp)** — take
     `bozkhar-firefox-<version>.zip` from the same release, extract it, then load
     its `manifest.json` from `about:debugging#/runtime/this-firefox` → **Load
     Temporary Add-on…**. The zip is unsigned and temporary until the AMO listing
@@ -176,8 +181,9 @@ committed fixture in `tests/fixtures/solver/`.
 
 ## Development
 
-Prerequisites: **Node.js >= 22** and npm; Chrome/Chromium, or Firefox 140+ for
-the Firefox target.
+Prerequisites: **Node.js >= 22** and npm; a Chromium-based browser (Chrome,
+Edge, Brave, Opera, Vivaldi, Yandex), or Firefox 140+ / Zen / Waterfox / Floorp
+for the Firefox target.
 
 ```bash
 npm install          # devDependencies only — zero runtime deps
@@ -200,8 +206,10 @@ python scripts/package-store-zip.py       # bozkhar-<version>.zip (+ .sha256) fo
 python scripts/package-store-zip.py --dist dist-firefox --out bozkhar-firefox-<version>.zip
 ```
 
-Load into Chrome: `chrome://extensions` → enable **Developer mode** →
-**Load unpacked** → select `dist/`. Load into Firefox:
+Load into a Chromium-based browser: `chrome://extensions` (Edge uses
+`edge://extensions`, Opera `opera://extensions`, Vivaldi `vivaldi://extensions`,
+Yandex `browser://extensions`) → enable **Developer mode** → **Load unpacked**
+→ select `dist/`. Load into Firefox or a Firefox-based browser:
 `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
 `dist-firefox/manifest.json`. Then open any Digikala product page or your cart
 page and use the buttons described above. The options page has the Plus toggle,
