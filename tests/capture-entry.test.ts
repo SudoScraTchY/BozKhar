@@ -29,5 +29,8 @@ describe('content entry SPA remount', () => {
     await new Promise((r) => setTimeout(r, 350));
     // On a PDP with no anchor, no button appears - but styles/patch state is consistent
     expect(document.readyState).toBe('complete');
+    // The entry owns a 500 ms path poll for the page lifetime; stop it before
+    // jsdom tears down, or a late tick reads a missing `location` (CI flake).
+    window.dispatchEvent(new Event('pagehide'));
   });
 });

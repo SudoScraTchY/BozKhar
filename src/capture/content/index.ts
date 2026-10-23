@@ -193,4 +193,5 @@ for (const name of ['pushState', 'replaceState'] as const) {
   }
 }
 window.addEventListener('popstate', remountIfRouteChanged);
-startPathPolling(remountIfRouteChanged, location, 500);
+const stopPathPolling = startPathPolling(remountIfRouteChanged, location, 500);
+window.addEventListener('pagehide', stopPathPolling, { once: true });
