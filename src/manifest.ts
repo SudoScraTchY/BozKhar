@@ -48,6 +48,10 @@ export const manifestSource: chrome.runtime.ManifestV3 = {
     'https://api.torob.com/*',
     'https://api.github.com/*',
   ],
+  // Chrome shape only. scripts/build-firefox.mjs derives the Firefox
+  // manifest from this built artifact: service_worker -> scripts, strip
+  // use_dynamic_url, add browser_specific_settings.gecko. Do not add
+  // Firefox keys here - the Chrome package and its audit stay Chrome-only.
   background: {
     service_worker: 'src/background/service-worker.ts',
     type: 'module',

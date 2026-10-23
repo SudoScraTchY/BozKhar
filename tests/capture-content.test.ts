@@ -448,6 +448,46 @@ describe('Cart surface (T03.5)', () => {
     }
   });
 
+  it('keeps the background alive while the crawl response is pending (D-46)', async () => {
+    vi.useFakeTimers();
+    try {
+      let settle: (res: CaptureResponse) => void = () => {};
+      const sendMessage = vi.fn((req: unknown): Promise<CaptureResponse> => {
+        if ((req as { kind: string }).kind === 'capture/crawl-start') {
+          return new Promise<CaptureResponse>((resolve) => {
+            settle = resolve;
+          });
+        }
+        return Promise.resolve({ ok: true, kind: 'crawl-abort' });
+      });
+      const surface = mountCartSurface({
+        doc: document,
+        location: currentLocation,
+        labels: CART_LABELS,
+        sendMessage,
+        onProgress: () => () => {},
+      });
+      (document.querySelector('button.dkopt-btn') as HTMLButtonElement).click();
+
+      const keepalives = () =>
+        sendMessage.mock.calls.filter(
+          ([req]) => (req as { kind?: string }).kind === 'runtime/keepalive',
+        ).length;
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(keepalives()).toBe(3);
+
+      settle({ ok: true, kind: 'crawl-start', itemCount: 1, done: 1, failed: 0 });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(document.querySelector('.dkopt-progress')).toBeNull();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(keepalives()).toBe(3);
+      surface?.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('closes the overlay from the response when the finished broadcast is missed', async () => {
     // Live report 2026-10-08: the crawl completed but
     // the final progress broadcast never reached the

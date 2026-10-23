@@ -1,5 +1,5 @@
 /**
- * Content-script entry (manifest content_scripts main world). Detects which
+ * Content-script entry (manifest content_scripts, isolated world). Detects which
  * surface the current page needs and mounts it. Language: the UI catalog
  * default is fa; the stored setting overrides when present (read
  * fire-and-forget; the button label refreshes when settings arrive late).
@@ -9,6 +9,7 @@ import { mountPdpSurface } from './pdp';
 import { mountCartSurface } from './cart';
 import { mountOrdersSurface } from './orders';
 import { mountTorobSurface } from './torob';
+import { startPathPolling } from './route-watch';
 import type { CaptureProgressMessage, CaptureResponse } from '../messaging';
 
 type Lang = 'fa' | 'en';
@@ -166,18 +167,30 @@ function remountIfRouteChanged(): void {
   setTimeout(mount, 300);
 }
 
-// Patch pushState/replaceState + popstate: the SPA navigation surfaces.
+// Patch pushState/replaceState + popstate: the immediate SPA navigation
+// signal. Firefox's Xray wrappers can keep a content-script patch invisible
+// to the page's own calls (D-46), so the pathname poll below is the
+// portable fallback; both paths converge on the same idempotent remount.
 for (const name of ['pushState', 'replaceState'] as const) {
-  const original = history[name].bind(history) as (
-    ...args: Parameters<typeof history.pushState>
-  ) => void;
-  Object.defineProperty(history, name, {
-    value: (...args: Parameters<typeof history.pushState>) => {
-      original(...args);
-      remountIfRouteChanged();
-    },
-    writable: true,
-    configurable: true,
-  });
+  try {
+    const original = history[name].bind(history) as (
+      ...args: Parameters<typeof history.pushState>
+    ) => void;
+    Object.defineProperty(history, name, {
+      value: (...args: Parameters<typeof history.pushState>) => {
+        original(...args);
+        remountIfRouteChanged();
+      },
+      writable: true,
+      configurable: true,
+    });
+  } catch (error) {
+    console.warn(
+      `[dkopt] history.${name} patch unavailable: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
 }
 window.addEventListener('popstate', remountIfRouteChanged);
+startPathPolling(remountIfRouteChanged, location, 500);

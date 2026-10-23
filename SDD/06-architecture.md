@@ -1,6 +1,28 @@
 # 06 — Architecture
 
-The architecture is shaped by the ground rules (README): advise-only, local-only, user-initiated capture, MV3 Chrome-first. Every component below exists because a decision in `00-decision-log.md` forces it — the mapping is stated per component so nothing here is decoration.
+The architecture is shaped by the ground rules (README): advise-only, local-only, user-initiated capture, MV3 on Chrome and Firefox 140+. Every component below exists because a decision in `00-decision-log.md` forces it — the mapping is stated per component so nothing here is decoration.
+
+## Browser targets (D-46)
+
+One TypeScript source and one CRXJS/Vite build produce both packages. Chrome
+takes `background.service_worker`; Firefox takes `background.scripts` with
+`type: "module"` (an event page). `scripts/build-firefox.mjs` copies the audited
+Chrome `dist/` to `dist-firefox/` and rewrites only the manifest, so the two
+packages share every byte of code; `scripts/audit-firefox-dist.mjs` enforces
+that and resolves the content loader's web-accessible import closure.
+
+Firefox MV3 exposes `chrome.*` as an alias of `browser`, so the code keeps one
+API surface and a promise-capable storage call. No polyfill or platform adapter
+is involved. CRXJS's content loader is portable because Firefox 89+ allows
+dynamic imports of `moz-extension:` URLs from content scripts. Main-world
+`scripting.executeScript` is Firefox 128+, hence the 140+ floor.
+
+The event page unloads after 30 s of inactivity, and pending timers/fetches do
+not reset that timer. Incoming messages do: the cart and the results page send a
+10 s `runtime/keepalive` while a crawl response is pending. Insights does not
+need one — its page-side client sends one short message per request. Progress
+also goes to the initiating content script through `tabs.sendMessage`, because
+`runtime.sendMessage` cannot reach content scripts in either browser.
 
 ## Components
 
@@ -8,7 +30,7 @@ The architecture is shaped by the ground rules (README): advise-only, local-only
 |---|---|---|---|
 | 1 | **Product-page content script** | Injects the "Add to comparison" button; extracts and normalizes the offer list for the selected variant | D-04, F-1 |
 | 2 | **Cart-page content script** | Injects the "Optimize this cart" button; reads cart items + variants; triggers the crawl | D-04, F-10 |
-| 3 | **Service worker (background)** | Owns the crawl state machine: opens/reuses one tab, navigates sequentially with delays, collects results, survives restarts, reports progress | D-03, D-04, NFR-07, R-08 |
+| 3 | **Background (service worker / event page)** | Owns the crawl state machine: opens/reuses one tab, navigates sequentially with delays, collects results, survives restarts, reports progress. Chrome runs a service worker; Firefox runs an event page held awake by the initiating page during a crawl (D-46) | D-03, D-04, NFR-07, R-08 |
 | 4 | **Payload readers module (versioned)** | The *primary* extractor: reads the product/cart JSON API payloads with the user's session (spike S-7 deviation, amended at T03); versioned and fixture-tested. The DOM is scoped to mount points/fallback only | NFR-05, R-02, S-7 |
 | 5 | **Normalizer** | Turns raw extractions into canonical entities (`08-data-model.md`) | FR-03 |
 | 6 | **Storage** | IndexedDB for items / snapshot history / promos; `chrome.storage.local` for settings and crawl state | D-02, NTH-02 (history-first) |
@@ -44,7 +66,7 @@ Two properties of this flow are load-bearing. First, **everything funnels throug
 The cart crawl (D-04) is the only place the extension navigates pages on the user's behalf, so it carries the strictest design constraints:
 
 - **One tab, sequential navigation.** The crawl reuses a single tab and visits each cart item's product page in order, with a configurable inter-page delay (default 1.5s, NFR-07). No parallel tab storms — kinder to rate limits, easier to abort, easier to debug.
-- **State lives in storage, not memory.** MV3 service workers are killed at will; the crawl state machine persists its cursor and per-item results after every step, so an interruption (browser restart, tab closed) resumes exactly where it stopped without duplicating work (R-08, FR-02).
+- **State lives in storage, not memory.** MV3 backgrounds are killed at will — a service worker on Chrome, an idle event page on Firefox (D-46); the crawl state machine persists its cursor and per-item results after every step, so an interruption (browser restart, tab closed) resumes exactly where it stopped without duplicating work (R-08, FR-02).
 - **User-visible and abortable.** Progress (item i of N, per-item status) renders in the results page; an abort control stops between navigations, never mid-page.
 - **Per-item failure containment.** A page that fails extraction is recorded as a failure with its error class; the crawl continues; the results page shows the gap and offers a retry for that item. Partial results are always better than no results, and always honestly labeled.
 - **Capture fetch with the user's session.** Product/cart payloads are fetched as GETs from `api.digikala.com` with `credentials: 'include'` (session-bound effective fees, spike finding 5). Since D-16 the executor is the **content script on the requesting tab** (page context carries the site's routing header set, which the checkout API requires — the SW-origin fetch 401s on `/checkout/v1/carts`); the SW keeps orchestration and falls back to its own fetch when the content script is unreachable. D-01 holds by construction: both fetch helpers are GET-only and guarded to `*.digikala.com`; the D-01 audit tests cover every controller path, including the delegate.
@@ -52,11 +74,11 @@ The cart crawl (D-04) is the only place the extension navigates pages on the use
 
 ## Permissions
 
-`storage` (settings + data), `tabs` (crawl tab management), host permission for `*.digikala.com` only. No remote code, no web analytics, no `cookies`, no `history`. The store listing and privacy note must state: computation and data are local; the extension only reads pages the user is viewing or explicitly asks it to open. Any future permission request (e.g., for NTH-06 one-click apply) requires a decision-log entry first — that is deliberate friction.
+`storage`, `tabs` and `scripting`; hosts are `https://*.digikala.com/*` (the site and its API), `https://api.torob.com/*` (click-only seller comparison) and `https://api.github.com/*` (the popup's release-tag check). No remote code, no web analytics, no `cookies`, no `history`. The store listing and privacy note must state: computation and data are local; the extension only reads pages the user is viewing or explicitly asks it to open. Any future permission request requires a decision-log entry first — that is deliberate friction.
 
 ## Technology choices (Phase 2 defaults)
 
-TypeScript throughout; Vite + a Chrome-extension plugin for MV3 bundling; the solver as a dependency-free plain TS package (it must stay importable by unit tests with zero browser APIs); IndexedDB through a small typed wrapper (no ORM); no UI framework mandate — whatever renders the results page cleanly with RTL support (NFR-08). These defaults exist so tasks T02–T05 can start without re-litigating tooling; they are revisitable at T02 kickoff with a one-line decision-log note if the implementer disagrees.
+TypeScript throughout; Vite + CRXJS for MV3 bundling; the Firefox package is derived from the built Chrome artifact by `scripts/build-firefox.mjs` (D-46) rather than re-bundled; the solver as a dependency-free plain TS package (it must stay importable by unit tests with zero browser APIs); IndexedDB through a small typed wrapper (no ORM); no UI framework mandate — whatever renders the results page cleanly with RTL support (NFR-08). These defaults exist so tasks T02–T05 can start without re-litigating tooling; they are revisitable at T02 kickoff with a one-line decision-log note if the implementer disagrees.
 
 ## Failure containment summary
 

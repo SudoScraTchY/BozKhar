@@ -2290,9 +2290,13 @@ section[id] {
   align-items: start;
 }
 
+.download-stack {
+  display: grid;
+  gap: 1.6rem;
+}
+
 .download-ticket {
-  position: sticky;
-  top: 6rem;
+  position: relative;
   padding: 1.3rem;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -3047,10 +3051,6 @@ section[id] {
     grid-template-columns: 1fr;
   }
 
-  .download-ticket {
-    position: static;
-  }
-
   .cta-box {
     align-items: flex-start;
     flex-direction: column;
@@ -3179,6 +3179,18 @@ section[id] {
 
   .feature-strip {
     border-radius: var(--radius-md);
+  }
+
+  .tabs {
+    display: flex;
+    width: 100%;
+    border-radius: 14px;
+  }
+
+  .tab-btn {
+    flex: 1 1 auto;
+    padding-inline: 0.45rem;
+    font-size: 0.72rem;
   }
 
   .cta-actions {

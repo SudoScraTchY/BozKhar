@@ -4,8 +4,9 @@ Where this extension can ship, what each store costs, and exactly what to put
 in front of a reviewer. Written 2026-10-16 against the 0.4.0 package, updated
 the same day for 0.5.0 (the stable download alias, D-37), and again on
 2026-10-20 for 0.6.0 (Order Insights and the Torob host permission, D-42) and
-0.6.1 (the popup release check that adds `api.github.com`, D-44); 0.6.2 adds
-no permission and corrects the analytics math (D-45).
+0.6.1 (the popup release check that adds `api.github.com`, D-44); 0.6.2 added
+no permission and corrected the analytics math (D-45); 0.7.0 is the Firefox
+target from the same bundle (D-46).
 
 ## The answer in one table
 
@@ -14,14 +15,14 @@ no permission and corrects the analytics math (D-45).
 | **Chrome Web Store** | **US$5, once, per developer account** | `bozkhar-<version>.zip` | The default target. Brave, Vivaldi, Arc, Opera and every other Chromium browser can install from here. |
 | **Microsoft Edge Add-ons** | **free** (no registration fee) | the same zip | Partner Center + a Microsoft account. |
 | **Opera Add-ons** | **free** | the same zip | Its own review, its own acceptance criteria. Opera also installs Chrome Web Store extensions, so this is optional reach. |
-| **Firefox Add-ons (AMO)** | **free** | **needs a port** | Firefox MV3 has no `background.service_worker`; it runs event pages. Not a re-upload. |
+| **Firefox Add-ons (AMO)** | **free** | `bozkhar-firefox-<version>.zip` | **Supported, Firefox 140+ desktop (D-46).** Listed on AMO, signed there. The zip on GitHub is unsigned; it is for AMO review and temporary loading. |
 | **Safari** | US$99/year Apple Developer + Xcode, different project | — | Not worth it at this stage. |
 | **No store at all** | free | the release zip | Works, but users must enable Developer mode and "Load unpacked", and there is no auto-update. Fine for you and a few friends, not for strangers. |
 
 **So: yes, publishing for free is possible — everywhere except Chrome, and
 Chrome is US$5 once for an account that then covers every extension you ever
-publish.** A realistic free path today is Edge Add-ons (+ Opera) now, Chrome
-when you feel like spending the $5, Firefox if and when someone asks.
+publish.** A realistic free path today is Edge Add-ons (+ Opera) and Firefox
+(AMO) now, Chrome when you feel like spending the $5.
 
 Sources: [Chrome developer registration](https://developer.chrome.com/docs/webstore/register)
 (one-time fee) · [Register as an Edge extension developer](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/create-dev-account)
@@ -35,11 +36,13 @@ Nothing here needs a local build — the pipeline produces the artifact:
 
 - **Every push to `main`** → the `CI` workflow's *build + package* job uploads
   an artifact named `bozkhar-<version>` containing `bozkhar-<version>.zip` and
-  `bozkhar-<version>.zip.sha256`. Download it from the run page, or
-  `gh run download`.
+  `bozkhar-<version>.zip.sha256`, plus a second artifact named
+  `bozkhar-firefox-<version>` with the Firefox zip and its `.sha256`.
+  Download them from the run page, or `gh run download`.
 - **A `v<version>` tag** → the `Release` workflow re-verifies the tagged
-  commit, rebuilds, and publishes a GitHub Release with the same zip, its
-  SHA-256, auto-generated notes, and a **provenance attestation**.
+  commit, rebuilds, and publishes a GitHub Release with both zips, the AMO
+  source zip, their SHA-256 files, auto-generated notes, and a **provenance
+  attestation**.
 
 The zip is what every store wants: `manifest.json` at the archive root,
 `sourcemap: false`, and no local `dist.pem`/`dist.crx` — the packager reads only
@@ -63,9 +66,11 @@ the tag, and writes the SHA-256 into the run's step summary.
 To verify a download before you upload it:
 
 ```bash
-sha256sum -c bozkhar-0.6.2.zip.sha256                       # or shasum -a 256 -c
-gh attestation verify bozkhar-0.6.2.zip --repo SudoScraTchY/BozKhar
+sha256sum -c bozkhar-0.7.0.zip.sha256                       # or shasum -a 256 -c
+sha256sum -c bozkhar-firefox-0.7.0.zip.sha256
+gh attestation verify bozkhar-0.7.0.zip --repo SudoScraTchY/BozKhar
 gh attestation verify bozkhar-latest.zip --repo SudoScraTchY/BozKhar
+gh attestation verify bozkhar-firefox-0.7.0.zip --repo SudoScraTchY/BozKhar
 ```
 
 (The sidecar is named for the versioned file, so `sha256sum -c` only matches
@@ -75,8 +80,12 @@ digest in it.)
 Locally, the same two commands CI runs:
 
 ```bash
-npm run build && npm run audit:dist        # NFR-06 audit of the built manifest
+npm run build && npm run audit:dist        # NFR-06 audit of the built Chrome manifest
+npm run build:firefox                      # Chrome build + dist-firefox + manifest transform
+npm run audit:dist:firefox                  # Firefox artifact audit
+npm run lint:firefox                       # web-ext lint (AMO's validator)
 python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256)
+python scripts/package-store-zip.py --dist dist-firefox --out bozkhar-firefox-<version>.zip
 ```
 
 ## Cutting a release
@@ -84,7 +93,7 @@ python scripts/package-store-zip.py        # -> bozkhar-<version>.zip (+ .sha256
 Two ways, and both refuse a version that does not match `package.json`:
 
 **From the Actions tab** (nothing to install): *Actions → Release → Run
-workflow*, and type the version — `0.6.2` or `v0.6.2`. The tag is created at
+workflow*, and type the version — `0.7.0` or `v0.7.0`. The tag is created at
 the commit the run verified, so the zip, the tag and the commit always agree.
 
 **From your machine**, if you prefer the tag to come first:
@@ -92,11 +101,12 @@ the commit the run verified, so the zip, the tag and the commit always agree.
 ```bash
 # 1. bump the version in package.json (the manifest and the tag both read it)
 # 2. commit that bump and push it to main
-git tag -a v0.6.2 -m "BozKhar 0.6.2"
-git push origin v0.6.2
+git tag -a v0.7.0 -m "BozKhar 0.7.0"
+git push origin v0.7.0
 ```
 
-v0.4.0 through v0.6.2 were published this way. Re-running a release for a
+v0.4.0 through v0.6.2 were published this way; 0.7.0 is the first release with
+the Firefox package attached. Re-running a release for a
 tag that already exists is allowed only when that tag points at the commit
 the run just built — otherwise the run stops and says so, because a release
 built from one tree must never be filed under a tag that names another.
@@ -122,7 +132,7 @@ on screen before you upload.
 ## The answers a reviewer will ask for
 
 Have these ready; they are the difference between "in review for a week" and
-a rejection. They are all true of this codebase as of 0.6.2 — keep them true
+a rejection. They are all true of this codebase as of 0.7.0 — keep them true
 if that changes.
 
 **Single purpose.** "BozKhar helps a shopper pay less on digikala.com. It
@@ -248,24 +258,72 @@ answer to any "is this a scraper?" question.
    a scam.
 3. Free, and Opera also installs Chrome Web Store items, so this is optional.
 
-## Firefox: a port, not an upload (T06.6)
+## Firefox Add-ons (AMO), step by step (D-46)
 
-Firefox is free to publish on, but the 0.6.2 package will not run there
-unmodified:
+Firefox 140+ desktop is a supported target since 0.7.0. The
+build is the Chrome bundle with a Firefox manifest: same capture, solver,
+results, Insights, Torob and share surfaces. The portability work is recorded in D-46;
+the repeatable live checklist is in [FIREFOX-SMOKE.md](FIREFOX-SMOKE.md).
 
-- **No `background.service_worker` in Firefox MV3.** Firefox runs an *event
-  page*. MDN's recommended shape is to declare both keys —
-  `background: { scripts: ['…'], service_worker: '…' }` — so Chrome takes the
-  worker and Firefox takes the script.
-- Firefox requires `browser_specific_settings.gecko.id` for MV3 submissions.
-- The main-world fetch delegation (D-16) and the cart transport (D-30) lean
-  on `chrome.scripting.executeScript` semantics; those need verifying against
-  Firefox's implementation rather than assuming parity.
-- AMO will accept a signed self-distributed build, but listed publishing is
-  the only way users find it.
+**Build and load it:**
 
-That work is **T06.6** in `SDD/tasks/T06-hardening-release.md` and is still
-`todo`; this section is the brief, not a claim that it works.
+```bash
+npm run build:firefox
+npm run audit:dist:firefox
+npm run lint:firefox          # web-ext lint: errors fail, warnings are reviewed
+```
+
+Then `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
+`dist-firefox/manifest.json`. A temporary add-on disappears on restart; AMO is
+the install path for real users. The Chrome package and its audit are unchanged.
+
+**What AMO needs that Chrome does not:**
+
+- A permanent Gecko id: `bozkhar@sudoscratchy.github.io`. It is generated into
+  the manifest; **do not change it after the first submission**, or AMO treats
+  the build as a different add-on.
+- `strict_min_version: 140.0` — the first release with the built-in
+  data-collection consent UI (and comfortably above the 128 floor for
+  main-world `scripting.executeScript`).
+- A data-collection declaration: `required: ["websiteContent"]`, because the
+  click-only Torob lookup sends the public product title to `api.torob.com`.
+  Nothing else leaves the browser; the GitHub release-tag check sends no user
+  data. This is the same fact the Chrome privacy answers describe.
+- The **source zip** (the release attaches `bozkhar-<version>-source.zip`) and
+  the build steps: Node >= 22, `npm ci`, `npm run build:firefox`. AMO reviewers
+  rebuild minified bundles.
+- The same privacy-policy URL (the landing page names Torob and GitHub).
+- A **listed** submission: AMO Developer Hub → Submit a New Add-on → upload
+  `bozkhar-firefox-<version>.zip` → upload the source zip → fill the listing
+  and the reviewer answers below → submit. Plan for a few business days on the
+  first review.
+
+**Updates:** upload a new zip in the hub, or run
+`web-ext sign --channel=listed` with AMO API credentials from your machine. The
+main release workflow deliberately holds no secrets. If automated signing is
+wanted later, add a separate `workflow_dispatch` workflow with an `amo`
+environment and manual approval; do not weaken the existing pipeline.
+
+**Firefox-specific reviewer answers:**
+
+- **`scripting` + `world: MAIN`:** "Runs the site's own cart and order requests
+  in the page's main world because those APIs require the page origin and its
+  session. The executed functions ship inside the package; nothing is fetched
+  or evaluated at runtime."
+- **The 10 s keepalive:** "During a user-initiated cart crawl, the page that
+  started it sends a no-op runtime message every 10 seconds. Firefox unloads an
+  idle event page after 30 seconds; the message keeps the crawl alive. It
+  carries no data and stops when the crawl answers."
+- **Data:** "The only outbound request outside digikala.com is the click-only
+  Torob lookup (public product title). Opening the popup asks GitHub for the
+  latest release tag; that request contains no user data. Order and cart data
+  stay on-device, and address/payment/invoice fields are discarded on read."
+- **Desktop-only**, unofficial, not affiliated with Digikala, no remote code.
+
+**Caveat:** the Firefox zip on GitHub is **unsigned** — it is for AMO review and
+temporary loading. Standard Firefox builds refuse unsigned add-ons, so users
+install from the AMO listing. There is intentionally no
+`bozkhar-firefox-latest.zip` alias until a signed XPI is hosted.
 
 ## One-time GitHub setup worth doing
 

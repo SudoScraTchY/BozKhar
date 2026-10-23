@@ -4,7 +4,58 @@
 
 This handoff supersedes the 2026-10-05 handoff below (its T02/spike sections still hold). The 2026-09-30 handoff at the bottom remains accurate for T02/spike details.
 
-## 0. Latest session (2026-10-16, rounds 3–4) — read this first
+## 0. Latest session (2026-10-23) — Firefox 140+ port (D-46)
+
+Firefox is now a supported build target from the same source, bundle and tests.
+**State:** **482/482 tests across 45 files**; typecheck, ESLint, Prettier, the
+Chrome build/audit and the Firefox build/audit/`web-ext lint` are clean over the
+whole tree. What is **not** done: the live Firefox smoke, the Chrome regression
+smoke, and the AMO submission (T06.8). The version is bumped to **0.7.0** in the
+working tree, with both browser packages and the dual-browser landing page; no
+commit, tag or release has been made.
+
+**How the package is produced.** `npm run build` still emits the Chrome `dist/`.
+`npm run build:firefox` runs that build, copies it to `dist-firefox/`, and
+rewrites only `manifest.json`: `background.service_worker` → `background.scripts`
+(the same ESM loader), strip `use_dynamic_url`, add
+`browser_specific_settings.gecko` (id `bozkhar@sudoscratchy.github.io`,
+`strict_min_version: 140.0`, `data_collection_permissions.required:
+["websiteContent"]`). No second bundler pass, no hash drift.
+`scripts/audit-firefox-dist.mjs` compares shared manifest fields and every
+non-manifest byte with `dist/`, and resolves the content loader's
+web-accessible import closure (a missing WAR chunk only fails at runtime).
+
+**Runtime deltas (all shared, so Chrome changed too):**
+- `src/shared/keepalive.ts`: the initiating page sends `runtime/keepalive`
+  every 10 s while a crawl response is pending (60-minute cap). Firefox event
+  pages unload after 30 s idle, and pending timers/fetches do not reset that
+  timer; incoming messages do. Wired in `cart.ts` and the results-page refresh.
+  Insights needs none: its page-side client sends one short message per request.
+- The service worker answers the keepalive first, and now also delivers
+  `capture/progress` with `tabs.sendMessage` to the initiating Digikala tab.
+  `runtime.sendMessage` cannot reach content scripts in either browser, so the
+  cart overlay never had real progress before. A crawl started from the results
+  page resolves an open Digikala tab for delegation instead of using the
+  results tab.
+- PDP capture delegates the product GET to the page first and falls back to the
+  direct session fetch.
+- `src/capture/content/route-watch.ts`: a 500 ms pathname poll backs up the
+  `history.pushState` patch, which Firefox Xray can keep invisible to the page.
+
+**Traps worth keeping:** `web-ext lint` exits 0 with 8 warnings (one Android
+version notice because the build is desktop-only, plus pre-existing innerHTML
+advisories); gate on the exit code, do not use `--warnings-as-errors`. The
+Gecko id is permanent after the first AMO submission. The Firefox zip in a
+GitHub release is **unsigned** — it is the AMO submission artifact, not an
+install path for stable Firefox.
+
+**Remaining (T06.8):** run [`FIREFOX-SMOKE.md`](FIREFOX-SMOKE.md) on Firefox
+140+ (critical: a >90 s crawl, a mid-crawl event-page termination, SPA nav,
+apply/undo, insights, exports); re-smoke Chrome; tag and release 0.7.0; submit
+the listed AMO listing with the source zip and the reviewer answers in
+[`PUBLISHING.md`](PUBLISHING.md).
+
+## 0a. Prior session (2026-10-16, rounds 3–4) — read for context
 
 The extension now applies to the cart for real (D-30) and the UI round is done (D-31). State at `90afe14`: **291/291 tests across 26 files**, `tsc --noEmit` / ESLint / Prettier / `vite build` clean over the **whole** tree, and every commit from `6687d77` on is pushed to `main` (the first since `0147758`).
 

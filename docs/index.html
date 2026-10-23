@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>بُزخَر | همان سبد، صورتحساب کمتر</title>
-  <meta name="description" content="بُزخَر یک افزونه متن‌باز Chrome است که سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. محلی، بدون سرور، با اجازه‌ی خودتان.">
+  <meta name="description" content="بُزخَر یک افزونه متن‌باز Chrome و Firefox است که سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. محلی، بدون سرور، با اجازه‌ی خودتان.">
   <meta name="keywords" content="دیجی کالا, بهینه سازی سبد خرید, بُزخَر, BozKhar, کاهش هزینه ارسال, دیجی پلاس, خرید ارزان, Torob, ترب">
   <meta name="author" content="SudoScraTchY">
   <meta name="robots" content="index,follow">
@@ -36,10 +36,10 @@
     "@type": "SoftwareApplication",
     "name": "بُزخَر",
     "alternateName": "BozKhar",
-    "description": "افزونه متن‌باز Chrome برای پیدا کردن کمترین مجموع قیمت کالا و ارسال در سبد دیجی‌کالا.",
+    "description": "افزونه متن‌باز Chrome و Firefox برای پیدا کردن کمترین مجموع قیمت کالا و ارسال در سبد دیجی‌کالا.",
     "applicationCategory": "BrowserApplication",
-    "operatingSystem": "Chrome, Edge, Brave",
-    "softwareVersion": "0.6.2",
+    "operatingSystem": "Chrome, Edge, Brave, Firefox",
+    "softwareVersion": "0.7.0",
     "offers": { "@type": "Offer", "price": "0", "priceCurrency": "IRR" },
     "downloadUrl": "https://github.com/SudoScraTchY/BozKhar/releases/latest",
     "url": "https://sudoscratchy.github.io/BozKhar/",
@@ -148,7 +148,7 @@
       <a class="brand" href="#top" aria-label="بُزخَر، صفحه‌ی اصلی">
         <img class="brand-logo" src="assets/logo-128.png" alt="" width="44" height="44">
         <span class="brand-name">بُزخَر</span>
-        <span class="brand-version">v0.6.2</span>
+        <span class="brand-version">v0.7.0</span>
       </a>
 
       <nav class="site-nav" id="siteNav" aria-label="بخش‌های صفحه">
@@ -164,9 +164,9 @@
           <svg class="icon icon-github" aria-hidden="true"><use href="#i-github"/></svg>
           <span>GitHub</span>
         </a>
-        <a class="btn btn-lime btn-small" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+        <a class="btn btn-lime btn-small" href="#install">
           <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
-          <span>دانلود</span>
+          <span>نصب</span>
         </a>
       </div>
 
@@ -182,14 +182,14 @@
       <div class="hero-glow" aria-hidden="true"></div>
       <div class="wrap hero-grid">
         <div class="hero-copy">
-          <p class="hero-kicker"><span class="kicker-mark" aria-hidden="true"></span>افزونه‌ی متن‌باز Chrome، نسخه ۰.۶.۲</p>
+          <p class="hero-kicker"><span class="kicker-mark" aria-hidden="true"></span>افزونه‌ی متن‌باز Chrome و Firefox، نسخه ۰.۷.۰</p>
           <h1 class="hero-title">همان سبد.<br><span class="hero-tag">صورتحساب کمتر.</span></h1>
           <p class="hero-lede">بُزخَر سبد دیجی‌کالا را بین غرفه‌ها می‌چیند و کمترین مجموع قیمت کالا و ارسال را پیدا می‌کند. خودش چیزی نمی‌خرد و سبد را دست نمی‌زند. فقط حساب می‌کند و نقشه‌ی خرید را می‌سازد.</p>
 
           <div class="hero-actions">
-            <a class="btn btn-lime" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+            <a class="btn btn-lime" href="#install">
               <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
-              <span>دانلود نسخه ۰.۶.۲</span>
+              <span>نصب نسخه ۰.۷.۰</span>
             </a>
             <a class="btn btn-ghost" href="#lab">
               <span>دیدن آزمایشگاه قیمت</span>
@@ -508,32 +508,49 @@
         <div class="section-head">
           <p class="kicker">نصب</p>
           <h2 class="section-title">نصب در دو دقیقه.</h2>
-          <p class="section-lede">افزونه هنوز در Chrome Web Store نیست. بسته‌ی نسخه ۰.۶.۲ را دانلود کنید و به‌صورت unpacked در مرورگر بارگذاری کنید. این روش روی Chrome، Edge و Brave کار می‌کند.</p>
+          <p class="section-lede">افزونه هنوز در Chrome Web Store و AMO نیست. برای Chrome، Edge و Brave بسته‌ی unpacked را بارگذاری می‌کنید. برای Firefox 140+ (و مرورگرهای مبتنی بر آن مثل Floorp و Zen) یک بسته‌ی جدا هست که فعلاً به‌صورت افزونه‌ی موقت نصب می‌شود.</p>
         </div>
 
         <div class="install-grid">
-          <aside class="download-ticket">
-            <div class="ticket-head"><span>نسخه‌ی پایدار</span><strong>۰.۶.۲</strong></div>
-            <div class="ticket-body">
-              <p class="ticket-platform">Chrome، Edge، Brave</p>
-              <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
-                <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
-                <span>دانلود bozkhar-latest.zip</span>
-              </a>
-              <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">صفحه‌ی انتشار و SHA-256</a>
-              <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
-            </div>
-            <div class="ticket-barcode" aria-hidden="true"></div>
-            <p class="ticket-note">بعد از دانلود، فایل را در یک پوشه‌ی خالی استخراج کنید. پوشه‌ای که <code>manifest.json</code> در ریشه‌اش است را بارگذاری می‌کنید.</p>
-          </aside>
+          <div class="download-stack">
+            <aside class="download-ticket">
+              <div class="ticket-head"><span>نسخه‌ی پایدار</span><strong>۰.۷.۰</strong></div>
+              <div class="ticket-body">
+                <p class="ticket-platform">Chrome، Edge، Brave</p>
+                <a class="btn btn-lime btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+                  <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+                  <span>دانلود bozkhar-latest.zip</span>
+                </a>
+                <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">صفحه‌ی انتشار و SHA-256</a>
+                <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
+              </div>
+              <div class="ticket-barcode" aria-hidden="true"></div>
+              <p class="ticket-note">بعد از دانلود، فایل را در یک پوشه‌ی خالی استخراج کنید. پوشه‌ای که <code>manifest.json</code> در ریشه‌اش است را بارگذاری می‌کنید.</p>
+            </aside>
+
+            <aside class="download-ticket">
+              <div class="ticket-head"><span>بسته‌ی Firefox</span><strong>۰.۷.۰</strong></div>
+              <div class="ticket-body">
+                <p class="ticket-platform">Firefox ۱۴۰+ دسکتاپ، Floorp، Zen</p>
+                <a class="btn btn-outline-dark btn-block" href="https://github.com/SudoScraTchY/BozKhar/releases/latest" target="_blank" rel="noopener noreferrer">
+                  <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
+                  <span>دریافت بسته‌ی Firefox</span>
+                </a>
+                <a class="ticket-link" href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">همه‌ی نسخه‌ها</a>
+              </div>
+              <div class="ticket-barcode" aria-hidden="true"></div>
+              <p class="ticket-note">این بسته هنوز امضای AMO ندارد و فقط به‌صورت <strong>افزونه‌ی موقت</strong> نصب می‌شود؛ با راه‌اندازی دوباره‌ی مرورگر پاک می‌شود. نسخه‌ی پایدار بعد از انتشار در AMO از همان‌جا نصب می‌شود.</p>
+            </aside>
+          </div>
 
           <div class="install-steps">
             <div class="tabs" role="tablist" aria-label="روش نصب">
-              <button class="tab-btn is-active" id="tabUserBtn" type="button" role="tab" aria-selected="true" aria-controls="tabUser" data-tab="tabUser">نصب سریع</button>
+              <button class="tab-btn is-active" id="tabChromeBtn" type="button" role="tab" aria-selected="true" aria-controls="tabChrome" data-tab="tabChrome">Chrome و Edge</button>
+              <button class="tab-btn" id="tabFirefoxBtn" type="button" role="tab" aria-selected="false" aria-controls="tabFirefox" data-tab="tabFirefox">Firefox</button>
               <button class="tab-btn" id="tabDevBtn" type="button" role="tab" aria-selected="false" aria-controls="tabDev" data-tab="tabDev">از سورس کد</button>
             </div>
 
-            <div class="tab-panel is-active" id="tabUser" role="tabpanel" aria-labelledby="tabUserBtn">
+            <div class="tab-panel is-active" id="tabChrome" role="tabpanel" aria-labelledby="tabChromeBtn">
               <ol class="step-list">
                 <li class="step">
                   <span class="step-num" aria-hidden="true">۱</span>
@@ -558,14 +575,40 @@
               </ol>
             </div>
 
+            <div class="tab-panel" id="tabFirefox" role="tabpanel" aria-labelledby="tabFirefoxBtn" hidden>
+              <ol class="step-list">
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۱</span>
+                  <div><h3>دانلود و استخراج</h3><p>فایل <code>bozkhar-firefox-0.7.0.zip</code> را از صفحه‌ی انتشار بردارید و در یک پوشه‌ی خالی استخراج کنید. فایل <code>.sha256</code> هم کنارش هست.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۲</span>
+                  <div><h3>باز کردن about:debugging</h3><p>در نوار آدرس Firefox این آدرس را باز کنید:</p><div class="code-box"><code>about:debugging#/runtime/this-firefox</code><button class="copy-btn" type="button" data-copy="about:debugging#/runtime/this-firefox">کپی</button></div></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۳</span>
+                  <div><h3>بارگذاری افزونه‌ی موقت</h3><p>روی <strong>Load Temporary Add-on…</strong> (بارگذاری افزونه‌ی موقت) کلیک کنید.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۴</span>
+                  <div><h3>انتخاب manifest.json</h3><p>در پنجره‌ی بازشده، پوشه‌ی استخراج‌شده را باز کنید و فایل <code>manifest.json</code> را انتخاب کنید. بُزخَر در فهرست افزونه‌ها و نوار ابزار ظاهر می‌شود.</p></div>
+                </li>
+                <li class="step">
+                  <span class="step-num" aria-hidden="true">۵</span>
+                  <div><h3>باز کردن دیجی‌کالا</h3><p>صفحه‌ی کالا یا سبد خرید را باز کنید؛ همان دکمه‌ها و پنجره‌ی افزونه در دسترس‌اند. این نصب موقتی است: با بستن کامل Firefox پاک می‌شود و باید همین چند قدم را تکرار کنید تا نسخه‌ی AMO منتشر شود.</p></div>
+                </li>
+              </ol>
+            </div>
+
             <div class="tab-panel" id="tabDev" role="tabpanel" aria-labelledby="tabDevBtn" hidden>
               <div class="dev-box">
-                <p class="dev-intro">پیش‌نیاز: Node.js نسخه ۲۲ یا بالاتر و npm. هیچ وابستگی runtime وجود ندارد.</p>
+                <p class="dev-intro">پیش‌نیاز: Node.js نسخه ۲۲ یا بالاتر و npm. یک کدبیس، دو بسته؛ هیچ وابستگی runtime وجود ندارد.</p>
                 <div class="code-block">
                   <div class="code-head"><span>ترمینال</span><button class="copy-btn" type="button" data-copy="git clone https://github.com/SudoScraTchY/BozKhar.git
 cd BozKhar
 npm install
-npm run build">کپی همه</button></div>
+npm run build
+npm run build:firefox">کپی همه</button></div>
                   <pre><code><span class="c-comment"># ۱. گرفتن سورس</span>
 <span class="c-cmd">git clone https://github.com/SudoScraTchY/BozKhar.git</span>
 <span class="c-cmd">cd BozKhar</span>
@@ -573,13 +616,16 @@ npm run build">کپی همه</button></div>
 <span class="c-comment"># ۲. نصب وابستگی‌های توسعه</span>
 <span class="c-cmd">npm install</span>
 
-<span class="c-comment"># ۳. ساخت بسته در پوشه‌ی dist</span>
+<span class="c-comment"># ۳. ساخت بسته‌ی Chrome در پوشه‌ی dist</span>
 <span class="c-cmd">npm run build</span>
 
-<span class="c-comment"># ۴. اجرای تست‌ها و بررسی‌ها</span>
+<span class="c-comment"># ۴. ساخت بسته‌ی Firefox در پوشه‌ی dist-firefox</span>
+<span class="c-cmd">npm run build:firefox</span>
+
+<span class="c-comment"># ۵. اجرای تست‌ها و بررسی‌ها</span>
 <span class="c-cmd">npm run verify</span></code></pre>
                 </div>
-                <p class="dev-note">بعد از build، پوشه‌ی <code>dist</code> را با <strong>Load unpacked</strong> بارگذاری کنید. تست‌ها با Vitest اجرا می‌شوند و CI همان چهار گیت typecheck، lint، format و test را روی هر push اجرا می‌کند.</p>
+                <p class="dev-note">بعد از build، پوشه‌ی <code>dist</code> را در <code>chrome://extensions</code> با <strong>Load unpacked</strong> بارگذاری کنید، یا <code>dist-firefox/manifest.json</code> را در <code>about:debugging#/runtime/this-firefox</code> به‌عنوان افزونه‌ی موقت. بسته‌ی Firefox همان خروجی Chrome است با manifest مخصوص Firefox؛ تست‌ها با Vitest اجرا می‌شوند و CI همان گیت‌های typecheck، lint، format و test را روی هر push اجرا می‌کند.</p>
               </div>
             </div>
           </div>
@@ -598,6 +644,11 @@ npm run build">کپی همه</button></div>
           <details class="faq-item" open>
             <summary>آیا بُزخَر حساب دیجی‌کالای من را به خطر می‌اندازد؟</summary>
             <div class="faq-answer"><p>نه. بُزخَر همان صفحات و APIهایی را می‌خواند که خودتان در مرورگر باز کرده‌اید، با نشست خودتان و فقط زمانی که دکمه‌ای را بزنید. هیچ درخواست مخفی، اسپم یا خرید خودکاری انجام نمی‌دهد. درخواست‌ها ترتیبی و با فاصله‌ی پیش‌فرض ۱.۵ ثانیه اجرا می‌شوند.</p></div>
+          </details>
+
+          <details class="faq-item">
+            <summary>روی Firefox چطور نصب می‌شود؟</summary>
+            <div class="faq-answer"><p>Firefox 140+ و مرورگرهای مبتنی بر آن مثل Floorp و Zen همان نسخه را اجرا می‌کنند. بسته‌ی <code>bozkhar-firefox-0.7.0.zip</code> را از صفحه‌ی انتشار دانلود و استخراج کنید، در Firefox آدرس <code>about:debugging#/runtime/this-firefox</code> را باز کنید، روی <strong>Load Temporary Add-on…</strong> بزنید و فایل <code>manifest.json</code> را انتخاب کنید. این بسته هنوز امضای AMO ندارد، پس موقتی است و با راه‌اندازی دوباره‌ی مرورگر پاک می‌شود؛ نسخه‌ی پایدار بعد از انتشار در AMO از همان‌جا نصب می‌شود.</p></div>
           </details>
 
           <details class="faq-item">
@@ -636,9 +687,9 @@ npm run build">کپی همه</button></div>
           <p class="cta-lede">افزونه را نصب کنید، سبدتان را باز کنید و ببینید چند تومان از ارسال و قیمت کالا کم می‌شود. نتیجه را می‌توانید نگه دارید یا به سبد خودتان اعمال کنید.</p>
         </div>
         <div class="cta-actions">
-          <a class="btn btn-dark" href="https://github.com/SudoScraTchY/BozKhar/releases/latest/download/bozkhar-latest.zip">
+          <a class="btn btn-dark" href="#install">
             <svg class="icon" aria-hidden="true"><use href="#i-download"/></svg>
-            <span>دانلود نسخه ۰.۶.۲</span>
+            <span>نصب نسخه ۰.۷.۰</span>
           </a>
           <a class="btn btn-outline-dark" href="https://github.com/SudoScraTchY/BozKhar" target="_blank" rel="noopener noreferrer">
             <svg class="icon icon-github" aria-hidden="true"><use href="#i-github"/></svg>
@@ -661,7 +712,7 @@ npm run build">کپی همه</button></div>
         <a href="https://github.com/SudoScraTchY/BozKhar/releases" target="_blank" rel="noopener noreferrer">انتشارها</a>
         <a href="https://github.com/SudoScraTchY/BozKhar/issues" target="_blank" rel="noopener noreferrer">گزارش مشکل</a>
       </nav>
-      <div class="footer-version"><span>نسخه ۰.۶.۲</span><span>۳۰ مهر ۱۴۰۵</span></div>
+      <div class="footer-version"><span>نسخه ۰.۷.۰</span><span>۱ آبان ۱۴۰۵</span></div>
     </div>
     <div class="wrap footer-bottom">
       <p>پروژه‌ی متن‌باز برای خرید شفاف‌تر از دیجی‌کالا. بدون سرور، بدون تلمتری، بدون حساب.</p>

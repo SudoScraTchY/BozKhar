@@ -7,11 +7,11 @@
 hunts bargains relentlessly: a person who buys things **very cheap**. That is
 exactly what this tool does for you on [Digikala](https://www.digikala.com).
 
-**Boz Khar** is an advise-first Chrome extension (MV3) that finds the
-**cheapest way to buy your Digikala cart across marketplace vendors** — item
-prices **and** per-vendor delivery fees together, with promotions, Digikala
-Plus benefits, large-item fees, and your own vendor locks (pin/ban) factored
-in. It also summarizes your own order history **on-device** and, on request,
+**Boz Khar** is an advise-first browser extension (MV3) for Chrome and Firefox
+140+ that finds the **cheapest way to buy your Digikala cart across marketplace
+vendors** — item prices **and** per-vendor delivery fees together, with
+promotions, Digikala Plus benefits, large-item fees, and your own vendor locks
+(pin/ban) factored in. It also summarizes your own order history **on-device** and, on request,
 shows the cheapest **Torob** sellers for the product you are viewing. It shows
 you a plan, and — only when you press **Apply** — it moves the plan into your
 own cart for you (D-26/D-30). Nothing else ever writes to your cart.
@@ -25,8 +25,16 @@ own cart for you (D-26/D-30). Nothing else ever writes to your cart.
   Torob comparison implemented. CI type-checks, lints, tests, audits and
   packages every push; a `v*` tag publishes an attested release
   (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
-- Install: not on a store yet — load `dist/` unpacked, or take `bozkhar-<version>.zip`
-  from the [latest release](https://github.com/SudoScraTchY/BozKhar/releases)
+- Install:
+  - **Chrome, Edge, Brave** — take `bozkhar-<version>.zip` (or the stable
+    `bozkhar-latest.zip`) from the [latest release](https://github.com/SudoScraTchY/BozKhar/releases),
+    extract it, then load the folder from `chrome://extensions` → **Load unpacked**.
+  - **Firefox 140+** (including Floorp and Zen) — take
+    `bozkhar-firefox-<version>.zip` from the same release, extract it, then load
+    its `manifest.json` from `about:debugging#/runtime/this-firefox` → **Load
+    Temporary Add-on…**. The zip is unsigned and temporary until the AMO listing
+    is live; AMO is the stable Firefox install path.
+  - From a checkout, the two packages are `dist/` and `dist-firefox/`.
 - Publishing: [`agent/PUBLISHING.md`](agent/PUBLISHING.md) — what each browser store costs
   (only Chrome charges: US$5 once) and what to put in front of a reviewer
 - License: TBD (all rights reserved by the repository owner until decided)
@@ -168,11 +176,12 @@ committed fixture in `tests/fixtures/solver/`.
 
 ## Development
 
-Prerequisites: **Node.js >= 22** and npm; any Chromium browser for loading.
+Prerequisites: **Node.js >= 22** and npm; Chrome/Chromium, or Firefox 140+ for
+the Firefox target.
 
 ```bash
 npm install          # devDependencies only — zero runtime deps
-npm run build        # bundle to dist/
+npm run build        # bundle the Chrome package to dist/
 npm test             # vitest suite
 npm run typecheck    # tsc --noEmit (strict)
 npm run lint         # eslint
@@ -183,14 +192,20 @@ npm run verify       # all four gates in one shot (what CI runs)
 Packaging, exactly as CI does it:
 
 ```bash
-npm run build && npm run audit:dist   # audit the BUILT manifest against NFR-06
-python scripts/package-store-zip.py   # bozkhar-<version>.zip (+ .sha256) for the stores
+npm run build && npm run audit:dist       # audit the BUILT Chrome manifest against NFR-06
+npm run build:firefox                     # dist/ + the Firefox manifest in dist-firefox/
+npm run audit:dist:firefox                # byte-for-byte Firefox artifact audit
+npm run lint:firefox                      # web-ext lint (AMO validator)
+python scripts/package-store-zip.py       # bozkhar-<version>.zip (+ .sha256) for the stores
+python scripts/package-store-zip.py --dist dist-firefox --out bozkhar-firefox-<version>.zip
 ```
 
 Load into Chrome: `chrome://extensions` → enable **Developer mode** →
-**Load unpacked** → select `dist/`. Then open any Digikala product page or
-your cart page and use the buttons described above. The options page has the
-Plus toggle, tolerance, crawl delay, UI language, export, and clear-all.
+**Load unpacked** → select `dist/`. Load into Firefox:
+`about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
+`dist-firefox/manifest.json`. Then open any Digikala product page or your cart
+page and use the buttons described above. The options page has the Plus toggle,
+tolerance, crawl delay, UI language, export, and clear-all.
 
 Architecture notes live in [`SDD/06-architecture.md`](SDD/06-architecture.md);
 the solver contract is documented in [`src/shared/solver/API.md`](src/shared/solver/API.md).
@@ -199,13 +214,15 @@ are in [`agent/HANDOFF.md`](agent/HANDOFF.md).
 
 ### Releasing
 
-CI (`.github/workflows/`) type-checks, lints, tests, audits the built manifest,
-packages the store zip, attests its provenance and publishes it as a build
-artifact. A `v*` tag that matches `package.json`'s version turns that same
-build into a GitHub Release; creating the tag is the only manual step, and the
-workflow refuses a tag that disagrees with the version. Every action is pinned
-to a commit SHA and the pipelines hold no secrets. What to do with the zip is in
-[`agent/PUBLISHING.md`](agent/PUBLISHING.md).
+CI (`.github/workflows/`) type-checks, lints, tests, audits both built manifests,
+packages the Chrome and Firefox zips, lints the Firefox bundle with `web-ext`,
+attests provenance and publishes them as build artifacts. A `v*` tag that
+matches `package.json`'s version turns that same build into a GitHub Release
+with both zips and an AMO source zip; creating the tag is the only manual step,
+and the workflow refuses a tag that disagrees with the version. Every action is
+pinned to a commit SHA and the pipelines hold no secrets. What to do with the
+zips is in [`agent/PUBLISHING.md`](agent/PUBLISHING.md); the Firefox live pass
+is [`agent/FIREFOX-SMOKE.md`](agent/FIREFOX-SMOKE.md).
 
 ## Etiquette & fairness
 

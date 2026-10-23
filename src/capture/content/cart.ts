@@ -14,6 +14,7 @@ import {
   type ToastHandle,
 } from './ui';
 import type { CaptureProgressMessage, CaptureResponse } from '../messaging';
+import { startKeepalive } from '../../shared/keepalive';
 
 export interface CartSurfaceDeps {
   doc: Document;
@@ -92,6 +93,7 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
   let toast: ToastHandle | null = null;
   let unsub: (() => void) | null = null;
   let stopHints: (() => void) | null = null;
+  let stopKeepalive: (() => void) | null = null;
 
   /** Tears the overlay down: the opening-line loop, the subscription, the box. */
   const closeOverlay = () => {
@@ -108,6 +110,9 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
     overlay = showProgressOverlay(doc, { abort: deps.labels.abort }, () => {
       void deps.sendMessage({ kind: 'capture/crawl-abort' });
     });
+    // The crawl is one long background response; keep Firefox's event
+    // page from unloading while this overlay waits for it (D-46).
+    stopKeepalive = startKeepalive((req) => deps.sendMessage(req));
     overlay.setText(deps.labels.crawlStarting);
     stopHints = rotateTexts((line) => overlay?.setText(line), deps.labels.crawlStartingLines);
     unsub = deps.onProgress((msg) => {
@@ -137,6 +142,9 @@ export function mountCartSurface(deps: CartSurfaceDeps): CartSurface | null {
       toast?.remove();
       toast = showToast(doc, deps.labels.crawlStartFailed, 6000);
       return;
+    } finally {
+      stopKeepalive?.();
+      stopKeepalive = null;
     }
     if (!res.ok) {
       closeOverlay();

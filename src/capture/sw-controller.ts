@@ -120,10 +120,15 @@ export async function handleCapturePdp(
   deps: ControllerDeps,
   productId: string,
   variantId: string,
+  tabId?: number,
 ): Promise<CaptureResponse> {
   try {
     const url = productApiUrl(productId, variantId);
-    const raw = await digikalaFetchJson(url, { fetch: deps.fetch });
+    // Delegate-first when the PDP tab is known: the page context carries
+    // the session cookies in every browser (D-46), and a delegation
+    // failure falls back to the extension-origin fetch. Without a tab
+    // (tests, options-page callers) this is the direct fetch as before.
+    const raw = await buildFetchJson(deps, tabId)(url);
     const view = readProductPayload(raw);
     // Variant resolution (live smoke finding): an empty variantId (no
     // ?variant_id= in the browsed PDP URL) does NOT fail. The product payload
@@ -196,13 +201,14 @@ async function upsertItem(
 }
 
 /**
- * Builds the crawl's fetch function (D-16): with a content-script
+ * Builds the capture fetch function (D-16): with a content-script
  * tab available, fetches are delegated to it (page context carries
- * the site's routing header set, which the checkout API requires);
- * when the content script is unreachable - tab closed or navigated
- * off digikala - the SW's own session fetch is the fallback (it
- * serves the product API fine; the cart API may 401, which the
- * orchestrator contains per crawl).
+ * the site's routing header set, which the checkout API requires,
+ * and its session cookies in every browser - D-46); when the
+ * content script is unreachable - tab closed or navigated off
+ * digikala - the SW's own session fetch is the fallback (it serves
+ * the product API; the cart API may 401, which the orchestrator
+ * contains per crawl).
  */
 function buildFetchJson(deps: ControllerDeps, tabId?: number): (url: string) => Promise<unknown> {
   const direct = (url: string) => digikalaFetchJson(url, { fetch: deps.fetch });

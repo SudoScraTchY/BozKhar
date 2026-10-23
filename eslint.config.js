@@ -8,6 +8,8 @@ export default tseslint.config(
     // linted as shipped code.
     ignores: [
       'dist/**',
+      'dist-firefox/**',
+      'web-ext-artifacts/**',
       'node_modules/**',
       'coverage/**',
       'SDD/**',

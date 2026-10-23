@@ -1,11 +1,14 @@
 {
   "name": "BozKhar",
-  "version": "0.6.2",
-  "description": "Advise-only browser extension that finds the cheapest way to buy a basket on digikala.com (see SDD/).",
+  "version": "0.7.0",
+  "description": "Advise-only Chrome and Firefox extension that finds the cheapest way to buy a basket on digikala.com (see SDD/).",
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build",
+    "build:firefox": "vite build && node scripts/build-firefox.mjs",
     "audit:dist": "node scripts/audit-dist.mjs",
+    "audit:dist:firefox": "node scripts/audit-firefox-dist.mjs",
+    "lint:firefox": "web-ext lint --source-dir dist-firefox",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
@@ -32,6 +35,7 @@
     "typescript": "~5.9",
     "typescript-eslint": "^8.71.1",
     "vite": "^8.3.4",
-    "vitest": "^3.2.7"
+    "vitest": "^3.2.7",
+    "web-ext": "^10.8.0"
   }
 }

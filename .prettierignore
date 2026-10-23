@@ -1,4 +1,6 @@
 dist/
+dist-firefox/
+web-ext-artifacts/
 node_modules/
 coverage/
 package-lock.json

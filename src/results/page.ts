@@ -51,6 +51,7 @@ import {
   type ExportFormat,
 } from './export';
 import { getCartSnapshot, putCartSnapshot } from '../shared/storage/db';
+import { startKeepalive } from '../shared/keepalive';
 
 type Lang = UiLanguage;
 
@@ -265,6 +266,28 @@ export interface ReportPageDeps {
    * tests inject a fake (jsdom has no chrome APIs).
    */
   transport?: CartTransport;
+  /**
+   * Runtime message sink for the refresh crawl. Defaults to the live
+   * chrome.runtime.sendMessage; tests inject a fake.
+   */
+  send?: (req: unknown, cb?: (res: unknown) => void) => void;
+}
+
+/** The live runtime sender, with the callback settled on a dead channel. */
+function defaultRuntimeSend(req: unknown, cb?: (res: unknown) => void): void {
+  const runtime = globalThis.chrome?.runtime;
+  if (!runtime) {
+    cb?.(undefined);
+    return;
+  }
+  try {
+    runtime.sendMessage(req, (res: unknown) => {
+      void runtime.lastError;
+      cb?.(res);
+    });
+  } catch {
+    cb?.(undefined);
+  }
 }
 
 export function createReportPage(deps: ReportPageDeps): {
@@ -350,8 +373,13 @@ export function createReportPage(deps: ReportPageDeps): {
   function refreshPrices(): void {
     // The crawl is owned by the service worker (D-21); the
     // results page only asks and re-renders what appears.
-    void globalThis.chrome?.runtime?.sendMessage({
-      kind: 'capture/crawl-start',
+    const send = deps.send ?? defaultRuntimeSend;
+    // One long background response: keep Firefox's event page awake
+    // until the crawl (and its shipment quote) answers (D-46).
+    const stop = startKeepalive((req) => send(req));
+    send({ kind: 'capture/crawl-start' }, () => {
+      stop();
+      void renderAll();
     });
     state.recomputing = true;
     rerender();

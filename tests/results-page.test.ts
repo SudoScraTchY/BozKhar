@@ -465,6 +465,40 @@ describe('results page — the settled bill (D-27)', () => {
     expect(document.querySelectorAll('.bk-stale-row').length).toBeGreaterThan(0);
   });
 
+  it('keeps the background alive while the refresh crawl is pending (D-46)', async () => {
+    await putItem(IDB(), item('p1', 'v1'));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-b', 'فروشنده ب', 80, 20));
+    await appendSnapshot(IDB(), snapshot('p1', 'v2', 'vend-b', 'فروشنده ب', 60, 20));
+
+    let settle: ((res: unknown) => void) | undefined;
+    const send = vi.fn((req: unknown, cb?: (res: unknown) => void) => {
+      if ((req as { kind?: string }).kind === 'capture/crawl-start') settle = cb;
+    });
+    const page = createReportPage({ ...pageDeps(), send });
+    await page.run();
+
+    vi.useFakeTimers();
+    try {
+      const refresh = document.querySelector<HTMLButtonElement>('.bk-ledger-oldest button');
+      expect(refresh).not.toBeNull();
+      refresh?.click();
+
+      const keepalives = () =>
+        send.mock.calls.filter(([req]) => (req as { kind?: string }).kind === 'runtime/keepalive')
+          .length;
+
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(keepalives()).toBe(3);
+
+      settle?.({ ok: true, kind: 'crawl-start', itemCount: 1, done: 1, failed: 0 });
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(keepalives()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('an already-optimal cart shows the optimal state: no hero, no action bar', async () => {
     await putItem(IDB(), item('p1', 'v1'));
     await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10));

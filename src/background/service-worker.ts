@@ -18,8 +18,10 @@
  * *.digikala.com inside digikalaFetchJson (and inside every
  * injected func).
  */
-import type { CaptureRequest, CaptureResponse } from '../capture/messaging';
+import type { CaptureProgressMessage, CaptureRequest, CaptureResponse } from '../capture/messaging';
 import { isCaptureRequest } from '../capture/messaging';
+import { isDigikalaUrl } from '../capture/readers/url';
+import { isKeepaliveRequest, type KeepaliveResponse } from '../shared/keepalive';
 import { isInsightsRequest, type InsightsResponse } from '../insights/api';
 import { handleInsightsRequest } from '../insights/sw';
 import { isTorobRequest, type TorobResponse } from '../torob/api';
@@ -55,15 +57,48 @@ function broadcast(msg: unknown): void {
   void chrome.runtime.sendMessage(msg, () => void chrome.runtime.lastError);
 }
 
+/** The sender's tab, only when it is a real Digikala page. */
+function digikalaSenderTabId(sender: chrome.runtime.MessageSender): number | undefined {
+  const tab = sender.tab;
+  if (!tab || typeof tab.id !== 'number') return undefined;
+  return isDigikalaUrl(tab.url ?? '') ? tab.id : undefined;
+}
+
+/**
+ * Progress goes to extension pages through the broadcast (results page),
+ * and to the initiating content script through tabs.sendMessage: runtime
+ * .sendMessage cannot reach content scripts in Chrome or Firefox, so the
+ * cart overlay would otherwise only ever show D-36's opening lines.
+ */
+function progressSink(progressTabId: number | undefined): (msg: CaptureProgressMessage) => void {
+  return (msg) => {
+    broadcast(msg);
+    if (progressTabId === undefined) return;
+    try {
+      chrome.tabs.sendMessage(progressTabId, msg, () => void chrome.runtime.lastError);
+    } catch {
+      // The tab closed or navigated off Digikala; extension pages still got it.
+    }
+  };
+}
+
 type WorkerResponse =
   | CaptureResponse
   | InsightsResponse
   | TorobResponse
   | UpdateCheckResponse
+  | KeepaliveResponse
   | { ok: true; kind: 'insights-open' };
 
 chrome.runtime.onMessage.addListener(
   (raw: unknown, sender, sendResponse: (res: WorkerResponse) => void) => {
+    // D-46: a no-op message from a page waiting on a long crawl. Receipt
+    // is the point - it resets Firefox's 30 s event-page idle timer.
+    if (isKeepaliveRequest(raw)) {
+      sendResponse({ ok: true, kind: 'runtime/keepalive' });
+      return false;
+    }
+
     // The orders-tab button asks the worker to open the insights page.
     // Content scripts cannot call chrome.tabs, and this keeps the open
     // action tied to an explicit user click (D-30).
@@ -112,14 +147,31 @@ chrome.runtime.onMessage.addListener(
     const req = raw as CaptureRequest;
 
     if (req.kind === 'capture/pdp') {
-      void handleCapturePdp(deps(), req.productId, req.variantId).then(sendResponse);
+      // The sender is the PDP tab. The controller delegates the product GET
+      // to it first so the request carries the page's session in every
+      // browser (D-46); direct SW fetch remains the fallback.
+      const tabId = digikalaSenderTabId(sender);
+      void handleCapturePdp(deps(), req.productId, req.variantId, tabId).then(sendResponse);
       return true; // async response
     }
     if (req.kind === 'capture/crawl-start') {
-      // The requesting tab's content script executes the
-      // delegated crawl fetches (D-16); sender.tab is set for
-      // content-script messages (options-page starts have none).
-      void handleCrawlStart(deps(), sender.tab?.id).then((res) => {
+      // The requesting content script executes the delegated crawl fetches
+      // (D-16). A results-page initiator has no Digikala sender tab - its
+      // sender is an extension page - so resolve an open Digikala tab rather
+      // than delegating into the results tab itself (D-46).
+      const progressTabId = digikalaSenderTabId(sender);
+      void (async () => {
+        const sessionDeps = deps(progressTabId);
+        let crawlTabId = progressTabId;
+        if (crawlTabId === undefined) {
+          try {
+            crawlTabId = await sessionDeps.findCartTab?.();
+          } catch {
+            crawlTabId = undefined;
+          }
+        }
+        return handleCrawlStart(sessionDeps, crawlTabId);
+      })().then((res) => {
         // 09-ui-spec Surface 3: on completion the results
         // page opens automatically - failed items included,
         // with the gaps honestly listed. Partial and aborted
@@ -162,7 +214,7 @@ chrome.runtime.onMessage.addListener(
  * Deps are built lazily so the worker module loads even before any
  * storage/indexedDB is available (MV3 workers wake cold on any event).
  */
-function deps() {
+function deps(progressTabId?: number) {
   return {
     dbFactory: globalThis.indexedDB,
     settingsArea: chrome.storage.local,
@@ -192,7 +244,7 @@ function deps() {
     },
     cartAdd: delegateCartAdd,
     cartRemove: delegateCartRemove,
-    onProgress: broadcast,
+    onProgress: progressSink(progressTabId),
     badge: chrome.action,
   };
 }

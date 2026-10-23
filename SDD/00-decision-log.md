@@ -1483,3 +1483,77 @@ price to a 40,000,000-Rial payment (4,000,000 Toman) without scaling up an
 order that paid more than its lines, and asserts a cancelled order's category
 does not appear; `tests/insights-readers.test.ts` keeps a list-cancelled order
 cancelled when its detail payload says `sent`.
+
+## D-46 — Firefox 140+ from the same bundle (2026-10-23)
+
+**Problem:** T06.6 / OQ-05 left Firefox as an evaluation. Firefox supports MV3
+(109+) but has no background service worker and no plan to add one
+(Bug 1573659), requires a Gecko ID for signing, and requires a
+`data_collection_permissions` declaration for new AMO submissions. A second
+extension codebase would fork the solver, readers, UI and every future fix.
+
+**Decision:** one TypeScript tree, one CRXJS/Vite build, two packages.
+
+1. **Build.** `npm run build` still emits the Chrome `dist/`. A new
+   `scripts/build-firefox.mjs` copies it to `dist-firefox/` and transforms only
+   `manifest.json`: `background.service_worker` → `background.scripts` (the same
+   ESM loader), strip the Chrome-only `use_dynamic_url`, and add
+   `browser_specific_settings.gecko` with id
+   `bozkhar@sudoscratchy.github.io`, `strict_min_version: "140.0"` and
+   `data_collection_permissions.required: ["websiteContent"]`. Every other file
+   is byte-identical; `scripts/audit-firefox-dist.mjs` proves it and resolves
+   the content loader's web-accessible import closure.
+2. **No polyfill, no platform adapter.** Firefox MV3's `chrome.*` namespace is
+   an alias of `browser`, so awaited storage calls, callback messaging,
+   `tabs.*`, `action.*` and `scripting` keep working unchanged. CRXJS's content
+   loader is portable: Firefox 89+ allows dynamic import of `moz-extension:`
+   URLs from content scripts.
+3. **Event-page lifetime.** Firefox unloads an idle background page after 30 s,
+   and pending timers/fetches do not reset that timer; incoming messages do. The
+   cart crawl and the results-page price refresh are single long responses, so
+   their initiating pages send `runtime/keepalive` every 10 s until the response
+   settles (60-minute safety cap). Insights needs none: its page-side client
+   sends one short message per request, and each resets the timer.
+4. **Progress delivery.** `runtime.sendMessage` cannot reach content scripts in
+   either browser, so the cart overlay never received real "i of N" progress
+   even in Chrome. The worker now also calls `tabs.sendMessage` on the
+   initiating Digikala tab. A `capture/crawl-start` from the results page has no
+   Digikala sender tab, so the worker resolves an open Digikala tab instead of
+   delegating into the results tab.
+5. **SPA routes.** Firefox's Xray wrappers can keep a content-script
+   `history.pushState` patch invisible to the page, so a 500 ms
+   `location.pathname` poll backs up the existing patch/popstate remount.
+6. **PDP session.** Product capture delegates the GET to the PDP tab first
+   (page-context cookies in every browser) and falls back to the extension-origin
+   fetch, mirroring the crawl transport.
+7. **Release.** CI builds, audits, `web-ext lint`s (errors fail, warnings are
+   reviewed) and packages both targets. The GitHub release carries the Chrome
+   zip + alias, the versioned unsigned Firefox zip, and a `git archive` source
+   zip for AMO review. First AMO submission is manual and listed; AMO secrets do
+   not enter the no-secrets release workflow.
+
+**Alternatives:** a second Vite/CRXJS pass for Firefox (new hashes, a manifest
+shape CRXJS does not model, double the audit surface); WXT/Plasmo (restructures
+the shipped Chrome entrypoints for a manifest-only delta); webextension-polyfill
+(archived, no-op on Firefox and Chrome 148+, unnecessary here); one manifest
+with both background keys (leaves Chrome-only keys in the Firefox package and
+widens the Chrome audit); an Insights keepalive (would keep hung fetches alive);
+Firefox for Android (untested mobile UI, out of scope).
+
+**Consequences:** Firefox 140+ desktop with full feature parity. Chrome's
+manifest, audit and package command stay unchanged, but the shared JS gains the
+keepalive, the progress fix, the crawl-tab resolution and the path poll, so the
+Chrome build needs a regression smoke. The Gecko ID is permanent after the first
+AMO submission. `web-ext` becomes a dev-only dependency (runtime dependencies
+remain zero), and every CI install grows by that tree. The GitHub Firefox zip is
+unsigned: AMO is the install path for stable Firefox.
+
+**Evidence:** `tests/keepalive.test.ts`, `tests/capture-route-watch.test.ts`,
+`tests/background-routing.test.ts`, `tests/firefox-build.test.ts` (spawns the
+real build/audit against a fixture, including failure cases),
+`tests/capture-content.test.ts` (30 s of keepalives then silence),
+`tests/results-page.test.ts` and `tests/capture-sw-controller.test.ts`; the full
+suite is green. `npm run build:firefox`, `npm run audit:dist:firefox` and
+`npm run lint:firefox` pass (lint: 0 errors, 8 reviewed warnings). The live
+Firefox smoke and the first AMO submission are still pending and tracked in
+`agent/FIREFOX-SMOKE.md` and T06.6.

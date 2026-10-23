@@ -121,14 +121,19 @@ No scheduled or background page visits of any kind (D-03). The extension perform
 ### NFR-03 — Performance
 Solve: < 1s at 30 items × 10 vendors (target), hard ceiling 5s at scale thresholds. Capture: < 2s per product page after load. Results view interactive re-solve (lock/tolerance changes): < 300ms.
 
-### NFR-04 — Platform: Chrome MV3 first
-Manifest V3, service-worker architecture, no persistent background. Firefox compatibility is evaluated at T06 (OQ-05) but is not an MVP requirement.
+### NFR-04 — Platform: Chrome and Firefox MV3
+Manifest V3 on Chrome (service worker) and Firefox 140+ (event page), from one
+TypeScript source and one bundled artifact per browser (D-46). Chrome remains
+the primary store target; Firefox ships with full feature parity.
 
 ### NFR-05 — Resilience to site changes
 All DOM access funnels through a versioned selectors module (R-02); extractor failures surface as visible errors with the extractor version, never as silently wrong data.
 
 ### NFR-06 — Minimal permissions
-Only: `storage`, `tabs`, and host permission for `digikala.com`. Anything beyond requires a logged decision.
+Only: `storage`, `tabs`, `scripting`, and host permissions for
+`https://*.digikala.com/*`, `https://api.torob.com/*` (click-only) and
+`https://api.github.com/*` (popup-only). Anything beyond requires a logged
+decision.
 
 ### NFR-07 — Crawl etiquette
 Sequential navigation, default ≥ 1.5s delay between pages, abortable, resumable; the crawl only ever visits product pages of items already in the user's cart or comparison list.

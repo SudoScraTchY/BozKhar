@@ -1,7 +1,10 @@
 node_modules/
 dist/
+dist-firefox/
+web-ext-artifacts/
 .crx
 *.pem
+*.xpi
 *.log
 .DS_Store
 Thumbs.db

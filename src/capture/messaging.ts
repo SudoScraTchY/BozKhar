@@ -3,8 +3,10 @@
  * content scripts only ask and render).
  *
  * All messages are runtime.sendMessage round trips with typed payloads and
- * typed responses. Progress is broadcast (no sender) so any surface that is
- * open - cart page overlay or results page later (T05) - can render it.
+ * typed responses. Progress goes to extension pages through
+ * runtime.sendMessage and to the initiating content script through
+ * tabs.sendMessage: runtime.sendMessage cannot reach content scripts in
+ * Chrome or Firefox (D-46).
  */
 
 import type { Snapshot } from '../shared/types';

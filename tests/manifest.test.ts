@@ -29,6 +29,17 @@ describe('manifest permissions (NFR-06)', () => {
   it('is manifest_version 3 with no remote code surface', () => {
     expect(manifestSource.manifest_version).toBe(3);
   });
+
+  it('keeps the source manifest Chrome-shaped for the Firefox transform', () => {
+    // D-46: scripts/build-firefox.mjs derives the Firefox manifest from
+    // the built artifact. Adding Firefox keys here would leak them into
+    // the Chrome package and widen the Chrome audit for no benefit.
+    expect(manifestSource.background).toEqual({
+      service_worker: 'src/background/service-worker.ts',
+      type: 'module',
+    });
+    expect('browser_specific_settings' in manifestSource).toBe(false);
+  });
 });
 
 describe('manifest version', () => {

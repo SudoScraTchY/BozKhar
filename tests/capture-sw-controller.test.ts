@@ -93,6 +93,36 @@ describe('handleCapturePdp (T03.4 wiring)', () => {
   const PID = '16622211';
   const VID = '62270876';
 
+  it('delegates the product GET to the PDP tab when one is known (D-46)', async () => {
+    const deps = makeDeps();
+    const delegateFetch = vi.fn(async () => productBasic);
+    deps.delegateFetch = delegateFetch;
+
+    const res = await handleCapturePdp(deps, PID, VID, 42);
+    expect(res.ok).toBe(true);
+    expect(delegateFetch).toHaveBeenCalledWith(
+      42,
+      expect.stringContaining(`/product/v1/products/${PID}/`),
+    );
+    expect(deps.fetchCalls).toHaveLength(0);
+    const items = await getAllItems(deps.dbFactory);
+    expect(items).toHaveLength(1);
+  });
+
+  it('falls back to the direct session fetch when delegation fails (D-46)', async () => {
+    const deps = makeDeps();
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    deps.delegateFetch = vi.fn(async () => {
+      throw new Error('no tab');
+    });
+
+    const res = await handleCapturePdp(deps, PID, VID, 42);
+    expect(res.ok).toBe(true);
+    expect(deps.fetchCalls).toHaveLength(1);
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
+  });
+
   it('fetches the product API, normalizes, and appends snapshot + item', async () => {
     const deps = makeDeps();
     const res = await handleCapturePdp(deps, PID, VID);

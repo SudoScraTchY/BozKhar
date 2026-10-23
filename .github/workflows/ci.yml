@@ -12,9 +12,10 @@
 #     resolving something newer;
 #   * the build uses no secrets at all, so a fork's pull request runs the
 #     identical pipeline;
-#   * the artifact is audited against the agreed manifest, zipped, hashed
-#     and - on pushes - attested with build provenance, so a user can
-#     prove the zip came from this repository at this commit.
+#   * both artifacts (Chrome and Firefox) are audited against the agreed
+#     manifests, zipped, hashed and - on pushes - attested with build
+#     provenance, so a user can prove either zip came from this repository
+#     at this commit.
 #
 # NOT run here: e2e/e2e-settled-bill.py. It drives a pinned Playwright
 # Chromium over a session IndexedDB dump, both local git-ignored artifacts
@@ -123,16 +124,31 @@ jobs:
         # NFR-06: permissions, host matches, version and manifest keys are
         # audited on the ARTIFACT, after the bundler has rewritten it.
         run: npm run audit:dist
+      - name: Build the Firefox bundle
+        # D-46: the Firefox package is the audited Chrome bundle plus a
+        # generated manifest. No second bundler pass, so no hash drift.
+        run: node scripts/build-firefox.mjs
+      - name: Audit the Firefox manifest
+        # Shared fields and every non-manifest byte are compared with dist/,
+        # and the content loader's web-accessible import closure is resolved.
+        run: npm run audit:dist:firefox
+      - name: Lint the Firefox bundle
+        # AMO's own validator. Warnings are reviewed; only errors fail.
+        run: npm run lint:firefox
       - name: Package the store zip
         # scripts/package-store-zip.py writes bozkhar-<version>.zip (the
         # stores want manifest.json at the archive root - the script
         # asserts that after writing) plus its .sha256 sidecar.
         run: python3 scripts/package-store-zip.py
+      - name: Package the Firefox zip
+        run: python3 scripts/package-store-zip.py --dist dist-firefox --out bozkhar-firefox-${{ steps.pkg.outputs.version }}.zip
       - name: Attest build provenance
         if: github.event_name != 'pull_request'
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
-          subject-path: bozkhar-${{ steps.pkg.outputs.version }}.zip
+          subject-path: |
+            bozkhar-${{ steps.pkg.outputs.version }}.zip
+            bozkhar-firefox-${{ steps.pkg.outputs.version }}.zip
       - name: Upload the installable package
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -140,5 +156,14 @@ jobs:
           path: |
             bozkhar-${{ steps.pkg.outputs.version }}.zip
             bozkhar-${{ steps.pkg.outputs.version }}.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload the Firefox package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bozkhar-firefox-${{ steps.pkg.outputs.version }}
+          path: |
+            bozkhar-firefox-${{ steps.pkg.outputs.version }}.zip
+            bozkhar-firefox-${{ steps.pkg.outputs.version }}.zip.sha256
           if-no-files-found: error
           retention-days: 30

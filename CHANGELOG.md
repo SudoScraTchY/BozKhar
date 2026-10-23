@@ -4,6 +4,51 @@ All notable changes to BozKhar are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [0.7.0] - 2026-10-23
+
+### Added
+
+- **Firefox 140+ desktop support** from the same TypeScript source and the same
+  bundled artifact. `npm run build:firefox` derives `dist-firefox/` from the
+  audited Chrome build, and `npm run audit:dist:firefox` proves the shared
+  fields and every non-manifest byte match. CI packages and attests both zips;
+  releases attach the versioned Firefox zip and an AMO source archive.
+- Firefox AMO metadata: a permanent Gecko id, `strict_min_version` 140, and a
+  `data_collection_permissions` declaration of `websiteContent` for the
+  click-only Torob title lookup.
+
+### Fixed
+
+- Cart-crawl progress now reaches the cart overlay. `runtime.sendMessage`
+  cannot deliver to content scripts, so the worker also sends each progress
+  message to the initiating Digikala tab with `tabs.sendMessage`.
+- A price refresh started from the results page now runs its delegated fetches
+  in an open Digikala tab instead of the results tab itself.
+- SPA route changes remount the in-page surfaces on Firefox through a 500 ms
+  pathname poll, backing up the `history.pushState` patch (Firefox Xray can
+  keep a content-script patch invisible to the page).
+
+### Changed
+
+- PDP capture delegates its product GET to the page's main world first (the
+  session-bearing context in every browser) and falls back to the
+  extension-origin fetch.
+- The GitHub Pages install section now has separate Chrome and Firefox
+  tickets, Firefox temporary-install steps, and the `npm run build:firefox`
+  path in the source instructions. Page metadata and structured data list both
+  browsers.
+- Firefox event pages are kept alive during a crawl by a 10 s no-op message
+  from the initiating page. Insights needs no keepalive: each request is a
+  separate short message.
+
+### Tests
+
+- New keepalive, route-watch, background-routing and Firefox build/audit
+  suites, plus crawl-keepalive, results-refresh, PDP-delegation and manifest
+  source-shape cases. Full suite: 482 tests across 45 files.
+
 ## [0.6.2] - 2026-10-22
 
 ### Fixed
@@ -127,6 +172,7 @@ All notable changes to BozKhar are documented here. The format follows
 - 438 tests across 39 files, plus typecheck, ESLint, Prettier, production
   build and the built-manifest audit.
 
+[0.7.0]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.7.0
 [0.6.2]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.2
 [0.6.1]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.1
 [0.6.0]: https://github.com/SudoScraTchY/BozKhar/releases/tag/v0.6.0
