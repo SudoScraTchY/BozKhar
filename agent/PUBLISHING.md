@@ -105,8 +105,8 @@ git tag -a v0.7.0 -m "BozKhar 0.7.0"
 git push origin v0.7.0
 ```
 
-v0.4.0 through v0.6.2 were published this way; 0.7.0 is the first release with
-the Firefox package attached. Re-running a release for a
+v0.4.0 through v0.7.0 were published this way; 0.7.0 is the first release with
+the Firefox package attached (Release run 39971963079). Re-running a release for a
 tag that already exists is allowed only when that tag points at the commit
 the run just built — otherwise the run stops and says so, because a release
 built from one tree must never be filed under a tag that names another.

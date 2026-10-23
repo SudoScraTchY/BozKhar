@@ -10,9 +10,13 @@ Firefox is now a supported build target from the same source, bundle and tests.
 **State:** **482/482 tests across 45 files**; typecheck, ESLint, Prettier, the
 Chrome build/audit and the Firefox build/audit/`web-ext lint` are clean over the
 whole tree. What is **not** done: the live Firefox smoke, the Chrome regression
-smoke, and the AMO submission (T06.8). The version is bumped to **0.7.0** in the
-working tree, with both browser packages and the dual-browser landing page; no
-commit, tag or release has been made.
+smoke, and the AMO submission (T06.8). **0.7.0 is released** from `c3ce4d2`:
+CI run 39965643968 built and uploaded both packages, Pages run 39965643091
+deployed the dual-browser landing page, and Release run 39971963079 published
+`bozkhar-0.7.0.zip`, `bozkhar-firefox-0.7.0.zip`, `bozkhar-latest.zip` and
+`bozkhar-0.7.0-source.zip`. Published SHA-256: Chrome
+`189377c8ecb0ea416262e032fd805945962017007c9f76df77c5414628cf819e`,
+Firefox `907d3fc8a91e7907ded119b7791066e1d305d10b43cf84cc63c706d55d666daa`.
 
 **How the package is produced.** `npm run build` still emits the Chrome `dist/`.
 `npm run build:firefox` runs that build, copies it to `dist-firefox/`, and
@@ -51,8 +55,8 @@ install path for stable Firefox.
 
 **Remaining (T06.8):** run [`FIREFOX-SMOKE.md`](FIREFOX-SMOKE.md) on Firefox
 140+ (critical: a >90 s crawl, a mid-crawl event-page termination, SPA nav,
-apply/undo, insights, exports); re-smoke Chrome; tag and release 0.7.0; submit
-the listed AMO listing with the source zip and the reviewer answers in
+apply/undo, insights, exports); re-smoke Chrome; submit the listed AMO listing
+with the published source zip and the reviewer answers in
 [`PUBLISHING.md`](PUBLISHING.md).
 
 ## 0a. Prior session (2026-10-16, rounds 3–4) — read for context
