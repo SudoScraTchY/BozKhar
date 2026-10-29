@@ -54,6 +54,45 @@ const CSS = `
 .dkopt-torob:hover { background: #fff1f3; }
 .dkopt-torob:focus-visible { outline: 2px solid #1e6fae; outline-offset: 2px; }
 .dkopt-torob[aria-expanded='true'] { background: #fff1f3; }
+.dkopt-torob-range { border-color: #0f766e; color: #0f766e; }
+.dkopt-torob-range:hover { background: #ecfdf5; }
+.dkopt-torob-range[aria-expanded='true'] { background: #ecfdf5; }
+.dkopt-range-cats { display: grid; gap: 8px; margin-top: 12px; }
+.dkopt-range-cat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid #eceef1;
+  border-radius: 10px;
+}
+.dkopt-range-cat-main { min-width: 0; }
+.dkopt-range-cat-title { display: block; font-size: 13px; font-weight: 700; line-height: 1.7; }
+.dkopt-range-cat-sub { display: block; margin-top: 2px; color: #6b7280; font-size: 11px; line-height: 1.7; }
+.dkopt-range-cat-side { text-align: end; }
+.dkopt-range-value {
+  display: block;
+  color: #0b7a3b;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.7;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.dkopt-range-value.is-empty { color: #9ca3af; font-size: 12px; font-weight: 600; white-space: normal; }
+.dkopt-range-count { display: block; margin-top: 2px; color: #9ca3af; font-size: 11px; }
+.dkopt-range-method { margin: 10px 0 0; color: #6b7280; font-size: 11px; line-height: 1.8; }
+.dkopt-range-delivery {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #8a6d3b;
+  font-size: 11px;
+  line-height: 1.8;
+}
 .dkopt-torob-panel {
   position: fixed;
   inset-block-end: 20px;

@@ -6,10 +6,31 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CaptureProgressMessage } from '../src/capture/messaging';
 import { handleCapturePdp } from '../src/capture/sw-controller';
+import { handleTorobCompare, handleTorobRange } from '../src/torob/handler';
 
 const mockState = vi.hoisted(() => ({
   deps: null as unknown,
   tabId: undefined as number | undefined,
+}));
+
+vi.mock('../src/torob/handler', () => ({
+  handleTorobCompare: vi.fn(async (_fetch: unknown, query: string) => ({
+    ok: true,
+    kind: 'torob/compare',
+    comparison: {
+      query,
+      searchUrl: '',
+      productName: null,
+      productUrl: null,
+      offers: [],
+      shopCount: 0,
+    },
+  })),
+  handleTorobRange: vi.fn(async (_fetch: unknown, query: string) => ({
+    ok: true,
+    kind: 'torob/range',
+    range: { query, searchUrl: '', categories: [] },
+  })),
 }));
 
 vi.mock('../src/capture/sw-controller', () => ({
@@ -183,5 +204,19 @@ describe('service-worker routing (D-46)', () => {
     worker({ kind: 'capture/pdp', productId: '1', variantId: '2' }, sender, sendResponse);
     await vi.waitFor(() => expect(handleCapturePdp).toHaveBeenCalled());
     expect(handleCapturePdp).toHaveBeenCalledWith(expect.anything(), '1', '2', undefined);
+  });
+
+  it('routes torob/range to the range handler and torob/compare to the comparison', async () => {
+    const worker = await loadWorker();
+    const sendResponse = vi.fn();
+
+    expect(worker({ kind: 'torob/range', query: 'Poco X8 Pro' }, {}, sendResponse)).toBe(true);
+    await vi.waitFor(() => expect(handleTorobRange).toHaveBeenCalledTimes(1));
+    expect(handleTorobRange).toHaveBeenCalledWith(expect.any(Function), 'Poco X8 Pro');
+    expect(handleTorobCompare).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledTimes(1));
+
+    expect(worker({ kind: 'torob/compare', query: 'Poco X8 Pro' }, {}, sendResponse)).toBe(true);
+    await vi.waitFor(() => expect(handleTorobCompare).toHaveBeenCalledTimes(1));
   });
 });

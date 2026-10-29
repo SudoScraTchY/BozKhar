@@ -1615,3 +1615,59 @@ title (not the buy box), and both actions sharing the row with the compare
 button first even when Torob mounts first; `tests/capture-selectors.test.ts`
 covers the `PDP_TITLE_CANDIDATES` order and null case. Full suite, typecheck,
 ESLint, Prettier, build and `audit:dist` clean.
+
+## D-48 — Torob all-listings price range with two categories (2026-10-29)
+
+**Problem:** the user asked for a PDP button that calculates a price range
+across *all* Torob listings instead of only the canonical product's top-five
+sellers, for two categories — installment (قسطی) and unfiltered (anything) —
+with an explicit statement that delivery cost cannot be calculated.
+
+**Live contract (verified 2026-10-29):** Torob's search page exposes the
+"خرید قسطی ترب‌پی" checkbox (`id=torobpay`); clicking it writes
+`torobpay=true` to the URL, and the search API honors the same parameter.
+Search cards carry each listing's own cheapest price (`price`, rendered as
+"از …") plus `shop_text`; no detail request is needed for a range. Torob's
+filtered feed falls back to unrelated products when the query has no genuine
+installment match (e.g. a premium phone query returned C81/A17 cards), so the
+range must apply the same relevance gate as the canonical picker and return an
+empty category rather than a fabricated range. Two live examples:
+Poco X8 Pro installment → no relevant listing; Poco C85 installment →
+65,290,000–78,600,000 Toman (3 listings). Both categories are one GET each.
+
+**Decision:** add a third PDP action, "بازه قیمت در ترب", sharing the Torob
+panel and query with the existing comparison trigger (D-42/D-47). It sends
+`torob/range` to the worker; the worker runs two `search/` GETs (installment
+with `torobpay=true`, then unfiltered) and normalizes each category as follows:
+filter to relevant same-model listings (all Latin model tokens required, ≥60%
+token coverage; numeric capacity tokens are relaxed so 256/8 variants count as
+the same family), fold ad/organic duplicates by normalized name+price, sort by
+each listing's cheapest price, set **low = cheapest**, and **high = the 3rd
+cheapest distinct price, falling back to the 2nd and then to the single
+price**. The UI labels both bounds and states in a dedicated notice that
+delivery cost cannot be calculated (it depends on city/address and is not in
+Torob's data); the range is item-price-only. No per-product detail calls and
+no new host permission.
+
+**Alternatives:** reuse only the canonical product's five seller offers
+(rejected — the user asked for all products); fetch details for every listing
+(rejected — up to 48 extra requests per click for little gain, since the card
+already carries the listing's cheapest price); include Torob's unrelated
+fallback cards (rejected — produces meaningless ranges and would present a
+"قسطی" range that is not the queried product); show a single definitive price
+(rejected — stock, seller and variant spread make a range the honest answer).
+
+**Consequences:** two extra Torob GETs only after a click; a category with no
+genuine match renders an explicit "no listing" state, which is common for
+premium phones under the TorobPay filter. The range is a first-page sample
+(24 cards), not an exhaustive crawl; the method note says how the bounds are
+picked. Delivery remains unmodeled by design, consistent with D-07's
+item+delivery objective: this surface is comparison-only, not a solver input.
+
+**Evidence:** `tests/torob-api.test.ts` (filter URL, relaxed matching,
+duplicate folding, 3rd/2nd/1st boundaries, two-search handler, empty
+installment), `tests/capture-content.test.ts` (both categories render, the
+delivery notice, mode switching, destroy), `tests/background-routing.test.ts`
+(`torob/range` dispatch), and the live Poco X8 Pro / C85 payload check
+(2026-10-29). Full suite 493/493, typecheck, ESLint, Prettier, build and
+`audit:dist` clean.

@@ -24,8 +24,8 @@ import { isDigikalaUrl } from '../capture/readers/url';
 import { isKeepaliveRequest, type KeepaliveResponse } from '../shared/keepalive';
 import { isInsightsRequest, type InsightsResponse } from '../insights/api';
 import { handleInsightsRequest } from '../insights/sw';
-import { isTorobRequest, type TorobResponse } from '../torob/api';
-import { handleTorobCompare } from '../torob/handler';
+import { isTorobRequest, type TorobRangeResponse, type TorobResponse } from '../torob/api';
+import { handleTorobCompare, handleTorobRange } from '../torob/handler';
 import {
   handleUpdateCheck,
   isUpdateCheckRequest,
@@ -86,6 +86,7 @@ type WorkerResponse =
   | CaptureResponse
   | InsightsResponse
   | TorobResponse
+  | TorobRangeResponse
   | UpdateCheckResponse
   | KeepaliveResponse
   | { ok: true; kind: 'insights-open' };
@@ -133,13 +134,16 @@ chrome.runtime.onMessage.addListener(
       return true;
     }
 
-    // Torob comparison (D-42): one click on the PDP trigger sends the
-    // public product title to Torob's API. The worker is the only place
-    // that talks to Torob, so the page never sees a cross-origin request.
+    // Torob (D-42/D-48): one click on a PDP trigger sends the public product
+    // title to Torob's API. The worker is the only place that talks to
+    // Torob, so the page never sees a cross-origin request.
     if (isTorobRequest(raw)) {
-      void handleTorobCompare((url, init) => globalThis.fetch(url, init), raw.query).then(
-        sendResponse,
-      );
+      const fetchFn = (url: string, init?: RequestInit) => globalThis.fetch(url, init);
+      const task =
+        raw.kind === 'torob/range'
+          ? handleTorobRange(fetchFn, raw.query)
+          : handleTorobCompare(fetchFn, raw.query);
+      void task.then(sendResponse);
       return true;
     }
 

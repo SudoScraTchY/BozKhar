@@ -14,7 +14,8 @@ browsers (Firefox 140+, Zen, Waterfox, Floorp). It finds the
 vendors** — item prices **and** per-vendor delivery fees together, with
 promotions, Digikala Plus benefits, large-item fees, and your own vendor locks
 (pin/ban) factored in. It also summarizes your own order history **on-device** and, on request,
-shows the cheapest **Torob** sellers for the product you are viewing. It shows
+shows the cheapest **Torob** sellers and an all-listings price range (installment or
+unfiltered, delivery excluded) for the product you are viewing. It shows
 you a plan, and — only when you press **Apply** — it moves the plan into your
 own cart for you (D-26/D-30). Nothing else ever writes to your cart.
 
@@ -58,7 +59,7 @@ exactly, so you can buy like a proper بزخر.
 
 ## What it does
 
-Four surfaces, all user-triggered:
+Five surfaces, all user-triggered:
 
 1. **Product page — "Add to comparison" (افزودن به مقایسه).** Captures every
    vendor offer for the current variant: vendor identity, price, stock,
@@ -68,10 +69,17 @@ Four surfaces, all user-triggered:
    the top five cheapest sellers with their prices and links. Nothing is sent
    until you press it, and only the public product title is sent — no
    account, no cart, no session.
-3. **Cart page — "Optimize this cart" (بهینه‌سازی سبد خرید).** Resolves your
+3. **Product page — "Torob price range" (بازه قیمت در ترب).** On your click,
+   calculates the range across all matching listings in two categories:
+   installment (TorobPay) and unfiltered. The low bound is the cheapest
+   listing's price; the high bound is the third-cheapest distinct price
+   (second or the single price when fewer listings exist). Delivery is
+   explicitly excluded — it depends on city/address and cannot be calculated
+   from Torob's data, so the range is item-price only.
+4. **Cart page — "Optimize this cart" (بهینه‌سازی سبد خرید).** Resolves your
    actual cart items (product + the exact variant in your cart), captures
    their offers with polite sequential fetches, then computes the plan.
-4. **Order Insights (خریدهای من).** Reads your own order history on request —
+5. **Order Insights (خریدهای من).** Reads your own order history on request —
    from the orders page or the toolbar popup — and keeps a local, all-time
    summary: spend, item and vendor breakdowns, monthly/value/weekday charts,
    current deliveries, a status breakdown that counts cancelled orders without
@@ -81,9 +89,10 @@ Four surfaces, all user-triggered:
 
 Digikala data is captured from the site's own JSON payloads (read-only GETs
 with your existing session), normalized into a local model, and stored **only
-in your browser** (IndexedDB). Two external requests exist, both minimal: the
-Torob lookup after an explicit click, and a GitHub release check when you open
-the popup. No server of ours. No account. No telemetry.
+in your browser** (IndexedDB). The only external requests are Torob reads
+after an explicit click (the public product title, never an account, cart or
+session) and a GitHub release check when you open the popup. No server of
+ours. No account. No telemetry.
 
 ## Use cases we accounted for
 
@@ -141,8 +150,8 @@ These map to the requirements in [`SDD/02-requirements.md`](SDD/02-requirements.
   English in both UI languages; the exported table is English-headed so a
   file reads the same whoever you send it to. (FR-16)
 - **Privacy: your shopping list stays in your browser.** Local-only storage,
-  no telemetry, no remote code, and no server of ours. Two requests ever leave
-  Digikala: the Torob lookup you explicitly trigger, which carries the public
+  no telemetry, no remote code, and no server of ours. The only outbound
+  requests are the Torob lookups you explicitly trigger, which carry the public
   product title, and a GitHub release check when the popup opens, which sends
   nothing and reads only the latest tag. Export your data as JSON or wipe all
   stored data from the options page at any time. (NFR-01, FR-16)
@@ -174,8 +183,8 @@ committed fixture in `tests/fixtures/solver/`.
   check runs only while the popup is open.
 - No cart writes, no auto-checkout, no payment interaction (FR-15).
 - No data collection and no server of ours. Your cart, orders and settings
-  never leave the browser; the Torob lookup sends only the public product
-  title, and the GitHub check sends nothing at all (D-04, D-42, D-44).
+  never leave the browser; the Torob lookups send only the public product
+  title, and the GitHub check sends nothing at all (D-04, D-42, D-44, D-48).
 - No content scripts, capture or page access on any site other than
   digikala.com.
 
@@ -235,8 +244,9 @@ is [`agent/FIREFOX-SMOKE.md`](agent/FIREFOX-SMOKE.md).
 ## Etiquette & fairness
 
 Boz Khar reads only pages/APIs you are already browsing, at human-ish pace,
-only when you click. The Torob lookup happens only when you press the compare
-button and asks Torob's public API for the product you are already viewing.
+only when you click. The Torob lookups happen only when you press the compare
+or price-range button and ask Torob's public API for the product you are
+already viewing.
 The GitHub release check runs only when you open the popup, sends nothing, and
 asks a single unauthenticated question: what is the latest tag? It adds no
 load beyond a careful user's own browsing. Please keep the crawl delay at its

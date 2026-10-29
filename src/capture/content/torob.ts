@@ -10,7 +10,14 @@
  */
 import { findMountPoint, isProductPage, PDP_TITLE_CANDIDATES } from '../dom/selectors';
 import { ensureStyles, ensureTitleActions } from './ui';
-import { torobSearchUrl, type TorobComparison, type TorobResponse } from '../../torob/api';
+import {
+  torobSearchUrl,
+  type TorobCategoryRange,
+  type TorobComparison,
+  type TorobRangeReport,
+  type TorobRangeResponse,
+  type TorobResponse,
+} from '../../torob/api';
 
 export interface TorobLabels {
   cta: string;
@@ -26,6 +33,18 @@ export interface TorobLabels {
   cheapest: string;
   shopCount: (count: number) => string;
   note: string;
+  rangeCta: string;
+  rangeHint: string;
+  rangeTitle: string;
+  rangeLoading: string;
+  rangeInstallment: string;
+  rangeInstallmentSub: string;
+  rangeAny: string;
+  rangeAnySub: string;
+  rangeNoListings: string;
+  rangeListingCount: (count: number) => string;
+  rangeMethod: string;
+  rangeDeliveryNote: string;
 }
 
 export interface TorobSurfaceDeps {
@@ -33,7 +52,7 @@ export interface TorobSurfaceDeps {
   location?: { href: string; pathname: string };
   lang: 'fa' | 'en';
   labels: TorobLabels;
-  sendMessage(req: unknown): Promise<TorobResponse>;
+  sendMessage(req: unknown): Promise<TorobResponse | TorobRangeResponse>;
 }
 
 export interface TorobSurface {
@@ -100,8 +119,23 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
   link.setAttribute('aria-haspopup', 'dialog');
   link.setAttribute('aria-expanded', 'false');
 
+  // D-48: the range trigger shares the panel and the resolved query with the
+  // comparison, so one surface owns both Torob actions on the PDP.
+  const rangeButton = doc.createElement('button');
+  rangeButton.type = 'button';
+  rangeButton.id = 'dkopt-torob-range';
+  rangeButton.className = 'dkopt-torob dkopt-torob-range';
+  rangeButton.textContent = labels.rangeCta;
+  rangeButton.title = labels.rangeHint;
+  rangeButton.setAttribute('aria-label', labels.rangeCta);
+  rangeButton.setAttribute('aria-haspopup', 'dialog');
+  rangeButton.setAttribute('aria-expanded', 'false');
+
+  type PanelMode = 'offers' | 'range';
   let panel: HTMLElement | null = null;
+  let panelMode: PanelMode | null = null;
   let cached: TorobResponse | null = null;
+  let cachedRange: TorobRangeResponse | null = null;
   let requestToken = 0;
 
   function externalLink(text: string, href: string, className: string): HTMLAnchorElement {
@@ -114,7 +148,7 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
     return anchor;
   }
 
-  function renderHeader(subtitle: string): void {
+  function renderHeader(titleText: string, subtitle: string): void {
     if (!panel) return;
     const head = doc.createElement('div');
     head.className = 'dkopt-torob-head';
@@ -122,7 +156,7 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
     const copy = doc.createElement('div');
     const title = doc.createElement('h2');
     title.className = 'dkopt-torob-title';
-    title.textContent = labels.offersTitle;
+    title.textContent = titleText;
     const sub = doc.createElement('p');
     sub.className = 'dkopt-torob-sub';
     sub.textContent = subtitle;
@@ -151,13 +185,13 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
     panel.append(foot);
   }
 
-  function renderLoading(): void {
+  function renderLoading(mode: PanelMode): void {
     if (!panel) return;
     panel.replaceChildren();
-    renderHeader(query ?? '');
+    renderHeader(mode === 'range' ? labels.rangeTitle : labels.offersTitle, query ?? '');
     const status = doc.createElement('p');
     status.className = 'dkopt-torob-status';
-    status.textContent = labels.loading;
+    status.textContent = mode === 'range' ? labels.rangeLoading : labels.loading;
     status.setAttribute('role', 'status');
     panel.append(status);
   }
@@ -165,7 +199,7 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
   function renderComparison(comparison: TorobComparison): void {
     if (!panel) return;
     panel.replaceChildren();
-    renderHeader(comparison.productName ?? comparison.query);
+    renderHeader(labels.offersTitle, comparison.productName ?? comparison.query);
 
     if (comparison.offers.length === 0) {
       const status = doc.createElement('p');
@@ -236,53 +270,138 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
     renderFooter(comparison.searchUrl);
   }
 
-  function renderFailure(searchUrl: string): void {
+  function formatRange(category: TorobCategoryRange): string | null {
+    if (category.minToman === null || category.upperToman === null) return null;
+    if (category.upperBasis === 1 || category.upperToman === category.minToman) {
+      return formatPrice(category.minToman);
+    }
+    return `${formatPrice(category.minToman)} – ${formatPrice(category.upperToman)}`;
+  }
+
+  function renderRange(range: TorobRangeReport): void {
     if (!panel) return;
     panel.replaceChildren();
-    renderHeader(query ?? '');
+    renderHeader(labels.rangeTitle, query ?? range.query);
+
+    const grid = doc.createElement('div');
+    grid.className = 'dkopt-range-cats';
+
+    for (const category of range.categories) {
+      const block = doc.createElement('div');
+      block.className = 'dkopt-range-cat';
+      block.dataset.category = category.category;
+
+      const main = doc.createElement('div');
+      main.className = 'dkopt-range-cat-main';
+      const title = doc.createElement('span');
+      title.className = 'dkopt-range-cat-title';
+      title.textContent =
+        category.category === 'installment' ? labels.rangeInstallment : labels.rangeAny;
+      const sub = doc.createElement('span');
+      sub.className = 'dkopt-range-cat-sub';
+      sub.textContent =
+        category.category === 'installment' ? labels.rangeInstallmentSub : labels.rangeAnySub;
+      main.append(title, sub);
+
+      const side = doc.createElement('div');
+      side.className = 'dkopt-range-cat-side';
+      const value = doc.createElement('span');
+      value.className = 'dkopt-range-value';
+      const formatted = formatRange(category);
+      if (formatted === null) {
+        value.classList.add('is-empty');
+        value.textContent = labels.rangeNoListings;
+      } else {
+        value.textContent = formatted;
+      }
+      const count = doc.createElement('span');
+      count.className = 'dkopt-range-count';
+      count.textContent = labels.rangeListingCount(category.listingCount);
+      side.append(value, count);
+
+      block.append(main, side);
+      grid.append(block);
+    }
+    panel.append(grid);
+
+    const method = doc.createElement('p');
+    method.className = 'dkopt-range-method';
+    method.textContent = labels.rangeMethod;
+    const delivery = doc.createElement('p');
+    delivery.className = 'dkopt-range-delivery';
+    delivery.textContent = labels.rangeDeliveryNote;
+    panel.append(method, delivery);
+
+    renderFooter(range.searchUrl);
+  }
+
+  function renderFailure(mode: PanelMode): void {
+    if (!panel) return;
+    panel.replaceChildren();
+    renderHeader(mode === 'range' ? labels.rangeTitle : labels.offersTitle, query ?? '');
     const status = doc.createElement('p');
     status.className = 'dkopt-torob-status';
     status.textContent = labels.error;
     status.setAttribute('role', 'status');
     panel.append(status);
-    renderFooter(searchUrl);
+    renderFooter(torobSearchUrl(query ?? ''));
   }
 
-  function renderResponse(response: TorobResponse | null): void {
+  function renderResponse(
+    mode: PanelMode,
+    response: TorobResponse | TorobRangeResponse | null,
+  ): void {
     if (response === null) {
-      renderLoading();
+      renderLoading(mode);
       return;
     }
-    if (response.ok) renderComparison(response.comparison);
-    else renderFailure(torobSearchUrl(query ?? ''));
+    if (!response.ok) {
+      renderFailure(mode);
+      return;
+    }
+    if (response.kind === 'torob/range') renderRange(response.range);
+    else renderComparison(response.comparison);
   }
 
-  async function load(): Promise<void> {
+  async function load(mode: PanelMode): Promise<void> {
     const activeQuery = query;
     if (!activeQuery) return;
     const token = ++requestToken;
-    renderLoading();
-    let response: TorobResponse;
+    renderLoading(mode);
+    let response: TorobResponse | TorobRangeResponse;
     try {
-      response = await deps.sendMessage({ kind: 'torob/compare', query: activeQuery });
+      response = await deps.sendMessage(
+        mode === 'range'
+          ? { kind: 'torob/range', query: activeQuery }
+          : { kind: 'torob/compare', query: activeQuery },
+      );
     } catch {
-      response = { ok: false, errorCode: 'RUNTIME', message: 'comparison failed' };
+      response = { ok: false, errorCode: 'RUNTIME', message: 'Torob request failed' };
     }
-    if (token !== requestToken || panel === null) return;
-    cached = response;
-    renderResponse(response);
+    if (token !== requestToken || panel === null || panelMode !== mode) return;
+    if (mode === 'range') cachedRange = response as TorobRangeResponse;
+    else cached = response as TorobResponse;
+    renderResponse(mode, response);
   }
 
-  function openPanel(): void {
-    if (panel || !query) return;
-    panel = doc.createElement('section');
-    panel.className = 'dkopt-torob-panel';
-    panel.setAttribute('role', 'dialog');
-    panel.setAttribute('aria-label', labels.offersTitle);
-    doc.body.appendChild(panel);
-    link.setAttribute('aria-expanded', 'true');
-    if (cached) renderResponse(cached);
-    else void load();
+  function openPanel(mode: PanelMode): void {
+    if (!query) return;
+    if (!panel) {
+      panel = doc.createElement('section');
+      panel.className = 'dkopt-torob-panel';
+      panel.setAttribute('role', 'dialog');
+      doc.body.appendChild(panel);
+    } else if (panelMode === mode) {
+      return;
+    }
+    panelMode = mode;
+    requestToken += 1;
+    panel.setAttribute('aria-label', mode === 'range' ? labels.rangeTitle : labels.offersTitle);
+    link.setAttribute('aria-expanded', mode === 'offers' ? 'true' : 'false');
+    rangeButton.setAttribute('aria-expanded', mode === 'range' ? 'true' : 'false');
+    const cachedResponse = mode === 'range' ? cachedRange : cached;
+    if (cachedResponse) renderResponse(mode, cachedResponse);
+    else void load(mode);
   }
 
   function closePanel(): void {
@@ -290,7 +409,9 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
     requestToken += 1;
     panel.remove();
     panel = null;
+    panelMode = null;
     link.setAttribute('aria-expanded', 'false');
+    rangeButton.setAttribute('aria-expanded', 'false');
   }
 
   link.addEventListener('click', (event) => {
@@ -298,8 +419,13 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
       return; // keep open-in-new-tab behavior (progressive enhancement)
     }
     event.preventDefault();
-    if (panel) closePanel();
-    else openPanel();
+    if (panel && panelMode === 'offers') closePanel();
+    else openPanel('offers');
+  });
+
+  rangeButton.addEventListener('click', () => {
+    if (panel && panelMode === 'range') closePanel();
+    else openPanel('range');
   });
 
   const onKeydown = (event: KeyboardEvent): void => {
@@ -318,7 +444,7 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
   // desktop and fixed on mobile (D-47), so anything placed there is covered
   // by Digikala's own controls while scrolling.
   const place = (title: Element): void => {
-    ensureTitleActions(doc, title).append(link);
+    ensureTitleActions(doc, title).append(link, rangeButton);
   };
 
   const observe = (): void => {
@@ -372,6 +498,7 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
       timer = null;
       closePanel();
       link.remove();
+      rangeButton.remove();
       doc.removeEventListener('keydown', onKeydown);
     },
   };

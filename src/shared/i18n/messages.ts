@@ -41,6 +41,18 @@ export type MessageKey =
   | 'torobCheapest'
   | 'torobShopCount'
   | 'torobPanelNote'
+  | 'torobRangeCta'
+  | 'torobRangeHint'
+  | 'torobRangeTitle'
+  | 'torobRangeLoading'
+  | 'torobRangeInstallment'
+  | 'torobRangeInstallmentSub'
+  | 'torobRangeAny'
+  | 'torobRangeAnySub'
+  | 'torobRangeNoListings'
+  | 'torobRangeListingCount'
+  | 'torobRangeMethod'
+  | 'torobRangeDeliveryNote'
   | 'capturing'
   | 'captureFailed'
   | 'tryAgain'
@@ -410,6 +422,20 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     torobCheapest: 'کمترین قیمت',
     torobShopCount: '{count} فروشنده',
     torobPanelNote: 'قیمت‌ها از ترب؛ پیش از خرید در ترب بررسی کنید.',
+    torobRangeCta: 'بازه قیمت در ترب',
+    torobRangeHint: 'بازه قیمت همه لیستینگ‌های هم‌مدل را از ترب حساب می‌کند.',
+    torobRangeTitle: 'بازه قیمت در ترب',
+    torobRangeLoading: 'در حال حساب کردن بازه قیمت از ترب…',
+    torobRangeInstallment: 'قسطی',
+    torobRangeInstallmentSub: 'فقط خرید قسطی ترب‌پی',
+    torobRangeAny: 'بدون فیلتر',
+    torobRangeAnySub: 'همه لیستینگ‌های هم‌مدل',
+    torobRangeNoListings: 'لیستینگی در این دسته پیدا نشد.',
+    torobRangeListingCount: '{count} لیستینگ',
+    torobRangeMethod:
+      'کمینه: ارزان‌ترین قیمت میان لیستینگ‌ها؛ سقف: سومین کمترین قیمت (یا دومین اگر سومین نبود).',
+    torobRangeDeliveryNote:
+      'هزینه ارسال قابل محاسبه نیست؛ به شهر و آدرس شما بستگی دارد و در داده‌های ترب نیست. این بازه فقط قیمت کالاست.',
     capturing: 'در حال دریافت…',
     captureFailed: 'دریافت ناموفق بود',
     tryAgain: 'تلاش دوباره',
@@ -783,6 +809,20 @@ export const messages: Record<'fa' | 'en', Catalog> = {
     torobCheapest: 'Lowest price',
     torobShopCount: '{count} sellers',
     torobPanelNote: 'Prices come from Torob; verify them there before buying.',
+    torobRangeCta: 'Price range on Torob',
+    torobRangeHint: 'Calculates the price range across all matching Torob listings.',
+    torobRangeTitle: 'Torob price range',
+    torobRangeLoading: 'Calculating the Torob price range…',
+    torobRangeInstallment: 'Installment',
+    torobRangeInstallmentSub: 'TorobPay installment listings only',
+    torobRangeAny: 'No filter',
+    torobRangeAnySub: 'All matching listings',
+    torobRangeNoListings: 'No listing was found in this category.',
+    torobRangeListingCount: '{count} listings',
+    torobRangeMethod:
+      'Low: the cheapest listing price; high: the third-cheapest price (second if there is no third).',
+    torobRangeDeliveryNote:
+      'Delivery cost cannot be calculated; it depends on your city and address and is not in Torob’s data. This range covers the item price only.',
     capturing: 'Capturing…',
     captureFailed: 'Capture failed',
     tryAgain: 'Try again',

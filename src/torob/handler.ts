@@ -7,12 +7,16 @@
  */
 import {
   normalizeTorobComparison,
+  normalizeTorobRange,
   pickTorobProduct,
   torobDetailsApiUrl,
+  torobRangeSearchApiUrl,
   torobSearchApiUrl,
   torobSearchUrl,
   type TorobComparison,
   type TorobErrorCode,
+  type TorobRangeResponse,
+  type TorobRangeReport,
   type TorobResponse,
 } from './api';
 
@@ -71,14 +75,39 @@ function emptyComparison(query: string): TorobComparison {
   };
 }
 
+function readQuery(rawQuery: unknown): string {
+  return typeof rawQuery === 'string' ? rawQuery.trim().slice(0, MAX_QUERY_CHARS) : '';
+}
+
+type TorobFailureResponse = {
+  ok: false;
+  errorCode: TorobErrorCode;
+  message: string;
+  status?: number;
+};
+
+function badRequest(): TorobFailureResponse {
+  return { ok: false, errorCode: 'BAD_REQUEST', message: 'a product title is required' };
+}
+
+function failure(error: unknown): TorobFailureResponse {
+  if (error instanceof TorobFailure) {
+    return {
+      ok: false,
+      errorCode: error.errorCode,
+      message: error.message,
+      ...(error.status === undefined ? {} : { status: error.status }),
+    };
+  }
+  return { ok: false, errorCode: 'RUNTIME', message: 'the Torob request failed unexpectedly' };
+}
+
 export async function handleTorobCompare(
   fetchFn: TorobFetch,
   rawQuery: unknown,
 ): Promise<TorobResponse> {
-  const query = typeof rawQuery === 'string' ? rawQuery.trim().slice(0, MAX_QUERY_CHARS) : '';
-  if (query.length < 2) {
-    return { ok: false, errorCode: 'BAD_REQUEST', message: 'a product title is required' };
-  }
+  const query = readQuery(rawQuery);
+  if (query.length < 2) return badRequest();
 
   try {
     const searchPayload = await fetchJson(fetchFn, torobSearchApiUrl(query));
@@ -94,14 +123,35 @@ export async function handleTorobCompare(
       comparison: normalizeTorobComparison(query, searchPayload, detailsPayload),
     };
   } catch (error) {
-    if (error instanceof TorobFailure) {
-      return {
-        ok: false,
-        errorCode: error.errorCode,
-        message: error.message,
-        ...(error.status === undefined ? {} : { status: error.status }),
-      };
-    }
-    return { ok: false, errorCode: 'RUNTIME', message: 'comparison failed unexpectedly' };
+    return failure(error);
+  }
+}
+
+/**
+ * All-listings price range (D-48). Two search requests, one per category;
+ * no details requests, so a click costs Torob exactly two GETs. Unrelated
+ * fallback cards are filtered by the same relevance gate as the comparison,
+ * which is why a category with no genuine match returns null bounds instead
+ * of a range built from unrelated products.
+ */
+export async function handleTorobRange(
+  fetchFn: TorobFetch,
+  rawQuery: unknown,
+): Promise<TorobRangeResponse> {
+  const query = readQuery(rawQuery);
+  if (query.length < 2) return badRequest();
+
+  try {
+    const [installmentPayload, anyPayload] = await Promise.all([
+      fetchJson(fetchFn, torobRangeSearchApiUrl(query, 'installment')),
+      fetchJson(fetchFn, torobRangeSearchApiUrl(query, 'any')),
+    ]);
+    const range: TorobRangeReport = normalizeTorobRange(query, {
+      installment: installmentPayload,
+      any: anyPayload,
+    });
+    return { ok: true, kind: 'torob/range', range };
+  } catch (error) {
+    return failure(error);
   }
 }

@@ -6,6 +6,15 @@ All notable changes to BozKhar are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The PDP now has a third Torob action, «بازه قیمت در ترب»: it compares all
+  matching Torob listings in two categories — installment (TorobPay) and
+  unfiltered — and shows a low/high range built from each listing's cheapest
+  price. The high bound is the third-cheapest distinct price (second, then
+  single). Delivery is explicitly excluded: it depends on city/address and is
+  not in Torob's data, so the range is item-price only (D-48).
+
 ### Fixed
 
 - The “چرا این فروشنده؟” trade-off sentence now states how much the unit is

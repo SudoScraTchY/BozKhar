@@ -14,7 +14,7 @@ import {
   torobQueryFromPage,
   torobSearchUrl,
 } from '../src/capture/content/torob';
-import type { TorobResponse } from '../src/torob/api';
+import type { TorobRangeResponse, TorobResponse } from '../src/torob/api';
 import type { CaptureProgressMessage, CaptureResponse } from '../src/capture/messaging';
 
 const PDP_LABELS = {
@@ -602,6 +602,18 @@ describe('Torob surface', () => {
     cheapest: 'کمترین قیمت',
     shopCount: (count: number) => `${count} فروشنده`,
     note: 'قیمت‌ها از ترب',
+    rangeCta: 'بازه قیمت در ترب',
+    rangeHint: 'بازه قیمت همه لیستینگ‌ها',
+    rangeTitle: 'بازه قیمت در ترب',
+    rangeLoading: 'در حال حساب کردن بازه…',
+    rangeInstallment: 'قسطی',
+    rangeInstallmentSub: 'فقط خرید قسطی ترب‌پی',
+    rangeAny: 'بدون فیلتر',
+    rangeAnySub: 'همه لیستینگ‌های هم‌مدل',
+    rangeNoListings: 'لیستینگی در این دسته پیدا نشد.',
+    rangeListingCount: (count: number) => `${count} لیستینگ`,
+    rangeMethod: 'کمینه تا سومین قیمت ارزان‌تر',
+    rangeDeliveryNote: 'هزینه ارسال قابل محاسبه نیست؛ این بازه فقط قیمت کالاست.',
   };
 
   const COMPARISON = {
@@ -630,7 +642,36 @@ describe('Torob surface', () => {
     shopCount: 12,
   };
 
-  function torobDeps(sendMessage: (req: unknown) => Promise<TorobResponse>) {
+  const RANGE: TorobRangeResponse = {
+    ok: true,
+    kind: 'torob/range',
+    range: {
+      query: 'گوشی موبایل سامسونگ',
+      searchUrl: torobSearchUrl('گوشی موبایل سامسونگ'),
+      categories: [
+        {
+          category: 'installment',
+          minToman: 1_200_000,
+          upperToman: 1_500_000,
+          upperBasis: 3,
+          pricesToman: [1_200_000, 1_350_000, 1_500_000],
+          listingCount: 5,
+          listings: [],
+        },
+        {
+          category: 'any',
+          minToman: 1_000_000,
+          upperToman: 1_000_000,
+          upperBasis: 1,
+          pricesToman: [1_000_000],
+          listingCount: 1,
+          listings: [],
+        },
+      ],
+    },
+  };
+
+  function torobDeps(sendMessage: (req: unknown) => Promise<TorobResponse | TorobRangeResponse>) {
     return {
       doc: document,
       location: currentLocation,
@@ -716,6 +757,49 @@ describe('Torob surface', () => {
     surface?.destroy();
     expect(document.getElementById('dkopt-torob')).toBeNull();
     expect(document.querySelector('.dkopt-torob-panel')).toBeNull();
+  });
+
+  it('renders both Torob range categories and states delivery cannot be calculated', async () => {
+    const sendMessage = vi.fn(async (): Promise<TorobResponse | TorobRangeResponse> => RANGE);
+    const surface = mountTorobSurface(torobDeps(sendMessage));
+    expect(surface).not.toBeNull();
+
+    const rangeButton = document.getElementById('dkopt-torob-range') as HTMLButtonElement;
+    expect(rangeButton.textContent).toBe('بازه قیمت در ترب');
+    rangeButton.click();
+    expect(sendMessage).toHaveBeenCalledWith({
+      kind: 'torob/range',
+      query: 'گوشی موبایل سامسونگ',
+    });
+    await vi.waitFor(() => expect(document.querySelector('.dkopt-range-cat')).not.toBeNull());
+
+    const panel = document.querySelector('.dkopt-torob-panel') as HTMLElement;
+    const categories = panel.querySelectorAll('.dkopt-range-cat');
+    expect(categories).toHaveLength(2);
+    expect(categories[0]!.textContent).toContain('قسطی');
+    expect(categories[1]!.textContent).toContain('بدون فیلتر');
+
+    const fmt = new Intl.NumberFormat('fa-IR');
+    expect(panel.textContent).toContain(`${fmt.format(1_200_000)} تومان`);
+    expect(panel.textContent).toContain(`${fmt.format(1_500_000)} تومان`);
+    expect(panel.textContent).toContain('هزینه ارسال قابل محاسبه نیست');
+    expect(panel.textContent).toContain('5 لیستینگ');
+    expect(rangeButton.getAttribute('aria-expanded')).toBe('true');
+
+    const compareLink = document.getElementById('dkopt-torob') as HTMLAnchorElement;
+    compareLink.click();
+    await vi.waitFor(() =>
+      expect(document.querySelector('.dkopt-torob-panel')?.textContent).toContain(
+        'ارزان‌ترین فروشنده‌های ترب',
+      ),
+    );
+    expect(sendMessage).toHaveBeenCalledWith({
+      kind: 'torob/compare',
+      query: 'گوشی موبایل سامسونگ',
+    });
+
+    surface?.destroy();
+    expect(document.getElementById('dkopt-torob-range')).toBeNull();
   });
 
   it('keeps the search link when the comparison fails', async () => {

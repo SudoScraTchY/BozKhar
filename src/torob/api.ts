@@ -38,19 +38,61 @@ export interface TorobComparison {
   shopCount: number;
 }
 
+/** Search categories for the all-listings price range (D-48). */
+export type TorobRangeCategoryKey = 'installment' | 'any';
+
+export interface TorobRangeListing {
+  prk: string;
+  name: string;
+  /** The listing's own cheapest price; Torob search cards are "از ...". */
+  priceToman: number;
+  shopCount: number;
+  url: string | null;
+}
+
+export interface TorobCategoryRange {
+  category: TorobRangeCategoryKey;
+  /** Cheapest listing price, Toman; null when no relevant listing matched. */
+  minToman: number | null;
+  /**
+   * Upper boundary: the 3rd cheapest distinct listing price, falling back to
+   * the 2nd and then the listing itself when fewer products exist.
+   */
+  upperToman: number | null;
+  /** Which distinct price set the upper boundary (1 = single price). */
+  upperBasis: 1 | 2 | 3;
+  /** Up to three distinct cheapest prices, ascending. */
+  pricesToman: number[];
+  listingCount: number;
+  /** Cheapest matched listings, ascending (up to three). */
+  listings: TorobRangeListing[];
+}
+
+export interface TorobRangeReport {
+  query: string;
+  searchUrl: string;
+  /** Installment first, then unfiltered. */
+  categories: TorobCategoryRange[];
+}
+
 export type TorobErrorCode =
   'BAD_REQUEST' | 'NETWORK' | 'HTTP_STATUS' | 'STRUCTURE_UNRECOGNIZED' | 'RUNTIME';
 
-export type TorobRequest = { kind: 'torob/compare'; query: string };
+export type TorobRequest =
+  { kind: 'torob/compare'; query: string } | { kind: 'torob/range'; query: string };
 
 export type TorobResponse =
   | { ok: true; kind: 'torob/compare'; comparison: TorobComparison }
   | { ok: false; errorCode: TorobErrorCode; message: string; status?: number };
 
+export type TorobRangeResponse =
+  | { ok: true; kind: 'torob/range'; range: TorobRangeReport }
+  | { ok: false; errorCode: TorobErrorCode; message: string; status?: number };
+
 export function isTorobRequest(raw: unknown): raw is TorobRequest {
-  return (
-    typeof raw === 'object' && raw !== null && (raw as { kind?: unknown }).kind === 'torob/compare'
-  );
+  if (typeof raw !== 'object' || raw === null) return false;
+  const kind = (raw as { kind?: unknown }).kind;
+  return kind === 'torob/compare' || kind === 'torob/range';
 }
 
 export function torobSearchUrl(query: string): string {
@@ -70,6 +112,25 @@ export function torobSearchApiUrl(query: string): string {
 export function torobDetailsApiUrl(prk: string): string {
   const params = new URLSearchParams({ prk, source: 'next_desktop' });
   return `${TOROB_DETAILS_URL}?${params.toString()}`;
+}
+
+/** First results page is enough for a range; Torob caps large sizes anyway. */
+export const TOROB_RANGE_PAGE_SIZE = 24;
+
+/**
+ * Same search endpoint, one category per call. `torobpay=true` is the live
+ * "خرید قسطی ترب‌پی" filter (verified 2026-10-29 by clicking the search-page
+ * checkbox); the unfiltered category sends no filter parameter.
+ */
+export function torobRangeSearchApiUrl(query: string, category: TorobRangeCategoryKey): string {
+  const params = new URLSearchParams({
+    page: '0',
+    size: String(TOROB_RANGE_PAGE_SIZE),
+    q: query.trim(),
+    source: 'next_desktop',
+  });
+  if (category === 'installment') params.set('torobpay', 'true');
+  return `${TOROB_SEARCH_URL}?${params.toString()}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -193,17 +254,26 @@ function readSearchCandidates(payload: unknown): TorobSearchCandidate[] {
 }
 
 /**
- * Picks the Torob product that represents the PDP. Every Latin model token
- * (poco, x8, pro) must appear when the query has them, so X7/F8 siblings
- * cannot win. Among candidates within one token of the best score, the one
- * with the most sellers wins - that is the canonical listing, not a
- * single-seller color variant (live finding 2026-10-20).
+ * Relevance gate shared by the single-product comparison and the all-listings
+ * range. Every Latin model token (poco, x8, pro) must appear when the query
+ * has them, so X7/F8 siblings cannot pass; coverage below 0.6 drops noise.
+ * Duplicate prks (Torob repeats an ad row organically) are folded once.
+ *
+ * `relaxNumeric` is for the range view: a PDP title carries the selected
+ * capacity/RAM (512, 12), but sibling variants (256/8) must still count as
+ * the same product family. Model tokens keep their hard requirement.
  */
-export function pickTorobProduct(query: string, payload: unknown): TorobSearchCandidate | null {
+function scoreTorobCandidates(
+  query: string,
+  payload: unknown,
+  { relaxNumeric = false } = {},
+): Array<{ candidate: TorobSearchCandidate; score: number }> {
   const queryTokens = tokenize(query);
   const distinctive = queryTokens.filter((token) => !STOP_WORDS.has(token));
-  const required = distinctive.length > 0 ? distinctive : queryTokens;
-  if (required.length === 0) return null;
+  const base = distinctive.length > 0 ? distinctive : queryTokens;
+  const relaxed = relaxNumeric ? base.filter((token) => !/^[0-9]+$/.test(token)) : base;
+  const required = relaxed.length > 0 ? relaxed : base;
+  if (required.length === 0) return [];
   const modelTokens = required.filter((token) => /[a-z]/.test(token));
 
   const scored: Array<{ candidate: TorobSearchCandidate; score: number }> = [];
@@ -222,7 +292,17 @@ export function pickTorobProduct(query: string, payload: unknown): TorobSearchCa
     if (coverage < 0.6) continue;
     scored.push({ candidate, score });
   }
+  return scored;
+}
 
+/**
+ * Picks the Torob product that represents the PDP. Among candidates within
+ * one token of the best score, the one with the most sellers wins - that is
+ * the canonical listing, not a single-seller color variant (live finding
+ * 2026-10-20).
+ */
+export function pickTorobProduct(query: string, payload: unknown): TorobSearchCandidate | null {
+  const scored = scoreTorobCandidates(query, payload);
   if (scored.length === 0) return null;
   const maxScore = Math.max(...scored.map((entry) => entry.score));
   const contenders = scored
@@ -232,6 +312,28 @@ export function pickTorobProduct(query: string, payload: unknown): TorobSearchCa
         b.candidate.shopCount - a.candidate.shopCount || a.candidate.index - b.candidate.index,
     );
   return contenders[0]?.candidate ?? null;
+}
+
+/**
+ * Every relevant listing on the search page, in Torob relevance order.
+ * This is the "all products" set behind the price range (D-48); it uses the
+ * same gate as the canonical picker so unrelated fallback cards injected by
+ * a narrow filter (observed live with `torobpay=true`) never shape the range.
+ */
+export function matchTorobProducts(query: string, payload: unknown): TorobSearchCandidate[] {
+  const seen = new Set<string>();
+  const matched: TorobSearchCandidate[] = [];
+  for (const candidate of scoreTorobCandidates(query, payload, { relaxNumeric: true })
+    .map((entry) => entry.candidate)
+    .sort((a, b) => a.index - b.index)) {
+    // A promoted card and the organic card are the same listing; a prk can
+    // differ between them (live data usually repeats it, but not always).
+    const key = `${normalizeText(candidate.name)}|${candidate.priceToman ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matched.push(candidate);
+  }
+  return matched;
 }
 
 function readOffers(payload: unknown): { offers: TorobOffer[]; shopCount: number } {
@@ -291,5 +393,60 @@ export function normalizeTorobComparison(
     productUrl: product?.url ?? null,
     offers,
     shopCount,
+  };
+}
+
+/**
+ * Builds one category's range from Torob search cards. Each card's `price`
+ * is already that listing's cheapest offer ("از ..."), so no per-product
+ * detail requests are needed. Distinct prices avoid letting an ad + organic
+ * duplicate of the same listing consume the upper-bound slot.
+ *
+ * Delivery is deliberately absent: Torob cards do not carry a reliable
+ * per-seller delivered price, and shipping varies by the user's address.
+ */
+export function normalizeTorobCategoryRange(
+  query: string,
+  category: TorobRangeCategoryKey,
+  payload: unknown,
+): TorobCategoryRange {
+  const listings: TorobRangeListing[] = matchTorobProducts(query, payload)
+    .filter((candidate) => candidate.priceToman !== null && candidate.priceToman > 0)
+    .map((candidate) => ({
+      prk: candidate.prk,
+      name: candidate.name,
+      priceToman: candidate.priceToman as number,
+      shopCount: candidate.shopCount,
+      url: candidate.url,
+    }))
+    .sort((a, b) => a.priceToman - b.priceToman || a.name.localeCompare(b.name));
+
+  const prices = [...new Set(listings.map((listing) => listing.priceToman))].sort((a, b) => a - b);
+  const minToman = prices[0] ?? null;
+  const upperToman = prices[2] ?? prices[1] ?? prices[0] ?? null;
+  const upperBasis: 1 | 2 | 3 = prices.length >= 3 ? 3 : prices.length === 2 ? 2 : 1;
+
+  return {
+    category,
+    minToman,
+    upperToman,
+    upperBasis,
+    pricesToman: prices.slice(0, 3),
+    listingCount: listings.length,
+    listings: listings.slice(0, 3),
+  };
+}
+
+export function normalizeTorobRange(
+  query: string,
+  payloads: { installment: unknown; any: unknown },
+): TorobRangeReport {
+  return {
+    query,
+    searchUrl: torobSearchUrl(query),
+    categories: [
+      normalizeTorobCategoryRange(query, 'installment', payloads.installment),
+      normalizeTorobCategoryRange(query, 'any', payloads.any),
+    ],
   };
 }
