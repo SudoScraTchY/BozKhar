@@ -53,7 +53,8 @@ function setLocation(href: string, pathname: string): void {
 
 describe('PDP surface (T03.4)', () => {
   beforeEach(() => {
-    document.body.innerHTML = '<form action="/cart"><div data-testid="sellers-cta"></div></form>';
+    document.body.innerHTML =
+      '<div class="title-block"><div class="title-row"><h1>گوشی موبایل سامسونگ</h1></div></div>';
     setLocation(PDP_URL, PDP_PATH);
   });
 
@@ -94,7 +95,7 @@ describe('PDP surface (T03.4)', () => {
   });
 
   it('mounts late (SPA): anchor appearing after hydration still gets the button', async () => {
-    // Live smoke finding: Digikala hydrates the buy-box seconds after idle.
+    // Live smoke finding: Digikala hydrates the product title seconds after idle.
     vi.useFakeTimers();
     try {
       document.body.innerHTML = '<div></div>'; // no anchor yet
@@ -116,7 +117,7 @@ describe('PDP surface (T03.4)', () => {
 
       // anchor appears: the MutationObserver attaches on the
       // mutation itself (async advance flushes the observer task).
-      document.body.innerHTML = '<div data-testid="buy-box"></div>';
+      document.body.innerHTML = '<h1>گوشی موبایل سامسونگ</h1>';
       await vi.advanceTimersByTimeAsync(0);
       const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
       expect(btn).not.toBeNull();
@@ -127,7 +128,7 @@ describe('PDP surface (T03.4)', () => {
     }
   });
 
-  it('attaches when the seller panel renders after mount (rate-limit hardened)', async () => {
+  it('attaches when the product title renders after mount (rate-limit hardened)', async () => {
     // No anchor at document_idle (SPA not hydrated yet - the
     // 2026-10-07 live smoke: hydration can take minutes under
     // site rate-limiting; the old 30s poll expired first).
@@ -141,15 +142,41 @@ describe('PDP surface (T03.4)', () => {
     });
     expect(document.querySelector('button.dkopt-btn')).toBeNull();
 
-    // The SPA renders the buy-box late: the MutationObserver
+    // The SPA renders the title late: the MutationObserver
     // attaches the button the moment it exists.
-    document.body.innerHTML = '<div data-testid="buy-box"></div>';
+    document.body.innerHTML = '<h1>گوشی موبایل سامسونگ</h1>';
     await new Promise((r) => setTimeout(r, 0));
     const btn = document.querySelector('button.dkopt-btn') as HTMLButtonElement;
     expect(btn).not.toBeNull();
     expect(btn.dataset.state).toBe('idle');
     surface?.destroy();
     expect(document.querySelector('button.dkopt-btn')).toBeNull();
+  });
+
+  it('mounts the action row under the title, not in the buy box', () => {
+    document.body.innerHTML =
+      '<div class="title-block"><div class="title-row"><h1 data-testid="pdp-title">گوشی موبایل سامسونگ</h1></div></div>' +
+      '<div data-testid="buy-box"></div>';
+    const surface = mountPdpSurface({
+      doc: document,
+      location: currentLocation,
+      lang: 'fa',
+      labels: PDP_LABELS,
+      sendMessage: vi.fn(async (): Promise<CaptureResponse> => ({
+        ok: true,
+        kind: 'pdp',
+        snapshotId: 's',
+        offerCount: 1,
+        variantLabel: 'v',
+      })),
+    });
+    const actions = document.querySelector('.dkopt-pdp-actions') as HTMLElement;
+    expect(actions).not.toBeNull();
+    expect(actions.previousElementSibling).toBe(document.querySelector('.title-row'));
+    expect(actions.closest('.title-block')).not.toBeNull();
+    expect(document.querySelector('[data-testid="buy-box"]')?.contains(actions)).toBe(false);
+    surface?.destroy();
+    expect(document.querySelector('.dkopt-pdp-actions')).toBeNull();
   });
 
   it('sends empty variantId when the URL has none (SW resolves from payload)', async () => {
@@ -614,7 +641,7 @@ describe('Torob surface', () => {
   }
 
   beforeEach(() => {
-    document.body.innerHTML = '<h1>گوشی موبایل سامسونگ</h1><div data-testid="sellers-cta"></div>';
+    document.body.innerHTML = '<h1>گوشی موبایل سامسونگ</h1>';
     document.title = '';
     setLocation(PDP_URL, PDP_PATH);
   });
@@ -638,7 +665,7 @@ describe('Torob surface', () => {
   });
 
   it('waits for a late heading on a bare dkp URL before mounting', async () => {
-    document.body.innerHTML = '<div data-testid="sellers-cta"></div>';
+    document.body.innerHTML = '';
     setLocation('https://www.digikala.com/product/dkp-1001/', '/product/dkp-1001/');
     const surface = mountTorobSurface(
       torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
@@ -706,21 +733,43 @@ describe('Torob surface', () => {
     surface?.destroy();
   });
 
-  it('mounts below the buy row when the comparison button shares that row', () => {
+  it('mounts under the product title, not in the buy row', () => {
     document.body.innerHTML =
-      '<h1>گوشی موبایل سامسونگ</h1><div class="buy-row"><div data-testid="sellers-cta"></div><button class="dkopt-btn">مقایسه</button></div>';
+      '<h1>گوشی موبایل سامسونگ</h1><div class="buy-row"><div data-testid="buy-box"></div></div>';
     const surface = mountTorobSurface(
       torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
     );
     const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
-    const row = document.querySelector('.buy-row') as HTMLElement;
-    expect(link.previousElementSibling).toBe(row);
+    const actions = document.querySelector('.dkopt-pdp-actions') as HTMLElement;
+    expect(actions.previousElementSibling).toBe(document.querySelector('h1'));
+    expect(actions.contains(link)).toBe(true);
+    expect(document.querySelector('.buy-row')?.contains(link)).toBe(false);
     surface?.destroy();
   });
 
-  it('stacks the compare button and Torob trigger below the buy row', () => {
+  it('places the trigger inside the desktop title section, above the buy box', () => {
     document.body.innerHTML =
-      '<h1>گوشی موبایل سامسونگ</h1><div class="buy-row"><div data-testid="sellers-cta"></div></div>';
+      '<div class="InfoSection__title"><div class="title-row"><h1 data-testid="pdp-title">گوشی موبایل سامسونگ</h1></div></div>' +
+      '<div data-testid="buy-box"></div>';
+    const surface = mountTorobSurface(
+      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+    );
+    const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
+    const actions = document.querySelector('.dkopt-pdp-actions') as HTMLElement;
+    expect(actions.previousElementSibling).toBe(document.querySelector('.title-row'));
+    expect(actions.closest('.InfoSection__title')).not.toBeNull();
+    expect(actions.contains(link)).toBe(true);
+    expect(document.querySelector('[data-testid="buy-box"]')?.contains(link)).toBe(false);
+    surface?.destroy();
+  });
+
+  it('keeps both BozKhar actions in the title row', () => {
+    document.body.innerHTML =
+      '<div class="title-block"><div class="title-row"><h1>گوشی موبایل سامسونگ</h1></div></div>' +
+      '<div class="buy-row"><div data-testid="sellers-cta"></div></div>';
+    const torob = mountTorobSurface(
+      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
+    );
     const pdp = mountPdpSurface({
       doc: document,
       location: currentLocation,
@@ -734,20 +783,18 @@ describe('Torob surface', () => {
         variantLabel: 'v',
       })),
     });
-    const torob = mountTorobSurface(
-      torobDeps(async () => ({ ok: true, kind: 'torob/compare', comparison: COMPARISON })),
-    );
 
     const actions = document.querySelector('.dkopt-pdp-actions') as HTMLElement;
     expect(actions).not.toBeNull();
     const button = actions.querySelector('button.dkopt-btn') as HTMLButtonElement;
-    const link = actions.querySelector('#dkopt-torob') as HTMLAnchorElement;
+    const link = document.getElementById('dkopt-torob') as HTMLAnchorElement;
     expect(button).not.toBeNull();
-    expect(link).not.toBeNull();
     expect(button.classList.contains('dkopt-btn-pdp')).toBe(true);
     expect(button.querySelector('.dkopt-btn-icon svg')).not.toBeNull();
+    expect(actions.firstElementChild).toBe(button);
     expect(button.nextElementSibling).toBe(link);
-    expect(actions.previousElementSibling).toBe(document.querySelector('.buy-row'));
+    expect(actions.previousElementSibling).toBe(document.querySelector('.title-row'));
+    expect(document.querySelector('.buy-row')?.contains(actions)).toBe(false);
 
     pdp?.destroy();
     torob?.destroy();

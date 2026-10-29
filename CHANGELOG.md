@@ -6,6 +6,16 @@ All notable changes to BozKhar are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Both PDP actions ("Add to comparison" and the Torob trigger) now mount in
+  one row under the product title instead of the buy box. On the live desktop
+  PDP the buy box sits in a `sticky top-[180px]` wrapper that painted over
+  anything inserted after it, and on mobile the only buy-box CTA is inside the
+  fixed bottom bar, so the old stack was covered by Digikala's own controls.
+  The actions are now normal-flow content above the fold, and the fixed
+  bottom-left fallback pill was removed (D-47).
+
 ### Changed
 
 - The landing page install ticket now follows the selected browser family:

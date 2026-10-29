@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SELECTORS_VERSION,
-  PDP_SELLER_PANEL_CANDIDATES,
+  PDP_TITLE_CANDIDATES,
   CART_SUMMARY_CANDIDATES,
   findMountPoint,
   isProductPage,
@@ -25,17 +25,13 @@ describe('selectors (mount points only)', () => {
     expect(SELECTORS_VERSION).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('finds the first matching PDP anchor', () => {
-    const doc = docWith('<div data-testid="sellers-cta"></div>');
-    const el = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
-    expect(el?.getAttribute('data-testid')).toBe('sellers-cta');
-  });
-
-  it('finds the add-to-cart anchor on the current PDP layout', () => {
-    // 2026-10-20 live DOM: no sellers-cta / buy-box, only add-to-cart.
-    const doc = docWith('<div><button data-testid="add-to-cart">خرید</button></div>');
-    const el = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
-    expect(el?.getAttribute('data-testid')).toBe('add-to-cart');
+  it('finds the Torob title anchor and prefers the PDP title test id', () => {
+    expect(findMountPoint(docWith('<h1>کالا</h1>'), PDP_TITLE_CANDIDATES)?.tagName).toBe('H1');
+    const doc = docWith('<h1>کالا</h1><h1 data-testid="pdp-title">کالای دیگر</h1>');
+    expect(findMountPoint(doc, PDP_TITLE_CANDIDATES)?.getAttribute('data-testid')).toBe(
+      'pdp-title',
+    );
+    expect(findMountPoint(docWith('<main></main>'), PDP_TITLE_CANDIDATES)).toBeNull();
   });
 
   it('finds a fallback cart anchor when the primary is absent', () => {
@@ -45,7 +41,7 @@ describe('selectors (mount points only)', () => {
   });
 
   it('returns null when no anchor exists (never a wrong mount)', () => {
-    expect(findMountPoint(docWith('<main></main>'), PDP_SELLER_PANEL_CANDIDATES)).toBeNull();
+    expect(findMountPoint(docWith('<main></main>'), PDP_TITLE_CANDIDATES)).toBeNull();
     expect(findMountPoint(docWith('<main></main>'), CART_SUMMARY_CANDIDATES)).toBeNull();
   });
 

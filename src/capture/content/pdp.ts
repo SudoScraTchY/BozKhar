@@ -8,9 +8,15 @@
  * and renders the outcome: toast with offer count + variant label (D-05),
  * inline error with a retry action (NFR-05).
  */
-import { isProductPage, findMountPoint, PDP_SELLER_PANEL_CANDIDATES } from '../dom/selectors';
+import { isProductPage, findMountPoint, PDP_TITLE_CANDIDATES } from '../dom/selectors';
 import { extractProductId, extractVariantId } from '../readers/url';
-import { mountButton, showToast, type ButtonHandle, type ToastHandle } from './ui';
+import {
+  ensureTitleActions,
+  mountButton,
+  showToast,
+  type ButtonHandle,
+  type ToastHandle,
+} from './ui';
 import type { CaptureResponse } from '../messaging';
 
 export interface PdpSurfaceDeps {
@@ -114,10 +120,10 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
     setTimeout(() => button?.setState('idle', deps.labels.addToComparison), 4000);
   };
 
-  // SPA reality (live smoke finding): at document_idle the seller panel is
+  // SPA reality (live smoke finding): at document_idle the product title is
   // usually NOT rendered yet - Digikala hydrates it seconds later (minutes
   // under site rate-limiting). A MutationObserver attaches the instant the
-  // anchor exists; the deadline is only a safety valve.
+  // title exists; the deadline is only a safety valve.
   let pollTimer: ReturnType<typeof setTimeout> | null = null;
   let observer: MutationObserver | null = null;
   let destroyed = false;
@@ -133,26 +139,21 @@ export function mountPdpSurface(deps: PdpSurfaceDeps): PdpSurface | null {
 
   const tryAttach = () => {
     if (destroyed || button) return;
-    const anchor = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
-    if (anchor) {
+    const title = findMountPoint(doc, PDP_TITLE_CANDIDATES);
+    if (title) {
       stopWatching();
-      // A narrow buy row cannot host a third control without wrapping
-      // ugly (live 2026-10-20). Both BozKhar actions get their own stack
-      // below the row, styled as one intentional feature block.
-      actions = doc.createElement('div');
-      actions.className = 'dkopt-pdp-actions';
-      const row = anchor.parentElement;
-      const host = row && row !== doc.body ? row : anchor;
-      host.insertAdjacentElement('afterend', actions);
-      button = mountButton(doc, anchor, deps.labels.addToComparison, click, {
+      // Both BozKhar actions share one row under the title (D-47): the buy
+      // box is sticky on desktop and fixed on mobile, so mounting there
+      // lets Digikala's own controls paint over the buttons.
+      actions = ensureTitleActions(doc, title);
+      button = mountButton(doc, title, deps.labels.addToComparison, click, {
         icon: compareIcon(doc),
         className: 'dkopt-btn-pdp',
         host: actions,
       });
-      // The Torob surface may have mounted first and parked its trigger
-      // in the buy row; move it into this stack.
-      const torob = doc.getElementById('dkopt-torob');
-      if (torob) actions.append(torob);
+      // The primary action leads the row even if the Torob surface mounted
+      // first and created the row.
+      actions.prepend(button.el);
       return;
     }
     if (Date.now() - startedAt >= ATTACH_DEADLINE_MS) return; // give up quietly

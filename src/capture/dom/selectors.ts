@@ -10,25 +10,19 @@
  * SELECTORS_VERSION on any change; fixture-tested, canary tests in T06.
  */
 
-export const SELECTORS_VERSION = '0.4.0-t03';
+export const SELECTORS_VERSION = '0.5.0-t03';
 
 /**
- * PDP seller/offer panel anchor (09-ui-spec Surface 1): the button mounts
- * adjacent to the seller panel so it reads as part of the vendor list.
- * Candidate list, first match wins; null = no anchor found (button not
- * injected - never a silent wrong placement).
+ * Torob trigger anchor (D-47): the product title, never the buy box. The
+ * desktop buy box lives inside a `sticky top-[180px]` wrapper, so anything
+ * inserted after it is painted over by the box while scrolling; on mobile
+ * the only buy-box CTA is inside the fixed bottom bar. The title is in
+ * normal flow on both layouts, above the fold, and cannot be overlapped.
+ * Both BozKhar PDP actions mount under this title.
  */
-export const PDP_SELLER_PANEL_CANDIDATES = [
-  // Current Digikala PDP seller box (sticky buy panel).
-  '[data-testid="sellers-cta"]',
-  '[data-testid="buy-box"]',
-  // 2026-10-20 live layout: the seller box test ids were retired; the
-  // buy CTA is the stable anchor (the first instance is the visible
-  // desktop panel, later ones are mobile/inline duplicates).
-  '[data-testid="add-to-cart"]',
-  // Legacy/themed layouts: the add-to-cart form container.
-  'form[action*="cart"]',
-  '[class*="seller"] [class*="add-to-cart"]',
+export const PDP_TITLE_CANDIDATES = [
+  '[data-testid="pdp-title"]', // desktop PDP title
+  'h1', // live mobile PDP has no test id on the heading
 ] as const;
 
 /**

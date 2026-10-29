@@ -1,6 +1,6 @@
 /**
- * PDP Torob surface (D-42): a trigger next to the buy box that opens a
- * compact comparison panel with Torob's cheapest sellers.
+ * PDP Torob surface (D-42, placement D-47): a trigger under the product
+ * title that opens a compact comparison panel with Torob's cheapest sellers.
  *
  * The content script never calls Torob itself: the click sends the public
  * product title to the worker, which owns the host permission and returns
@@ -8,8 +8,8 @@
  * the plain Torob search link, and the trigger itself is a real <a> so
  * modified clicks (Ctrl/Cmd) keep working without JavaScript.
  */
-import { findMountPoint, isProductPage, PDP_SELLER_PANEL_CANDIDATES } from '../dom/selectors';
-import { ensureStyles } from './ui';
+import { findMountPoint, isProductPage, PDP_TITLE_CANDIDATES } from '../dom/selectors';
+import { ensureStyles, ensureTitleActions } from './ui';
 import { torobSearchUrl, type TorobComparison, type TorobResponse } from '../../torob/api';
 
 export interface TorobLabels {
@@ -73,7 +73,6 @@ export function torobQueryFromPage(doc: Document, href: string): string | null {
 }
 
 const TOROB_ID = 'dkopt-torob';
-const FLOATING_AFTER_MS = 8000;
 
 export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
   const { doc, labels } = deps;
@@ -310,29 +309,16 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
 
   let observer: MutationObserver | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
-  let fallbackScheduled = false;
   let destroyed = false;
   const startedAt = Date.now();
   const deadline = 300_000;
 
-  const place = (anchor: Element): void => {
-    link.classList.remove('dkopt-torob-floating');
-    // The PDP surface owns a stacked action block below the buy row; join
-    // it so both BozKhar actions read as one unit.
-    const actions = doc.querySelector('.dkopt-pdp-actions');
-    if (actions) {
-      actions.append(link);
-    } else {
-      const row = anchor.parentElement;
-      const comparison = row?.querySelector('.dkopt-btn');
-      if (comparison && row) row.insertAdjacentElement('afterend', link);
-      else anchor.insertAdjacentElement('afterend', link);
-    }
-    if (fallbackTimer !== null) {
-      clearTimeout(fallbackTimer);
-      fallbackTimer = null;
-    }
+  // Normal flow under the product title, in the shared action row with the
+  // compare button. The buy box is excluded on purpose: it is sticky on
+  // desktop and fixed on mobile (D-47), so anything placed there is covered
+  // by Digikala's own controls while scrolling.
+  const place = (title: Element): void => {
+    ensureTitleActions(doc, title).append(link);
   };
 
   const observe = (): void => {
@@ -344,20 +330,6 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
       return;
     }
     if (timer === null) timer = setTimeout(tryAttach, 500);
-  };
-
-  // The current PDP hydrates late; if neither the heading nor the buy-box
-  // anchor is present after a short wait, keep the trigger reachable as a
-  // floating pill so the feature is never silently missing.
-  const scheduleFallback = (): void => {
-    if (fallbackScheduled || !query || link.isConnected || !doc.body) return;
-    fallbackScheduled = true;
-    fallbackTimer = setTimeout(() => {
-      fallbackTimer = null;
-      if (destroyed || link.isConnected || !doc.body) return;
-      link.classList.add('dkopt-torob-floating');
-      doc.body.appendChild(link);
-    }, FLOATING_AFTER_MS);
   };
 
   const tryAttach = (): void => {
@@ -378,16 +350,15 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
       }
     }
 
-    const anchor = findMountPoint(doc, PDP_SELLER_PANEL_CANDIDATES);
-    if (anchor) {
+    const title = findMountPoint(doc, PDP_TITLE_CANDIDATES);
+    if (title) {
       observer?.disconnect();
       observer = null;
-      place(anchor);
+      place(title);
       return;
     }
     if (link.isConnected) return;
     if (Date.now() - startedAt >= deadline) return;
-    scheduleFallback();
     observe();
   };
   tryAttach();
@@ -399,8 +370,6 @@ export function mountTorobSurface(deps: TorobSurfaceDeps): TorobSurface | null {
       observer = null;
       if (timer !== null) clearTimeout(timer);
       timer = null;
-      if (fallbackTimer !== null) clearTimeout(fallbackTimer);
-      fallbackTimer = null;
       closePanel();
       link.remove();
       doc.removeEventListener('keydown', onKeydown);

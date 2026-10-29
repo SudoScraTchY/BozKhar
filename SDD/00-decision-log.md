@@ -1557,3 +1557,61 @@ suite is green. `npm run build:firefox`, `npm run audit:dist:firefox` and
 `npm run lint:firefox` pass (lint: 0 errors, 8 reviewed warnings). The live
 Firefox smoke and the first AMO submission are still pending and tracked in
 `agent/FIREFOX-SMOKE.md` and T06.6.
+
+## D-47 — Both BozKhar PDP actions move under the product title (2026-10-29)
+
+**Problem:** the user reported the Torob price-comparison trigger being
+overlapped by Digikala's own UI, then asked for the primary "add to comparison"
+button to move too. D-42 mounted both below the buy row as a stacked action
+block; that location does not survive the current PDP.
+
+**Evidence (live, 2026-10-29, dkp-8652977 at 1440×900 and 390×844):**
+- Desktop: `[data-testid="buy-box"]` sits inside a `sticky top-[180px]`
+  wrapper, which itself sits inside `InfoSection__buyBoxContainer`. Inserting
+  `.dkopt-pdp-actions` after that wrapper puts it in the sticky element's
+  109 px travel range. At scroll 0 the block measured y 822–927 in a 900 px
+  viewport, so both buttons were at or below the fold; at scroll 420 the buy
+  box's delivery/pricing rows painted over the block (`elementsFromPoint`
+  returned Digikala spans above it), producing text-on-text on the Torob
+  button and covering the compare button.
+- Mobile: the PDP renders no `buy-box` element; the only `add-to-cart` is the
+  button inside the 73 px `fixed bottom-0` bar. The old anchor therefore
+  injected the BozKhar action stack into that fixed bar.
+- The title is the stable mount on both layouts: `[data-testid="pdp-title"]`
+  on desktop and a plain `h1` on mobile, inside a normal-flow block
+  (`InfoSection__title` / the `px-4` title column). A single row after the
+  title's own wrapper keeps both actions above the fold at 358–397 (desktop)
+  and 557–595 (mobile) on load, with the row returned first by
+  `elementsFromPoint` wherever it is visible.
+
+**Decision:** mount both PDP actions in one `.dkopt-pdp-actions` row under the
+product title. Anchor on `[data-testid="pdp-title"]` with an `h1` fallback
+(`PDP_TITLE_CANDIDATES`, `SELECTORS_VERSION` 0.5.0-t03). A shared
+`ensureTitleActions(doc, title)` helper inserts the row after the title's
+parent and reuses it on the second mount. The compare button is prepended so
+it leads the row regardless of mount order; the Torob trigger follows as a
+compact start-aligned chip. The primary button loses its buy-box full width
+and becomes a compact 38 px control. Remove the now-unused
+`PDP_SELLER_PANEL_CANDIDATES`, and drop the fixed bottom-left floating
+fallback so no BozKhar pill can cover Digikala's fixed bars.
+
+**Alternatives:** keep the compare button inside the sticky buy-box wrapper
+(makes the sticky panel taller and still crowds Digikala's controls); keep a
+full-width button under the title (heavy, pushes the buy box ~100 px); give
+each surface its own anchor (order depends on mount timing and leaves two
+loose blocks); keep the actions stack and add `z-index` (paint order, not
+layout — the box still covers the buttons on scroll).
+
+**Consequences:** both actions are in normal flow, above the fold and cannot
+be painted over; the title block grows by ~47 px on both layouts, pushing the
+buy box/specs down. The primary action is compact rather than full-width, and
+the row wraps on narrow screens. If a PDP has no title at all, neither action
+mounts (consistent with the selectors rule "no anchor = no injection"). The
+buy-box selector list is deleted; the title is the only PDP mount contract.
+
+**Evidence:** `tests/capture-content.test.ts` covers the title mount, the
+desktop title-section insertion, the late-title attach path, the row under the
+title (not the buy box), and both actions sharing the row with the compare
+button first even when Torob mounts first; `tests/capture-selectors.test.ts`
+covers the `PDP_TITLE_CANDIDATES` order and null case. Full suite, typecheck,
+ESLint, Prettier, build and `audit:dist` clean.

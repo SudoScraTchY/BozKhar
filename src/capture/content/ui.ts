@@ -37,9 +37,9 @@ const CSS = `
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  align-self: stretch;
+  align-self: flex-start;
   gap: 6px;
-  margin-block: 8px;
+  margin-block: 8px 0;
   margin-inline-end: 8px;
   padding: 7px 14px;
   border: 1px solid #ef4056;
@@ -54,14 +54,6 @@ const CSS = `
 .dkopt-torob:hover { background: #fff1f3; }
 .dkopt-torob:focus-visible { outline: 2px solid #1e6fae; outline-offset: 2px; }
 .dkopt-torob[aria-expanded='true'] { background: #fff1f3; }
-.dkopt-torob-floating {
-  position: fixed;
-  inset-block-end: 18px;
-  inset-inline-start: 18px;
-  z-index: 2147483646;
-  margin: 0;
-  box-shadow: 0 8px 24px rgba(0,0,0,.18);
-}
 .dkopt-torob-panel {
   position: fixed;
   inset-block-end: 20px;
@@ -168,15 +160,12 @@ const CSS = `
 .dkopt-torob-search:hover { text-decoration: underline; }
 .dkopt-pdp-actions {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
-  margin-block: 10px;
-  padding: 10px;
-  border: 1px solid #e3e6ee;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #f7f8fc 0%, #ffffff 100%);
+  margin-block: 8px 0;
 }
-.dkopt-pdp-actions .dkopt-torob { margin: 0; align-self: stretch; }
+.dkopt-pdp-actions .dkopt-torob { margin: 0; }
 .dkopt-btn-pdp {
   all: unset;
   cursor: pointer;
@@ -185,7 +174,6 @@ const CSS = `
   align-items: center;
   justify-content: center;
   gap: 8px;
-  width: 100%;
   min-height: 38px;
   margin: 0;
   padding: 9px 14px;
@@ -252,6 +240,22 @@ export function ensureStyles(doc: Document): void {
   style.id = 'dkopt-styles';
   style.textContent = CSS;
   doc.head.appendChild(style);
+}
+
+/**
+ * Shared PDP action row directly under the product title (D-47). Both the
+ * compare button and the Torob trigger mount here; the buy box is avoided
+ * because it is sticky on desktop and a fixed bar on mobile.
+ */
+export function ensureTitleActions(doc: Document, title: Element): HTMLElement {
+  const existing = doc.querySelector<HTMLElement>('.dkopt-pdp-actions');
+  if (existing) return existing;
+  const actions = doc.createElement('div');
+  actions.className = 'dkopt-pdp-actions';
+  const host = title.parentElement;
+  if (host && host !== doc.body) host.insertAdjacentElement('afterend', actions);
+  else title.insertAdjacentElement('afterend', actions);
+  return actions;
 }
 
 export interface ButtonHandle {
