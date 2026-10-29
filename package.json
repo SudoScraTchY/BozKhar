@@ -1,6 +1,6 @@
 {
   "name": "BozKhar",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Advise-only Chrome and Firefox extension that finds the cheapest way to buy a basket on digikala.com (see SDD/).",
   "scripts": {
     "dev": "vite build --watch",

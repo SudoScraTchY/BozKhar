@@ -6,9 +6,9 @@
 # was reviewed" and "what was released" cannot drift apart:
 #
 #   1. push a tag - the usual path:
-#        git tag -a v0.7.0 -m "BozKhar 0.7.0"
-#        git push origin v0.7.0
-#   2. Actions -> Release -> Run workflow, and type 0.7.0 (or v0.7.0). The tag
+#        git tag -a v0.8.0 -m "BozKhar 0.8.0"
+#        git push origin v0.8.0
+#   2. Actions -> Release -> Run workflow, and type 0.8.0 (or v0.8.0). The tag
 #      is created at the commit this run verified, on the default branch.
 #
 # Re-running for a tag that already exists is allowed only when that tag points
@@ -25,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Version to release, e.g. 0.7.0 or v0.7.0
+        description: Version to release, e.g. 0.8.0 or v0.8.0
         required: true
         type: string
 
@@ -66,7 +66,7 @@ jobs:
           tag="$REQUESTED"
           case "$tag" in v*) ;; *) tag="v$tag" ;; esac
           if ! printf '%s' "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "::error::'$REQUESTED' is not a version - expected the package.json version, e.g. 0.7.0 or v0.7.0"
+            echo "::error::'$REQUESTED' is not a version - expected the package.json version, e.g. 0.8.0 or v0.8.0"
             exit 1
           fi
           if [ "$tag" != "v$version" ]; then

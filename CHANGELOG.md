@@ -6,6 +6,8 @@ All notable changes to BozKhar are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-29
+
 ### Added
 
 - The PDP now has a third Torob action, «بازه قیمت در ترب»: it compares all
