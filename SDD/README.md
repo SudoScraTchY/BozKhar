@@ -36,6 +36,7 @@ These constrain every design decision that follows. Each is recorded with ration
 | `09-ui-spec.md` | UI surfaces (product page, cart page, results, options) and user flows | Engineering + design |
 | `10-risks-open-questions.md` | Risk register and open questions with default assumptions | Everyone |
 | `11-spike-plan.md` | Phase 1 discovery spike: what to verify, how, go/no-go criteria | Engineering |
+| `12-marketplace-expansion-research.md` | Snapp Shop integration research, adapter architecture and effort estimate (research only, not implemented) | Product + engineering |
 | `tasks/` | Task board: `README.md` + one file per task group T01–T06 | Engineering |
 
 ## Reading order
