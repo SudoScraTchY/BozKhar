@@ -8,6 +8,11 @@ All notable changes to BozKhar are documented here. The format follows
 
 ### Fixed
 
+- The “چرا این فروشنده؟” trade-off sentence now states how much the unit is
+  cheaper at the rejected seller (`plan price − seller price`) instead of
+  quoting that seller's full price. “۵۶۹٬۰۰۰ تومان کمتر” next to a ۶۰۰٬۱۰۰
+  plan read as a broken calculation; it now says ۳۱٬۱۰۰ تومان کمتر
+  (2026-10-29 report).
 - Both PDP actions ("Add to comparison" and the Torob trigger) now mount in
   one row under the product title instead of the buy box. On the live desktop
   PDP the buy box sits in a `sticky top-[180px]` wrapper that painted over

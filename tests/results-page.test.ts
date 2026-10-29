@@ -276,6 +276,28 @@ describe('results page — the settled bill (D-27)', () => {
     });
   });
 
+  it('the trade-off sentence states the price difference, not the cheaper sticker', async () => {
+    // vend-b asks 80 but ships for 50 (130 total); vend-a asks 100 and ships
+    // for 10 (110). The plan keeps vend-a, so the sentence must say the unit
+    // is 20 cheaper there - quoting the 80 sticker read as a contradiction
+    // next to the 110 the user actually pays (2026-10-29 report).
+    await putItem(IDB(), item('p1', 'v1'));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-a', 'فروشنده الف', 100, 10));
+    await appendSnapshot(IDB(), snapshot('p1', 'v1', 'vend-b', 'فروشنده ب', 80, 50));
+    await createReportPage(pageDeps()).run();
+
+    document
+      .querySelector('.bk-why-btn')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await vi.waitFor(() => {
+      const sentence = document.querySelector('.bk-why-sentence')?.textContent ?? '';
+      expect(sentence).toContain('فروشنده ب');
+      expect(sentence).toContain('۲۰ تومان کمتر');
+      expect(sentence).not.toContain('۸۰ تومان کمتر');
+    });
+  });
+
   it('the seller control ranks by total, not by unit price alone', async () => {
     // vend-cheap asks 80 but ships for 500; vend-dear asks 100 and ships for
     // 10. A price-only order put the dearer TOTAL on top, which read as the

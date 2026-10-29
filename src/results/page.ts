@@ -1287,7 +1287,7 @@ export function createReportPage(deps: ReportPageDeps): {
           const p = el('p', 'bk-why-sentence');
           p.textContent = fill(lang, 'whySentence', {
             seller: tradeOff.sellerName,
-            x: money(tradeOff.price, lang),
+            x: money(line.unitPrice - tradeOff.price, lang),
             y: money(tradeOff.effect, lang),
           });
           panel.append(p);
