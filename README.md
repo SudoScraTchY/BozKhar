@@ -1,5 +1,7 @@
 # بز خر — Boz Khar
 
+**English** · [فارسی](README.fa.md)
+
 [![CI](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml)
 [![Release](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml)
 
@@ -24,10 +26,10 @@ own cart for you (D-26/D-30). Nothing else ever writes to your cart.
 ```
 
 - Spec (SDD): [`SDD/`](SDD/README.md) — start with [`00-decision-log.md`](SDD/00-decision-log.md)
-- Status: T03 capture, T04 solver, the T05 results UI, Order Insights and the
-  Torob comparison implemented. CI type-checks, lints, tests, audits and
-  packages every push; a `v*` tag publishes an attested release
-  (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
+- Status: **0.8.0** — T03 capture, T04 solver, the T05 results UI, Order
+  Insights, and the Torob comparison and all-listings price range implemented.
+  CI type-checks, lints, tests, audits and packages every push; a `v*` tag
+  publishes an attested release (see [`agent/HANDOFF.md`](agent/HANDOFF.md))
 - Install:
   - **Chromium-based (Chrome, Edge, Brave, Opera, Vivaldi, Yandex)** — take
     `bozkhar-<version>.zip` (or the stable `bozkhar-latest.zip`) from the
