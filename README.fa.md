@@ -5,8 +5,7 @@
 [![CI](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/ci.yml)
 [![Release](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml/badge.svg)](https://github.com/SudoScraTchY/BozKhar/actions/workflows/release.yml)
 
-**بزخر** (boz khar — به معنای تحت‌اللفظی «بزِ خریدار») اصطلاح عامیانه‌ی فارسی برای
-کسی است که بی‌امان دنبال قیمت ارزان است: کسی که اجناس را **خیلی ارزان** می‌خرد.
+**بزخر** اصطلاح عامیانه‌ی فارسی برای کسی است که بی‌امان دنبال قیمت ارزان است: کسی که اجناس را **خیلی ارزان** می‌خرد.
 این ابزار دقیقاً همین کار را در [دیجی‌کالا](https://www.digikala.com) برایتان
 می‌کند.
 
